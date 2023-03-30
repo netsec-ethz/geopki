@@ -1,0 +1,201 @@
+\documentclass[10pt,conference,compsocconf]{IEEEtran}
+
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{blindtext, amsmath, comment, epsfig }
+\usepackage{caption}
+\usepackage{subcaption} % or subfig
+\usepackage{cleveref} % cref
+\usepackage{amsfonts} 
+\usepackage{algorithmic}
+\usepackage{cite}
+\usepackage[utf8]{inputenc}
+
+
+\IEEEaftertitletext{\vspace{-1\baselineskip}}
+
+\usepackage{scalerel}
+\DeclareMathOperator*{\concat}{\scalerel*{||}{\sum}}
+
+%\DeclareMathOperator*{\barr}{\scalerel*{\maltese}{\textstyle\sum}}
+
+\title{\Large GeoPKI \vspace{-1.1em}}
+% \author{}
+\date{}
+
+
+\begin{document}
+
+\makeatletter
+\@twocolumnfalse
+\maketitle
+\@twocolumntrue
+\makeatother
+
+%\begin{abstract}
+%\end{abstract}
+
+
+% \section{Introduction}
+% \label{introduction}
+
+\section{Model}
+\label{sec:model}
+
+The earth ellipsoid model of the existing world geodetic system (WGS) 84 \cite{noauthor_nga_nodate} is used.
+WGS 84 defines the \emph{semi-major axis} (half of the largest diameter of an ellipsoid, at the equator) $a$ to be $6'378'137.0$~meters \cite{noauthor_nga_nodate}. The \emph{semi-minor axis} (the polar radius) $b$ is defined as $6'356'752.3142~$meters \cite{noauthor_nga_nodate}.
+Standard polar coordinates (longitude, latitude) are used for referencing points on the planet's two-dimensional surface and a third coordinate, elevation, extends this to three dimensions.
+Longitude, latitude and elevation together refer to a unique point in three-dimensions.
+
+Each of the three coordinates is discretized in a way that preserves meter-precision in the worst case.
+With the semi-major axis $a$, the maximum circumference of the ellipsoid equals $C_{x} :=2 a \pi$~meters.
+Using base two, $B_{x}:= \left\lceil \log_2(C_{x}) \right\rceil = 26$ bits for the longitude thus suffice to represent each possible meter value in the worst case.
+For the latitude we have $C_{y} :=2 b \pi$~meters and thus $B_{y} := \left\lceil \log_2(C_{y}) \right\rceil = B_{x} =: B_{x,y}$, the same minimum number of bits are required.
+For elevation there is no natural bound so one has to be fixed.
+At the time of writing, the highest point on earth is below $10'000$~meters \cite{} and the lowest layer of earth's atmosphere, the troposphere, extends to about $18$~km \cite{dhaka_chapter_2023}. % what measure?
+Thus a limit of $H=20'000$~m and thus $B_{z} := \left\lceil \log_2(H) \right\rceil = 15$ bits seems reasonable.
+
+\section{Data Structure}
+\label{sec:data-structure}
+
+Inspired by F-PKI~\cite{chuat_f-pki_2022}, sparse merkle hash tree (MHT) is used.
+Each leaf represents a full discretized coordinate using $B := 2 \cdot B_{x,y} + B_{z} = 68$ bits resulting in a total of $2^{B}$ leaves.
+To have spatially close points somewhat close together in the MHT, the space-filling $Z$-order curve is used to sort the three dimensional locations in one dimension. %TODO: add citation for z-order curve
+An example with $B_{x,y} = B_{z} = 2$ is shown in \Cref{fig:z-curve-example:two-bits}.
+GeoPKI uses a slightly modified 3D Z-order curve:
+Rather than using the full 3D Z-order curve, a 2D Z-order curve over the longitude and latitude is used and points with the same longitude and latitude but different elevation are put in sequence.
+While this leads to spatially close points being further apart in the 1-dimensional sorting, this modification allows for shorter proofs in a majority of envisioned use-cases (will be discussed in \Cref{sec:data-structure:query}) and even results in a nicer binary representation.
+\Cref{fig:z-curve-example:two-bits-optim} contrasts this modification with the standard 3D Z-order curve shown in \Cref{fig:z-curve-example:two-bits}.
+
+\subsection{Leaf Binary Format}
+\label{sec:data-structure:leaf-binary}
+Each leaf of the MHT corresponds to a point and the leaves are sorted lexicographically by their binary representation in ascending order.
+A point tuple $p := (x,y,z)$ at longitude $x$, latitude $y$ and elevation $z$ with
+\begin{align*}
+	(x, y, z) &\in [-180, 180] \times [-90, 90] \times [0, H]
+\end{align*}
+
+is first discretized to integer coordinates as follows:
+
+\begin{align}
+\begin{split}
+\label{eq:discretization}
+p' :&=
+(x_d,y_d, z_d)
+\\
+& =
+\left(
+%
+\left\lfloor
+\frac{x + 180}{360} \cdot C_x
+\right\rfloor,
+%
+\left\lfloor
+\frac{y + 90}{180} \cdot C_y
+\right\rfloor,
+%
+\left\lfloor
+z
+\right\rfloor
+%
+\right)
+\end{split}
+\end{align}
+
+After this transformation the following folds:
+
+\begin{align*}
+	p' &\in [0, 2^{B_x}) \times [0, 2^{B_y}) \times [0, 2^{B_z})
+\end{align*}
+
+This formula holds since the first term in the longitude and latitude tuples can be at most $1$ and since $C_x < 2^{B_{x,y}}$, $C_y < 2^{B_{x,y}}$ and $H < 2^{B_z}$ hold.
+The three resulting integer numbers can now be represented using $B_{x,y}$, $B_{x,y}$ and $B_z$ bits, respectively. Hence let $p'' := (x_b, y_b, z_b)$ with
+\begin{align*}
+	p'' &\in \{0,1\}^{B_{x,y}} \times \{0,1\}^{B_{x,y}} \times \{0,1\}^{B_z}
+\end{align*}
+
+For $c \in \{x, y, z\}$ and for any integer $i \in [0, 2^{B_c})$, let $c_{b,i}$ denote the $i$-th bit of $c_{b}$. Moreover let $||$ denote the concatenation operator.
+The binary representation $p_b$ of the point $p$ is then defined as
+\begin{align*}
+	p_b = \left(\concat_{i=0}^{B_{xy} - 1} x_{b,i} || y_{b,i} \right) || \left(\concat_{i=0}^{B_{z}-1} z_{b,i} \right)
+\end{align*}
+
+In words, the binary representation of $p$ is the interleaving of the binary representation for the longitude and latitude concatenated to the binary representation of the elevation.
+\Cref{fig:leaf-representation:binary} shows an example of this binary encoding.
+
+% ($47.37643$, $8.54828$, $0$)
+
+%Storing a dense MHT with $2^{B} \leq (2^{10})^7 \approx (10^3)^7 = 10^{21}$ leaves is certainly infeasible but under the assumption that most leaves are empty it seems reasonable.
+
+\begin{figure}
+    \centering
+    \begin{subfigure}[t]{0.24\textwidth}
+        \includegraphics[width=\textwidth]{./resources/z-example/two-bits-z.png}
+        \caption{3D Z-Order Curve}
+        \label{fig:z-curve-example:two-bits}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.24\textwidth}
+        \includegraphics[width=\textwidth]{./resources/z-example/two-bits.png}
+        \caption{2D Z-Order Curve with elevation in sequence}
+        \label{fig:z-curve-example:two-bits-optim}
+    \end{subfigure}
+    \caption{
+    	Difference between a standard 3D Z-order curve and the one used by GeoPKI when using two bits for all coordinates.
+    }
+    \label{fig:z-curve-example}
+\end{figure}
+
+\subsection{Leaf Geometric Representation}
+\label{sec:data-structure:leaf-geometry}
+Due to the floor functions in \Cref{eq:discretization}, the point $p''$ represents the volume where $p''$ is in the corner with the smallest coordinates in all three dimensions.
+By replacing the floor functions by mathematically rounding or the ceil function the volumetric representation changes.
+In case of the floor functions shown in \Cref{eq:discretization}, the volume represented by point $p''$ is
+\begin{align*}
+\left[x_d \cdot \frac{360}{C_x} - 180, (x_d + 1) \cdot \frac{360}{C_x} - 180\right) &\times\\
+\left[x_d \cdot \frac{180}{C_y} - 90, (y_d + 1) \cdot \frac{180}{C_y} - 90\right) &\times\\
+\left[z_d, z_d + 1 \right)&
+\end{align*}
+
+\Cref{fig:leaf-representation:geometric} shows the points and the corresponding volumes in the same color.
+
+\begin{figure}
+    \centering
+    \begin{subfigure}[t]{0.24\textwidth}
+        \includegraphics[width=\textwidth]{./resources/leaf-representation/binary-representation.pdf}
+        \caption{Binary Representation of a (longitude, latitude, elevation) tuple.}
+        \label{fig:leaf-representation:binary}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.24\textwidth}
+        \includegraphics[width=\textwidth]{./resources/leaf-representation/geometric-representation.png}
+        \caption{Geometric Representation}
+        \label{fig:leaf-representation:geometric}
+    \end{subfigure}
+    \caption{
+    	The binary and geometric representation of a leaf
+    }
+    \label{fig:leaf-representation}
+\end{figure}
+
+
+\subsection{Querying the MHT}
+\label{sec:data-structure:query}
+
+Each intermediate MHT node is a prefix of its children To further reduce the required storage space, intermediate nodes in the MHT are allowed to contain certificates.
+This allows 
+
+\subsection{Proof of Inclusion}
+\label{sec:data-structure:inclusion}
+To proof a given
+
+\subsection{Proof of Absence}
+\label{sec:data-structure:absence}
+
+\section{Optimizations}
+\label{sec:optimizations}
+
+\bibliographystyle{IEEEtran}
+\bibliography{GeoPKI.bib}
+\end{document}
