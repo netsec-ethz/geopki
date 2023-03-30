@@ -151,12 +151,22 @@ In words, the binary representation of $p$ is the interleaving of the binary rep
 \label{sec:data-structure:leaf-geometry}
 Due to the floor functions in \Cref{eq:discretization}, the point $p''$ represents the volume where $p''$ is in the corner with the smallest coordinates in all three dimensions.
 By replacing the floor functions by mathematically rounding or the ceil function the volumetric representation changes.
-In case of the floor functions shown in \Cref{eq:discretization}, the volume represented by point $p''$ is
-\begin{align*}
+In case of the floor functions shown in \Cref{eq:discretization}, the point corresponding to $p''$ is
+\begin{align}
+\begin{split}
+\label{eq:leaf-geometric-point}
+\left(x_d \cdot \frac{360}{C_x} - 180,x_d \cdot \frac{180}{C_y} - 90, z_d\right)
+\end{split}
+\end{align}
+and the volume represented by point $p''$ is given by
+\begin{align}
+\begin{split}
+\label{eq:leaf-geometric-volume}
 \left[x_d \cdot \frac{360}{C_x} - 180, (x_d + 1) \cdot \frac{360}{C_x} - 180\right) &\times\\
-\left[x_d \cdot \frac{180}{C_y} - 90, (y_d + 1) \cdot \frac{180}{C_y} - 90\right) &\times\\
+\left[y_d \cdot \frac{180}{C_y} - 90, (y_d + 1) \cdot \frac{180}{C_y} - 90\right) &\times\\
 \left[z_d, z_d + 1 \right)&
-\end{align*}
+\end{split}
+\end{align}
 
 \Cref{fig:leaf-representation:geometric} shows the points and the corresponding volumes in the same color.
 
@@ -178,6 +188,82 @@ In case of the floor functions shown in \Cref{eq:discretization}, the volume rep
     }
     \label{fig:leaf-representation}
 \end{figure}
+
+\subsection{Intermediate Node Binary Format}
+\label{sec:data-structure:intermediate-binary}
+Intermediate nodes in the MHT also correspond to a point and a volume following the same pattern as for the leaf nodes.
+The binary string corresponding to an intermediate node is simply the longest common prefix of it's two children and covers the whole volume of its two children.
+The formula for computing the area becomes more complex for intermediate nodes as it requires a case distinction:
+Let $s$ be the binary string of an intermediate node.
+
+
+\textbf{Case 1}: Assume length of $s$ is exactly $2 \cdot B_{x,y}$.
+Then the corresponding $x_d$ and $y_d$ are well defined as for the leaves.
+The corresponding point is
+\begin{align}
+\begin{split}
+\label{eq:intermediate-geometric-point-full-height}
+\left(x_d \cdot \frac{360}{C_x} - 180, y_d \cdot \frac{180}{C_y} - 90, 0\right)
+\end{split}
+\end{align}
+and the covered volume is given by
+\begin{align}
+\begin{split}
+\label{eq:intermediate-geometric-volume-full-height}
+\left[x_d \cdot \frac{360}{C_x} - 180, (x_d + 1) \cdot \frac{360}{C_x} - 180\right) &\times\\
+\left[y_d \cdot \frac{180}{C_y} - 90, (y_d + 1) \cdot \frac{180}{C_y} - 90\right) &\times\\
+\left[0, H \right)&
+\end{split}
+\end{align}
+
+\textbf{Case 2}: Assume length of $s$ is strictly greater than $2 \cdot B_{x,y}$.
+Then the corresponding $x_d$ and $y_d$ are also well defined as for the leaves.
+Let $s_z$ be the remaining bits after the first $2 \cdot B_{x,y}$, let $l$ be it's length and let $s_{z,i}$ for $i \in [0,l)$ be the $i$-th bit of $s_z$.
+The point corresponding to this bit string is
+\begin{align}
+\begin{split}
+\label{eq:intermediate-geometric-point-partial-height}
+\left(x_d \cdot \frac{360}{C_x} - 180, y_d \cdot \frac{180}{C_y} - 90, \sum_{i=0}^{l-1} 2^{B_z - 1 - i} \cdot s_{z,i}\right)
+\end{split}
+\end{align}
+and the covered volume is given by
+\begin{align}
+\begin{split}
+\label{eq:intermediate-geometric-volume-full-height}
+\left[x_d \cdot \frac{360}{C_x} - 180, (x_d + 1) \cdot \frac{360}{C_x} - 180\right) &\times\\
+\left[y_d \cdot \frac{180}{C_y} - 90, (y_d + 1) \cdot \frac{180}{C_y} - 90\right) &\times\\
+\left[\sum_{i=0}^{l-1} 2^{B_z - 1 - i} \cdot s_{z,i}, \left(\sum_{i=0}^{l-1} 2^{B_z - 1 - i} \cdot s_{z,i}\right) + 2^{B_z -l}\right)&
+\end{split}
+\end{align}
+
+\textbf{Case 3}: Assume length of $s$ is strictly smaller than $2 \cdot B_{x,y}$.
+In this case we only have partial bits for the longitude and latitude but certainly know that the full $z$ dimension is covered.
+Let $l$ be the length of $s$.
+Let $s_x$ and $s_y$ be the bit prefixes encoded in $s$ corresponding to the longitude and latitude, respectively, let $l_x$ and $l_y$ be the lengths of $s_x$ and $s_y$, respectively, and let $s_{x,i}$ and $s_{y,j}$ for $i \in [0,l_x), j \in [0,l_y)$ correspond to the $i$-th and $j$-th bit of $s_x$ and $s_y$, respectively.
+It holds that $l = l_x + l_y$ and it is possible that $l_x$ is by exactly one larger than $l_y$, otherwise $l_x = l_y$.
+This directly follows from the interleaved binary encoding described in \Cref{sec:data-structure:leaf-binary}.
+Let
+\begin{align}
+	x'_d :&= \sum_{i=0}^{l_x - 1} 2^{B_{x,y} - 1 - i} \cdot s_{x,i}\\
+	y'_d :&= \sum_{i=0}^{l_y - 1} 2^{B_{x,y} - 1 - i} \cdot s_{y,i}
+\end{align}
+
+Then the corresponding point is given by
+\begin{align}
+\begin{split}
+\label{eq:intermediate-geometric-point-partial-height}
+\left(x'_d \cdot \frac{360}{C_x} - 180,y_d \cdot \frac{180}{C_y} - 90, 0\right)
+\end{split}
+\end{align}
+and the covered volume by
+\begin{align}
+\begin{split}
+\label{eq:intermediate-geometric-volume-full-height}
+\left[x'_d \cdot \frac{360}{C_x} - 180, (x_d + 2^{B_{x,y} - l_x}) \cdot \frac{360}{C_x} - 180\right) &\times\\
+\left[y'_d \cdot \frac{180}{C_y} - 90, (y_d + 2^{B_{x,y} - l_y}) \cdot \frac{180}{C_y} - 90\right) &\times\\
+\left[0, H\right)&
+\end{split}
+\end{align}
 
 
 \subsection{Querying the MHT}
