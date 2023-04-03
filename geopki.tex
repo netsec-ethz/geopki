@@ -51,29 +51,30 @@ Longitude, latitude and elevation together refer to a unique point in three-dime
 Each of the three coordinates is discretized in a way that preserves meter-precision in the worst case.
 With the semi-major axis $a$, the maximum circumference of the ellipsoid equals $C_{x} :=2 a \pi$~meters.
 Using base two, $B_{x}:= \left\lceil \log_2(C_{x}) \right\rceil = 26$ bits for the longitude thus suffice to represent each possible meter value in the worst case.
-For the latitude we have $C_{y} :=2 b \pi$~meters and thus $B_{y} := \left\lceil \log_2(C_{y}) \right\rceil = B_{x} =: B_{x,y}$, the same minimum number of bits are required.
+For the latitude the circumference is $C_{y} :=2 b \pi$~meters and thus $B_{y} := \left\lceil \log_2(C_{y}) \right\rceil = B_{x} =: B_{x,y}$ meaning the same minimum number of bits are required.
 For elevation there is no natural bound so one has to be fixed.
-At the time of writing, the highest point on earth is below $10'000$~meters \cite{} and the lowest layer of earth's atmosphere, the troposphere, extends to about $18$~km \cite{dhaka_chapter_2023}. % what measure?
-The Mariana Trench at about $10'000$~m below sea level is likely a bound not exceeded in depth in the near future.
-The necessity of allowing volumes below sea level arises from countries such as the Netherlands where parts of the landmass is below sea level.
+At the time of writing, the highest point on earth is below $10'000$~meters above sea level \cite{us_department_of_commerce_what_nodate} and the lowest layer of earth's atmosphere, the troposphere, extends to about $18$~km \cite{dhaka_chapter_2023}.
+The Mariana Trench at about $10'000$~m below sea level \cite{gardner_so_2014} is likely a bound not exceeded in the near future.
+The necessity of allowing volumes below sea level arises from countries such as the Netherlands where parts of the surface's elevation is below sea level \cite{kabat_climate_2005} .
 Moreover in the future, below sea level research stations might be built.
-Thus the range starting at a depth of $D:=-10'000$~m up to an elevation of $H:=20'000$~m above sea level seams reasonable and requires $B_{z} := \left\lceil \log_2(H - D) \right\rceil = 15$ bits.
+Thus the range starting at a depth of $D:=-10'000$~m up to an elevation of $H:=20'000$~m above sea level should cover any current and near-future needs.
+Covering this range requires $B_{z} := \left\lceil \log_2(H - D) \right\rceil = 15$ bits.
 
 \section{Data Structure}
 \label{sec:data-structure}
 
-Inspired by F-PKI~\cite{chuat_f-pki_2022}, sparse merkle hash tree (MHT) is used.
+Inspired by F-PKI~\cite{chuat_f-pki_2022}, a sparse merkle hash tree (MHT) is used.
 Each leaf represents a full discretized coordinate using $B := 2 \cdot B_{x,y} + B_{z} = 68$ bits resulting in a total of $2^{B}$ leaves.
-To have spatially close points somewhat close together in the MHT, the space-filling $Z$-order curve is used to sort the three dimensional locations in one dimension. %TODO: add citation for z-order curve
+To have spatially close points somewhat close together in the MHT, the space-filling $Z$-order curve is used to sort the three dimensional locations in one dimension \cite{morton_computer_1966}.
 An example with $B_{x,y} = B_{z} = 2$ is shown in \Cref{fig:z-curve-example:two-bits}.
 GeoPKI uses a slightly modified 3D Z-order curve:
 Rather than using the full 3D Z-order curve, a 2D Z-order curve over the longitude and latitude is used and points with the same longitude and latitude but different elevation are put in sequence.
-While this leads to spatially close points being further apart in the 1-dimensional sorting, this modification allows for shorter proofs in a majority of envisioned use-cases (will be discussed in \Cref{sec:data-structure:query}) and even results in a nicer binary representation.
+While this leads to spatially close points being further apart in the 1-dimensional sorting, this modification allows for shorter proofs under some assumptions (will be discussed in \Cref{sec:optimizations}) and even results in a nicer binary representation.
 \Cref{fig:z-curve-example:two-bits-optim} contrasts this modification with the standard 3D Z-order curve shown in \Cref{fig:z-curve-example:two-bits}.
 
 \subsection{Leaf Binary Format}
 \label{sec:data-structure:leaf-binary}
-Each leaf of the MHT corresponds to a point and the leaves are sorted lexicographically by their binary representation in ascending order.
+Each leaf of the MHT corresponds to a point and the tree leaves are sorted lexicographically by their binary representation in ascending order.
 A point tuple $p := (x,y,z)$ at longitude $x$, latitude $y$ and elevation $z$ with
 \begin{align*}
 	(x, y, z) &\in [-180, 180] \times [-90, 90] \times [D, H]
@@ -112,13 +113,13 @@ After this transformation the following folds:
 	p' &\in [0, 2^{B_x}) \times [0, 2^{B_y}) \times [0, 2^{B_z})
 \end{align*}
 
-This formula holds since the first term in the longitude and latitude tuples can be at most $1$ and since $C_x < 2^{B_{x,y}}$, $C_y < 2^{B_{x,y}}$ and $H < 2^{B_z}$ hold.
-The three resulting integer numbers can now be represented using $B_{x,y}$, $B_{x,y}$ and $B_z$ bits, respectively. Hence let $p'' := (x_b, y_b, z_b)$ with
+This formula holds since the first term in the longitude and latitude tuples can be at most $1$ and since $C_x < 2^{B_{x,y}}$, $C_y < 2^{B_{x,y}}$ and $H - D < 2^{B_z}$ hold.
+The three resulting integer numbers can now be represented using $B_{x,y}$, $B_{x,y}$ and $B_z$ bits, respectively. Let $p'' := (x_b, y_b, z_b)$ be their big-endian integer binary encoding with
 \begin{align*}
 	p'' &\in \{0,1\}^{B_{x,y}} \times \{0,1\}^{B_{x,y}} \times \{0,1\}^{B_z}
 \end{align*}
 
-For $c \in \{x, y, z\}$ and for any integer $i \in [0, 2^{B_c})$, let $c_{b,i}$ denote the $i$-th bit of $c_{b}$. Moreover let $||$ denote the concatenation operator.
+For $c \in \{x, y, z\}$ and for any integer $i \in \{0, ..., B_c-1\}$, let $c_{b,i}$ denote the $i$-th bit of $c_{b}$. Moreover let $||$ denote the concatenation operator.
 The binary representation $p_b$ of the point $p$ is then defined as
 \begin{align*}
 	p_b = \left(\concat_{i=0}^{B_{xy} - 1} x_{b,i} || y_{b,i} \right) || \left(\concat_{i=0}^{B_{z}-1} z_{b,i} \right)
@@ -207,7 +208,7 @@ The corresponding point is
 \begin{align}
 \begin{split}
 \label{eq:intermediate-geometric-point-full-height}
-\left(x_d \cdot \frac{360}{C_x} - 180, y_d \cdot \frac{180}{C_y} - 90, 0\right)
+\left(x_d \cdot \frac{360}{C_x} - 180, y_d \cdot \frac{180}{C_y} - 90, D\right)
 \end{split}
 \end{align}
 and the covered volume is given by
@@ -241,12 +242,12 @@ and the covered volume is given by
 \end{align}
 
 \textbf{Case 3}: Assume length of $s$ is strictly smaller than $2 \cdot B_{x,y}$.
-In this case we only have partial bits for the longitude and latitude but certainly know that the full $z$ dimension is covered.
+In this case there are only partial bits for the longitude and latitude but certainly know that the full $z$ dimension is covered.
 Let $l$ be the length of $s$.
-Let $s_x$ and $s_y$ be the bit prefixes encoded in $s$ corresponding to the longitude and latitude, respectively, let $l_x$ and $l_y$ be the lengths of $s_x$ and $s_y$, respectively, and let $s_{x,i}$ and $s_{y,j}$ for $i \in \{0, ..., l_x-1\}, j \in \{0, ..., l_y-1\}$ correspond to the $i$-th and $j$-th bit of $s_x$ and $s_y$, respectively.
+Let $s_x$ and $s_y$ be the bit prefixes encoded in $s$ corresponding to the longitude and latitude, let $l_x$ and $l_y$ be the lengths of $s_x$ and $s_y$, and let $s_{x,i}$ and $s_{y,j}$ for $i \in \{0, ..., l_x-1\}, j \in \{0, ..., l_y-1\}$ correspond to the $i$-th and $j$-th bit of $s_x$ and $s_y$, respectively.
 It holds that $l = l_x + l_y$ and it is possible that $l_x$ is by exactly one larger than $l_y$, otherwise $l_x = l_y$.
 This directly follows from the interleaved binary encoding described in \Cref{sec:data-structure:leaf-binary}.
-Let
+Let $x'_d$ and $y'_d$ be the most-precise integers that can be re-constructed with the given bits:
 \begin{align}
 	\label{eq:intermediate-geometric-point-partial-height}
 	x'_d :&= \sum_{i=0}^{l_x - 1} 2^{B_{x,y} - 1 - i} \cdot s_{x,i}\\
@@ -258,7 +259,7 @@ Then the corresponding point is given by
 \begin{align}
 \begin{split}
 \label{eq:intermediate-geometric-point-partial-height}
-\left(x'_d \cdot \frac{360}{C_x} - 180,y_d \cdot \frac{180}{C_y} - 90, 0\right)
+\left(x'_d \cdot \frac{360}{C_x} - 180,y_d \cdot \frac{180}{C_y} - 90, D\right)
 \end{split}
 \end{align}
 and the covered volume by
@@ -271,9 +272,9 @@ and the covered volume by
 \end{split}
 \end{align}
 
-Something that is certainly worth nothing is that in GeoPKI, intermediate nodes also store a set of certificates.
-When using a tree representing the geography (which leads to shorted proof sizes as described in \Cref{sec:optimizations}), this is almost a requirement.
-Without this optimization, almost no leaf would be empty as almost all pieces of land on earth are at least claimed by a country.
+It is worth nothing is that in GeoPKI, intermediate nodes also store a set of certificates.
+When using a tree representing the geography (which can reduce proof sizes as described in \Cref{sec:alternative-designs}), this is almost a requirement.
+Without this optimization, almost no leaf would be empty as almost all pieces of land on earth are claimed by at least one country.
 This would require enormous storage costs and result in less efficient queries.
 
 \subsection{Merkle Hash Tree (MHT)}
@@ -287,7 +288,7 @@ The leaf's hash value is then defined as
 	\label{eq:hash-leaf}
 	H(0 || H(C_0) || H(C_1) || ... || H(C_n))
 \end{align}
-where $H$ is the SHA-256 hashing function.
+where $H$ is SHA-256.
 The hash value of an empty / non-existent node in the MHT is $H(0)$.
 
 An intermediate node in the tree has two children (two intermediate nodes or two leaves) and in GeoPKI also stores a set of certificates.
@@ -376,16 +377,16 @@ Thus a better approximation is required.
 The main problem with the trivial approximation is the discrepancy of the area queried and the returned area:
 If the client queries for a large area, it is fine to return a lot of data.
 But in case of a query for a small area, the size of the returned data should be comparable to the queried area.
-Given the split lines do not move when going to a deeper level in the tree, we will always have to return multiple voxels.
+Given the split lines do not move when going to a deeper level in the tree, it is always necessary to return multiple voxels.
 The number of required voxels is monotonically increasing when going deeper down in the tree but the area covered by them monotonically decreases as the voxel approximation for $V$ becomes more accurate.
 With decreasing area, the data that has to be returned also monotonically decreases as the subtrees contain at most as much data as any of their super-trees.
-Placing a certificate claiming $V$ in all leaves covered by $V$ is infeasible as the tree will no longer be sparse as most places on earth are claimed by at least one country.
+As noted before, placing certificates claiming a volume $V$ in all leaves covered by $V$ is infeasible as the tree will no longer be sparse as most places on earth are claimed by at least one country.
 
 A plausible heuristic balancing the returned data size with the number of subtrees loss in sparsity is to use a subtree level where the volume of $V$ is greater than or equal to a given fraction $f \in [0,1)$ of the voxel volumes at this level.
 For instance $f = \frac{1}{3}$ would result in \Cref{fig:worst-case:four} and $f = \frac{1}{2}$ in \Cref{fig:worst-case:four}.
 The effectiveness of this heuristic and a good value for $f$ is to be determined using empirical experiments.
 
-\subsection{Proofs of Precense and Absence}
+\subsection{Proofs of Presence and Absence}
 \label{sec:data-structure:precense-absence}
 Given a query for a volume $V$, the map server should proof that the returned data is in fact in the MHT and that no certificate was omitted.
 As described in \Cref{sec:data-structure:query}, the server directly only supports queries for binary strings that have a unique corresponding node $v$ in the MHT.
@@ -414,12 +415,12 @@ As in F-PKI~\cite{chuat_f-pki_2022} using a consistency tree over the root hashe
 \section{Optimizations}
 \label{sec:optimizations}
 
-First of all it should be noted that the asymmetric design of the binary string with respect to the $z$ dimension is intentional as it allows placing certificates higher in the tree and thus increase sparsity.
+First of all it should be noted that the asymmetric design of the binary string with respect to the $z$ dimension allows placing certificates higher in the tree and thus increase sparsity.
 
-Most of the world is rather flat with respect to elevation which means the certificates can often be placed at intermediate nodes covering the full height.
+Under the assumption most of the world is rather flat with respect to elevation, certificates can often be placed at intermediate nodes covering the full height. % TODO: possibly add citation for "most of the world is flat"
 This lowers the tree's height and thus reduces the proof sizes.
 For this to work, clients must not expect the certificates to be placed at a unique node in the tree.
-The placement does not matter as long as the certificate is stored with \emph{all nodes at one level} whose geometric representation intersect the certificate's claimed volume. % TODO: add citation for "most of the world is flat"
+The placement does not matter as long as the certificate is stored with \emph{all nodes at one level} whose geometric representation intersect the certificate's claimed volume.
 This is because a GeoPKI map server always returns the data along the path to the root together with the whole subtree.
 Hence when the certificate is placed in the subtree of the queried volume it will always be included but if it is placed higher in the tree it will only be included if the certificate is stored at one of the parent nodes.
 
@@ -452,21 +453,36 @@ Hence when the certificate is placed in the subtree of the queried volume it wil
     	The two-dimensional surface (longitude, latitude) after the first, second, third and fourth split.
     	The blue circle shows a possible area to be claimed by a certificate or the desired query area of a client.
     	The area colored in red is the minimum area that has to be retrieved using the given number of splits.
-    	Compare to \Cref{fig:worst-case}.
     }
     \label{fig:wrap-around}
 \end{figure}
 
 \Cref{sec:data-structure:query} describes how the map server only serves an answer to a single binary string query.
-While such a API works, there is room if correlated queries are answered at the same time.
+While such a API works, there is room for improvement if correlated queries are answered at the same time.
 For instance when the client derives the different binary strings to query a single volume as described in \Cref{sec:data-structure:arbitrary-volumes}, the queries share the path to the root from their lowest common ancestor.
 By replying with a single answer for such a set of queries, the data along this shared path has to be returned just once.
 Given the use of the Z-order curve (see \Cref{sec:data-structure}) to order the leaves, points spatially close should also be somewhat close in the tree and thus have a common ancestor on lower levels.
 Though in the worst case it is still possible that the only common ancestor is the root even if the two areas are spatially close.
 This happens when the volume covers both sides of the first split done in the binary tree. This scenario is depicted in \Cref{fig:worst-case:one}.
-It seems impossible to avoid such a worst-case scenario entirely when projecting three dimensions to a single one as in three dimensions each point can have eight neighbors whereas in one dimension it only has two.
+It seems impossible to avoid such a worst-case scenario entirely when using a tree as described in \Cref{sec:alternative-designs}.
 
-An alternative design could use a (hybrid-)quadtree or (hybrid-)octree where most intermediate nodes have four or eight children, respectively.
+Considering that earth is a sphere and that the coordinates wrap around, the situation becomes even more difficult since a similar situation happens at the points where the coordinate system wraps around.
+This scenario is depicted in \Cref{fig:wrap-around}.
+This wrap-around can be interpreted as being part of the first split since the problem occurs exactly on the opposite side of the first split when considering the $x$-axis as wrapping around.
+To reduce it's impact it would be possible to shift the longitude coordinate system west by $30^{\circ}$.
+This way this circle around earth passes through the Atlantic Ocean and Pacific Ocean rather than central Europe.
+
+% elevation
+
+\section{Alternative Designs}
+\label{sec:alternative-designs}
+
+An alternative design could split the trees and use a standard append-only MHT for the proofs and a tree similar to the one described before solely for indexing.
+This has the advantage that the proofs of consistency are more efficient but comes with the downside that spatially close locations will no longer have an increased likelihood of being close together in the tree.
+Hence the expected number of shared ancestors would be smaller and the optimizations described in \Cref{sec:optimizations} would be less effective.
+Should empirical data indicate that the savings resulting from said optimization are minimal, this design option should be considered.
+
+Another alternative design could use a (hybrid-)quadtree or (hybrid-)octree where most intermediate nodes have four or eight children, respectively.
 ``Hybrid'' and ``most'' because $B_{x} = B_{y} > B_{z}$ which means the volume cannot be subdivided fully using a quad- or octree.
 Hence when using an octree with eight children, the $z$ dimension is already exhausted after $B_{z}$ splits and will from there continue to only have four children (i.e. a quadtree).
 When using a quadtree, the first $B_{x,y}$ splits would solely concern the $x$ and $y$ dimensions and after that the children will be binary trees of height $B_{z}$ only splitting the $z$ dimension.
@@ -480,26 +496,32 @@ The ones subtracted from the number of neighbors is due to the fact that the has
 
 Unfortunately the worst case scenario remains:
 Two spatially adjacent volumes intersecting the lines of the first split only share the root node as a common ancestor.
+When using a tree this will always be the case due to nodes having a single parent.
+Consider single dimensional discrete consecutive numbers and a binary tree.
+Each number (except the start and end) has two numerically neighbors but can only have one neighbor in the tree.
+This fact also holds for group of leaves and thus there will always be two numerically close neighbors just sharing the root node as their ancestor.
 
-To maintain consistency with the already introduced binary representation of volumes, we can consider the quad-tree part (i.e. the first $B_{x,y}$ levels) to add two bits to the prefix on each level rather than just one.
+To maintain consistency with the already introduced binary representation of volumes, one can consider the quad-tree part (i.e. the first $B_{x,y}$ levels) to add two bits to the prefix on each level rather than just one.
 The last $B_z$ levels would then each just add a single bit as before.
 
-It is not clear to what extend the usage a more complex tree structure is beneficial and the simple binary tree is thus preferred for the moment.
-
-Considering that earth is a sphere and that the coordinates wrap around, the situation becomes even more difficult since a similar situation happens at the points where the coordinate system wraps around.
-This scenario is depicted in \Cref{fig:wrap-around}.
-This wrap-around can be interpreted as being part of the first split since the problem occurs exactly on the opposite side of the first split when considering the $x$-axis as wrapping around.
-To reduce it's impact it would be possible to shift the longitude coordinate system west by $30^{\circ}$ to this circle around earth (called a \emph{geodesic}) %TODO: check name
-to pass through the Atlantic Ocean and Pacific Ocean rather than central europe.
-
-% elevation
+Since it is not yet clear if and to what extent the usage a more complex tree structure could be beneficial and hence the more simple binary tree is preferred for the moment.
 
 \section{Caveats}
 \label{sec:caveats}
 
-Since longitude ($x$) and latitude ($x$) coordinates that are split in half numerically represent polar coordinates on a sphere, numerically equidistant points, areas or volumes are not equidistant on earth.
+Since longitude ($x$) and latitude ($y$) coordinates that are split in half numerically represent polar coordinates on a sphere, numerically equidistant points, areas or volumes are not equidistant on earth.
 Near the poles the longitudinal circumference is smaller but represented using the same numerically range resulting in higher precision.
-Hence the discretization range was chosen based on the semi-major axis at the equator where the smallest precision is achieved.
+Hence the discretization range was chosen based on the semi-major axis at the equator where the achieved precision is smallest.
+
+\section{Certificate Format}
+\label{sec:certificate-format}
+
+The claimed volume has to be specified in the X.509 certificate.
+The used format should be flexible enough to support a variety of use cases such as a set of disjoint volumes, rectangular but also circular volumes.
+Open Street Maps uses polygons and RFC 7946 specifies the ``geospatial data interchange format'' GeoJSON \cite{butler_geojson_2016} that also makes use of polygons.
+One option would be to define additional types allowing for three dimensional polygons, another to use the ``properties'' field defined in RFC 7946.
+When going with the latter approach, each certificate could define a \texttt{GeometryCollection} of \texttt{Polygon}s or \texttt{MultiPolygon}s, each with an \texttt{elevation\_from} and \texttt{elevation\_to} property indicating the inclusive minimum and maximum elevation, respectively.
+Since the GeoJSON uses a text-encoding, serializing the data using e.g. protocol buffers as done by Mapbox \cite{mapbox_geobuf_2023} will result in a smaller encoding and fast read and write operations.
 
 \bibliographystyle{IEEEtran}
 \bibliography{GeoPKI.bib}
