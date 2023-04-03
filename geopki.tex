@@ -25,6 +25,19 @@
 \date{}
 
 
+
+\ifdefined\final
+\newcommand{\todo}[1]{}
+\newcommand{\ck}[1]{}
+\newcommand{\ckrm}[1]{}
+\newcommand{\chrissy}[1]{}
+\else
+\newcommand{\todo}[1]{\textcolor{red}{\emph{\textbf{[TODO: }#1\textbf{]}}}}
+\newcommand{\ck}[1]{\textcolor{violet}{\emph{\textbf{cyrill: }#1}}}
+\newcommand{\ckrm}[1]{\textcolor{violet}{\emph{\textbf{cyrill remove:} ``#1''}}}
+\newcommand{\chrissy}[1]{\textcolor{blue}{\emph{\textbf{chrissy: }#1}}}
+\fi
+
 \begin{document}
 
 \makeatletter
@@ -283,6 +296,7 @@ This would require enormous storage costs and result in less efficient queries.
 The just described tree is combined with a MHT.
 As in F-PKI \cite{chuat_f-pki_2022}, each leaf stores a set of certificates.
 Let $C_0, C_1, ..., C_{n-1}$ be the sequence of certificates located in a leaf, sorted lexicographically by the SHA-256 hashes of the PEM encoding in ascending order.
+\ck{sort by sha256 hash and then by binary representation? (should never occur though as then we would have bigger problems due to a sha-256 collision in a certificate...)}
 The leaf's hash value is then defined as
 \begin{align}
 	\label{eq:hash-leaf}
@@ -290,6 +304,7 @@ The leaf's hash value is then defined as
 \end{align}
 where $H$ is SHA-256.
 The hash value of an empty / non-existent node in the MHT is $H(0)$.
+\ck{are empty nodes constructed iteratively starting from the leaf, i.e., H(0) at depth $B_x+B_y+B_z$? Or does an intermediate node with value H(0) at any depth represent an empty subtree?}
 
 An intermediate node in the tree has two children (two intermediate nodes or two leaves) and in GeoPKI also stores a set of certificates.
 As before, let $C_0, C_1, ..., C_{n-1}$ be the sequence of certificates located in an intermediate node, sorted lexicographically by the SHA-256 hashes of the PEM encoding in ascending order.
@@ -368,7 +383,7 @@ Moreover, clients likely want to query volumes not aligning with the GeoPKI voxe
 
 In both cases this volume $V$ has to be approximated using the GeoPKI voxels.
 A trivial approximation the smallest volume encompassing all of $V$.
-Unfortunately this is results in returning the whole tree if $V$ lies at the intersection of one of the first few division lines.
+Unfortunately this results in returning the whole tree if $V$ lies at the intersection of one of the first few division lines.
 \Cref{fig:worst-case} depicts this situation with the blue circle corresponding to $V$ and the red area the minimum area that has to be retrieved at the different levels in the tree.
 \Cref{fig:worst-case:one} shows the line of the first split.
 Given the blue circle intersects both area, the above trivial approximation would result in the whole tree being returned for a comparable small area that is just placed unfortunately.
@@ -384,6 +399,7 @@ As noted before, placing certificates claiming a volume $V$ in all leaves covere
 
 A plausible heuristic balancing the returned data size with the number of subtrees loss in sparsity is to use a subtree level where the volume of $V$ is greater than or equal to a given fraction $f \in [0,1)$ of the voxel volumes at this level.
 For instance $f = \frac{1}{3}$ would result in \Cref{fig:worst-case:four} and $f = \frac{1}{2}$ in \Cref{fig:worst-case:four}.
+\ck{used same figure twice and numbers don't seem correct given the size of the circle}
 The effectiveness of this heuristic and a good value for $f$ is to be determined using empirical experiments.
 
 \subsection{Proofs of Presence and Absence}
@@ -406,7 +422,7 @@ Given the binary MHT has $2^{B}$ leaves (see \Cref{sec:data-structure}), it's de
 A proof of presence for a node $v$ at depth $d \in \{0, ..., B-1\}$ (zero is the root itself) then consists of the $d$ complementary node's hash along the path to the root.
 The size of these hashes is $256$ bits or $32$ bytes due to the use of SHA-256.
 Thus in the worst case a proof for a single leaf consists $\left(B-1\right) \cdot 32$~B $= 68 \cdot 32$~B $= 2'176$~B $\approx 2$~kB and is thus in the same order as an average X.509 certificate.
-The size of such a proof is smaller the sparser the tree is and is always smaller if an intermediate node, i.e. not a leaf, is queried.
+The size of such a proof is smaller the sparser the tree is and is always smaller if an intermediate node, i.e., not a leaf, is queried.
 
 \subsection{Proof of Consistency}
 \label{sec:data-structure:consistency}
@@ -481,6 +497,7 @@ An alternative design could split the trees and use a standard append-only MHT f
 This has the advantage that the proofs of consistency are more efficient but comes with the downside that spatially close locations will no longer have an increased likelihood of being close together in the tree.
 Hence the expected number of shared ancestors would be smaller and the optimizations described in \Cref{sec:optimizations} would be less effective.
 Should empirical data indicate that the savings resulting from said optimization are minimal, this design option should be considered.
+\ck{how would a proof of absence work in this design? I guess the proof of absence be done in the index tree, right? Then we would still need to provide an MHT-like index tree with signed root, so it's not clear to me what the benefit then would be.}
 
 Another alternative design could use a (hybrid-)quadtree or (hybrid-)octree where most intermediate nodes have four or eight children, respectively.
 ``Hybrid'' and ``most'' because $B_{x} = B_{y} > B_{z}$ which means the volume cannot be subdivided fully using a quad- or octree.
