@@ -36,6 +36,7 @@
 \newcommand{\ck}[1]{\textcolor{violet}{\emph{\textbf{cyrill: }#1}}}
 \newcommand{\ckrm}[1]{\textcolor{violet}{\emph{\textbf{cyrill remove:} ``#1''}}}
 \newcommand{\chrissy}[1]{\textcolor{blue}{\emph{\textbf{chrissy: }#1}}}
+\newcommand{\nico}[1]{\textcolor{orange}{\emph{\textbf{nico: }#1}}}
 \fi
 
 \begin{document}
@@ -295,16 +296,20 @@ This would require enormous storage costs and result in less efficient queries.
 
 The just described tree is combined with a MHT.
 As in F-PKI \cite{chuat_f-pki_2022}, each leaf stores a set of certificates.
-Let $C_0, C_1, ..., C_{n-1}$ be the sequence of certificates located in a leaf, sorted lexicographically by the SHA-256 hashes of the PEM encoding in ascending order.
+Let $C_0, C_1, ..., C_{n-1}$ be the sequence of certificates located in a leaf, sorted lexicographically by their SHA-256 hashes in ascending order.
+The hashes are computed on the PEM encoding of the X.509 certificates.
 \ck{sort by sha256 hash and then by binary representation? (should never occur though as then we would have bigger problems due to a sha-256 collision in a certificate...)}
+\nico{I hope the sentence clearer now? I just wanted to clearly specify what the hash is computed on. It could be the decoded binary value, the base64 encoding, the PEM encoding, the DER encoding, ...}
 The leaf's hash value is then defined as
 \begin{align}
 	\label{eq:hash-leaf}
 	H(0 || H(C_0) || H(C_1) || ... || H(C_n))
 \end{align}
 where $H$ is SHA-256.
-The hash value of an empty / non-existent node in the MHT is $H(0)$.
+The hash value of an empty / non-existent leaf in the MHT is $H(0)$.
 \ck{are empty nodes constructed iteratively starting from the leaf, i.e., H(0) at depth $B_x+B_y+B_z$? Or does an intermediate node with value H(0) at any depth represent an empty subtree?}
+\nico{I think F-PKI constructs them iteratively, right? I don't think it matters too much or did you discuss any advantages / disadvantages when deciding that? Using the same value at any depth can save some computations but I have not properly thought about the implications this would have.}
+
 
 An intermediate node in the tree has two children (two intermediate nodes or two leaves) and in GeoPKI also stores a set of certificates.
 As before, let $C_0, C_1, ..., C_{n-1}$ be the sequence of certificates located in an intermediate node, sorted lexicographically by the SHA-256 hashes of the PEM encoding in ascending order.
@@ -398,8 +403,7 @@ With decreasing area, the data that has to be returned also monotonically decrea
 As noted before, placing certificates claiming a volume $V$ in all leaves covered by $V$ is infeasible as the tree will no longer be sparse as most places on earth are claimed by at least one country.
 
 A plausible heuristic balancing the returned data size with the number of subtrees loss in sparsity is to use a subtree level where the volume of $V$ is greater than or equal to a given fraction $f \in [0,1)$ of the voxel volumes at this level.
-For instance $f = \frac{1}{3}$ would result in \Cref{fig:worst-case:four} and $f = \frac{1}{2}$ in \Cref{fig:worst-case:four}.
-\ck{used same figure twice and numbers don't seem correct given the size of the circle}
+For instance $f = \frac{1}{4}$ would result in \Cref{fig:worst-case:three} and $f = \frac{1}{2}$ in \Cref{fig:worst-case:four}.
 The effectiveness of this heuristic and a good value for $f$ is to be determined using empirical experiments.
 
 \subsection{Proofs of Presence and Absence}
@@ -493,13 +497,7 @@ This way this circle around earth passes through the Atlantic Ocean and Pacific 
 \section{Alternative Designs}
 \label{sec:alternative-designs}
 
-An alternative design could split the trees and use a standard append-only MHT for the proofs and a tree similar to the one described before solely for indexing.
-This has the advantage that the proofs of consistency are more efficient but comes with the downside that spatially close locations will no longer have an increased likelihood of being close together in the tree.
-Hence the expected number of shared ancestors would be smaller and the optimizations described in \Cref{sec:optimizations} would be less effective.
-Should empirical data indicate that the savings resulting from said optimization are minimal, this design option should be considered.
-\ck{how would a proof of absence work in this design? I guess the proof of absence be done in the index tree, right? Then we would still need to provide an MHT-like index tree with signed root, so it's not clear to me what the benefit then would be.}
-
-Another alternative design could use a (hybrid-)quadtree or (hybrid-)octree where most intermediate nodes have four or eight children, respectively.
+An alternative design could use a (hybrid-)quadtree or (hybrid-)octree where most intermediate nodes have four or eight children, respectively.
 ``Hybrid'' and ``most'' because $B_{x} = B_{y} > B_{z}$ which means the volume cannot be subdivided fully using a quad- or octree.
 Hence when using an octree with eight children, the $z$ dimension is already exhausted after $B_{z}$ splits and will from there continue to only have four children (i.e. a quadtree).
 When using a quadtree, the first $B_{x,y}$ splits would solely concern the $x$ and $y$ dimensions and after that the children will be binary trees of height $B_{z}$ only splitting the $z$ dimension.
