@@ -65,7 +65,9 @@ Longitude, latitude and elevation together refer to a unique point in three-dime
 Each of the three coordinates is discretized in a way that preserves meter-precision in the worst case.
 With the semi-major axis $a$, the maximum circumference of the ellipsoid equals $C_{x} :=2 a \pi$~meters.
 Using base two, $B_{x}:= \left\lceil \log_2(C_{x}) \right\rceil = 26$ bits for the longitude thus suffice to represent each possible meter value in the worst case.
-For the latitude the circumference is $C_{y} :=2 b \pi$~meters and thus $B_{y} := \left\lceil \log_2(C_{y}) \right\rceil = B_{x} =: B_{x,y}$ meaning the same minimum number of bits are required.
+For the latitude the circumference is $2 b \pi$~meters but we only need to be able to represent half of it, so $C_{y} := b \pi$.
+Thus $\left\lceil\log2(C_y)\right\rceil = 25 = B_{x} - 1$ bits would suffice.
+Being slightly inefficient, $B_{y} := B_{x} =: B_{x,y}$ bits are used to make the binary format a bit easier to deal with.
 For elevation there is no natural bound so one has to be fixed.
 At the time of writing, the highest point on earth is below $10'000$~meters above sea level \cite{us_department_of_commerce_what_nodate} and the lowest layer of earth's atmosphere, the troposphere, extends to about $18$~km \cite{dhaka_chapter_2023}.
 The Mariana Trench at about $10'000$~m below sea level \cite{gardner_so_2014} is likely a bound not exceeded in the near future.
@@ -408,7 +410,7 @@ The effectiveness of this heuristic and a good value for $f$ is to be determined
 
 \subsection{Proofs of Presence and Absence}
 \label{sec:data-structure:precense-absence}
-Given a query for a volume $V$, the map server should proof that the returned data is in fact in the MHT and that no certificate was omitted.
+Given a query for a volume $V$, the map server should prove that the returned data is in fact in the MHT and that no certificate was omitted.
 As described in \Cref{sec:data-structure:query}, the server directly only supports queries for binary strings that have a unique corresponding node $v$ in the MHT.
 Let $\mathcal{C}$ with $C \in \mathcal{C}$ be the set of all certificates stored at $v$.
 The server has to send the set $\{H(x) \: | \: \forall x \in \mathcal{C} \backslash \{C\}\}$ to the client as it is required to compute the node's hash (see Equations \ref{eq:hash-leaf} and \ref{eq:hash-certs-intermediate-node}).
@@ -492,7 +494,8 @@ This wrap-around can be interpreted as being part of the first split since the p
 To reduce it's impact it would be possible to shift the longitude coordinate system west by $30^{\circ}$.
 This way this circle around earth passes through the Atlantic Ocean and Pacific Ocean rather than central Europe.
 
-% elevation
+An additional optimization would be to set $B_y$ to $25$ rather than $26$ bits.
+This slightly complicates the notations, definitions and formats but is otherwise straight-forward to implement.
 
 \section{Alternative Designs}
 \label{sec:alternative-designs}
