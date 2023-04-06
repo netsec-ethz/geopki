@@ -398,15 +398,59 @@ Given the blue circle intersects both area, the above trivial approximation woul
 Thus a better approximation is required.
 The main problem with the trivial approximation is the discrepancy of the area queried and the returned area:
 If the client queries for a large area, it is fine to return a lot of data.
-But in case of a query for a small area, the size of the returned data should be comparable to the queried area.
+But in case of a query for a small area, the size of the returned data should be in relation to the queried area.
 Given the split lines do not move when going to a deeper level in the tree, it is always necessary to return multiple voxels.
 The number of required voxels is monotonically increasing when going deeper down in the tree but the area covered by them monotonically decreases as the voxel approximation for $V$ becomes more accurate.
 With decreasing area, the data that has to be returned also monotonically decreases as the subtrees contain at most as much data as any of their super-trees.
-As noted before, placing certificates claiming a volume $V$ in all leaves covered by $V$ is infeasible as the tree will no longer be sparse as most places on earth are claimed by at least one country.
+
+\subsubsection{Claimed Volumes to Voxels}
+
+In case of the placement of certificates in the tree, it is infeasible to place certificates claiming a volume $V$ in all leaves covered by $V$ due to the loss in sparsity and the resulting explosion in storage requirements.
+As noted before, most places on earth are claimed by at least one country and thus the tree would not be sparse at all.
 
 A plausible heuristic balancing the returned data size with the number of subtrees loss in sparsity is to use a subtree level where the volume of $V$ is greater than or equal to a given fraction $f \in [0,1)$ of the voxel volumes at this level.
-For instance $f = \frac{1}{4}$ would result in \Cref{fig:worst-case:three} and $f = \frac{1}{2}$ in \Cref{fig:worst-case:four}.
+For instance $f = \frac{1}{4}$ would result in \Cref{fig:worst-case:three} and $f = \frac{1}{2}$ in \Cref{fig:worst-case:four} (assuming all shown areas cover the full elevation spectrum).
 The effectiveness of this heuristic and a good value for $f$ is to be determined using empirical experiments.
+
+\subsubsection{Query to Voxels}
+
+For the transformation of queries to voxels to be queried the case turns out to be easier.
+In terms of response size it is always best to query each covered leaf individually.
+First a set of binary strings is defined to \emph{cover} a volume if and only if the union of the results returned when querying each of them contains all certificates intersecting said volume.
+
+Proof:
+
+Let $V$ be the volume queried by the client and let $S$ be the smallest set of leaf binary strings that covers $V$.
+This set exists as the set of all leaves covers any volume that can be queried.
+The set $S$ is also unique since for each leaf it is possible to individually determine whether it has to be part of $S$. Next, assume there is some distinct set of binary strings $S' \neq S$ covering $V$.
+
+\textbf{Case 1}:
+Assume $S'$ contains only leaf binary strings.
+Since both cover $V$ and $S'$ is the smallest to do so, $S'$ must be a subset of $S$.
+Hence querying $S'$ will return at least as much data as querying $S$ would.
+%Moreover since $S \neq S'$, $S'$ must include at least one leaf whose geometric representation does not intersect $V$ (if it would it would also be part of $S$).
+
+\textbf{Case 2:}
+Assume $S'$ \textbf{not} only contains leaf binary strings.
+Then $S'$ must contain at least one binary string referring to a non-leaf.
+
+\textbf{Case 2a}: Assume all leaf binary strings descendant of all non-leaf nodes are in $S$.
+Then the covered volume is the same and the returned data is exactly the same:
+Querying a larger area rooted at an intermediate node $v$ returns it's full subtree and thus all certificates stored at its descendant leaves.
+Similarly, when directly querying all leaves of an intermediate node $v$ amounts to the same full subtree rooted at $v$ if duplicate intermediate nodes are omitted.
+In both cases the complementary hashes to the root node are required.
+
+\textbf{Case 2b:} Assume \textbf{not} all leaf binary strings descendant of all non-leaf nodes are in $S$.
+Then there is at least one non-leaf node that with a descendant leaf whose binary string is not part of $S$.
+The certificates returned when querying $S$ is thus a subset of the certificates returned when querying $S'$.
+In case the additional voxels covered by $S'$ are all empty, the exact same set of certificates is returned but the proof of absence of the empty nodes are not required when querying $S$.
+In case one of the voxels is non-empty, this is additional data only returned when querying $S'$ but not when querying $S$.
+Moreover these non-intersecting subtrees that at least contain one certificate of $\approx 2$kB size can be replaced by a $32$B hashes for the proof when querying $S$ rather than $S'$.
+
+Since no set $S'$ with a smaller response size can exist, $S$ is optimal.
+
+If the binary string corresponding to $v$'s children are part of $S$, the covered
+In case the additionally covered area is fully covered
 
 \subsection{Proofs of Presence and Absence}
 \label{sec:data-structure:precense-absence}
@@ -480,7 +524,7 @@ Hence when the certificate is placed in the subtree of the queried volume it wil
 \end{figure}
 
 \Cref{sec:data-structure:query} describes how the map server only serves an answer to a single binary string query.
-While such a API works, there is room for improvement if correlated queries are answered at the same time.
+While such an API works, there is room for improvement if correlated queries are answered at the same time.
 For instance when the client derives the different binary strings to query a single volume as described in \Cref{sec:data-structure:arbitrary-volumes}, the queries share the path to the root from their lowest common ancestor.
 By replying with a single answer for such a set of queries, the data along this shared path has to be returned just once.
 Given the use of the Z-order curve (see \Cref{sec:data-structure}) to order the leaves, points spatially close should also be somewhat close in the tree and thus have a common ancestor on lower levels.
