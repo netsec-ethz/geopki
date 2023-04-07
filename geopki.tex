@@ -79,9 +79,9 @@ Covering this range requires $B_{z} := \left\lceil \log_2(H - D) \right\rceil = 
 \section{Data Structure}
 \label{sec:data-structure}
 
-Inspired by F-PKI~\cite{chuat_f-pki_2022}, a sparse merkle hash tree (MHT) is used.
+Inspired by F-PKI~\cite{chuat_f-pki_2022}, a sparse merkle hash tree (SMT) is used.
 Each leaf represents a full discretized coordinate using $B := 2 \cdot B_{x,y} + B_{z} = 68$ bits resulting in a total of $2^{B}$ leaves.
-To have spatially close points somewhat close together in the MHT, the space-filling $Z$-order curve is used to sort the three dimensional locations in one dimension \cite{morton_computer_1966}.
+To have spatially close points somewhat close together in the SMT, the space-filling $Z$-order curve is used to sort the three dimensional locations in one dimension \cite{morton_computer_1966}.
 An example with $B_{x,y} = B_{z} = 2$ is shown in \Cref{fig:z-curve-example:two-bits}.
 GeoPKI uses a slightly modified 3D Z-order curve:
 Rather than using the full 3D Z-order curve, a 2D Z-order curve over the longitude and latitude is used and points with the same longitude and latitude but different elevation are put in sequence.
@@ -90,7 +90,7 @@ While this leads to spatially close points being further apart in the 1-dimensio
 
 \subsection{Leaf Binary Format}
 \label{sec:data-structure:leaf-binary}
-Each leaf of the MHT corresponds to a point and the tree leaves are sorted lexicographically by their binary representation in ascending order.
+Each leaf of the SMT corresponds to a point and the tree leaves are sorted lexicographically by their binary representation in ascending order.
 A point tuple $p := (x,y,z)$ at longitude $x$, latitude $y$ and elevation $z$ with
 \begin{align*}
 	(x, y, z) &\in [-180, 180] \times [-90, 90] \times [D, H]
@@ -146,7 +146,7 @@ In words, the binary representation of $p$ is the interleaving of the binary rep
 
 % ($47.37643$, $8.54828$, $0$)
 
-%Storing a dense MHT with $2^{B} \leq (2^{10})^7 \approx (10^3)^7 = 10^{21}$ leaves is certainly infeasible but under the assumption that most leaves are empty it seems reasonable.
+%Storing a dense SMT with $2^{B} \leq (2^{10})^7 \approx (10^3)^7 = 10^{21}$ leaves is certainly infeasible but under the assumption that most leaves are empty it seems reasonable.
 
 \begin{figure}
     \centering
@@ -211,7 +211,7 @@ and the volume represented by point $p''$ is given by
 
 \subsection{Intermediate Nodes}
 \label{sec:data-structure:intermediate}
-Intermediate nodes in the MHT also correspond to a point and a volume following the same pattern as for the leaf nodes.
+Intermediate nodes in the SMT also correspond to a point and a volume following the same pattern as for the leaf nodes.
 The binary string corresponding to an intermediate node is simply the longest common prefix of it's two children and covers the whole volume of its two children.
 The left child is the node with the binary representation equal to the intermediate node one's concatenated with a zero and the right child concatenated with a one.
 The formula for computing the volume becomes more complex for intermediate nodes as it requires a case distinction:
@@ -293,10 +293,10 @@ When using a tree representing the geography (which can reduce proof sizes as de
 Without this optimization, almost no leaf would be empty as almost all pieces of land on earth are claimed by at least one country.
 This would require enormous storage costs and result in less efficient queries.
 
-\subsection{Merkle Hash Tree (MHT)}
-\label{sec:data-structure:mht}
+\subsection{Sparse Merkle Hash Tree (SMT)}
+\label{sec:data-structure:SMT}
 
-The just described tree is combined with a MHT.
+The just described tree is combined with a SMT.
 As in F-PKI \cite{chuat_f-pki_2022}, each leaf stores a set of certificates.
 Let $C_0, C_1, ..., C_{n-1}$ be the sequence of certificates located in a leaf, sorted lexicographically by their SHA-256 hashes in ascending order.
 The hashes are computed on the PEM encoding of the X.509 certificates.
@@ -308,7 +308,7 @@ The leaf's hash value is then defined as
 	H(0 || H(C_0) || H(C_1) || ... || H(C_n))
 \end{align}
 where $H$ is SHA-256.
-The hash value of an empty / non-existent leaf in the MHT is $H(0)$.
+The hash value of an empty / non-existent leaf in the SMT is $H(0)$.
 \ck{are empty nodes constructed iteratively starting from the leaf, i.e., H(0) at depth $B_x+B_y+B_z$? Or does an intermediate node with value H(0) at any depth represent an empty subtree?}
 \nico{I think F-PKI constructs them iteratively, right? I don't think it matters too much or did you discuss any advantages / disadvantages when deciding that? Using the same value at any depth can save some computations but I have not properly thought about the implications this would have.}
 
@@ -335,7 +335,7 @@ The hash value of the intermediate node is then defined as
 
 The constants $0$ and $1$ are prefixed in the hash computation to prevent collisions where a given hash $H(a || b)$ for some $a$ and $b$ could simultaneously refer to a leaf with content $a || b$ or a intermediate node with children hash values $a$ and $b$.
 
-\subsection{Querying the MHT}
+\subsection{Querying the SMT}
 \label{sec:data-structure:query}
 
 Since many sizes of volumes can be represented by the binary format described in Sections \ref{sec:data-structure:leaf-binary} and \ref{sec:data-structure:intermediate}, the only type of query a GeoPKI map server supports is such a binary string.
@@ -449,26 +449,64 @@ Moreover these non-intersecting subtrees that at least contain one certificate o
 
 Since no set $S'$ with a smaller response size can exist, $S$ is optimal.
 
-If the binary string corresponding to $v$'s children are part of $S$, the covered
-In case the additionally covered area is fully covered
+The question of how to map a point in space and radius to the set of binary strings remains but at least it is now clear what the answer should be.
+
+\subsection{Querying a Sphere}
+
+One possibility to query a sphere is to walk the tree and intersect it with the volumes on each level of the tree.
+This process is repeated recursively until the reached level is a (sparse) ``leaf''.
+When walking the tree like this, all information that has to be returned (including the data for the proof) is obtained in one go.
+
+To be more efficient, the first $B_{x} + B_{y}$ steps can be performed by intersecting a circle (at the height of the sphere's center where the radius is maximized) with a rectangle (the voxels areas at zero elevation).
+Analogously for the last $B_z$ steps, the sphere's and voxels' projections to the $z$ or $z$ axis can be intersected.
+Note that this over-approximates the result since a voxel is counted as intersecting if it intersects the polygon approximation of the circle extruded between its limiting $z$ coordinates.
+If we did not have to approximate the circle using a polygon it would correspond to intersecting the voxels with a cylinder.
+This approach probably works fine for an in-memory data-structure but given the tree's size having it all in memory is infeasible.
+
+An alternative design is to store all non-empty nodes in a data management system such as PostgreSQL and build a spatial index that can be used for querying.
+A response needs to include all intermediate and leaf nodes whose spatial representation intersects the queried spehere.
+Non-Empty intersecting nodes are required as they contain certificates relevant for the queried volume but intersecting empty nodes can be omitted as their hash is known or can be computed.
+Using a spatial index optimized for intersections will likely perform better than a custom implementation.
+This solutions comes with a new problem:
+Using exclusively polar coordinates it is not possible to represent a sphere and while PostgreSQL's postgis extension has a \texttt{ST\_DistanceSphere} function, it cannot make use of an index.
+Moreover \texttt{ST\_3DDWithin} does not support polar coordinates and simply treating the polar coordinates as if they were euclidian will cause wrong results.
+Hence using an actual sphere seems infeasible but it can be over-approximated using a polyhedron which allows the usage of intersections.
+As in the case of \texttt{ST\_3DDWithin}, \texttt{ST\_3DIntersects} also does not support polar coordinates but \texttt{ST\_Intersects} does.
+This enables a similar approach as previously described based on two predicates:
+One predicate ensures the intersection with the polygon approximation of a circle at the sphere's center with the sphere's radius using \texttt{ST\_Intersects}.
+The other predicate ensures the $z$ coordinate is within a given sphere's range.
+As previously noted this over-approximates the result and in will result in more data returned than actually requested.
+This is due to the two over-approximations: First approximating the circle using a polygon and then second extruding this polygon between the two limiting $z$ coordinates.
+If \texttt{ST\_3DDWithin} supported spherical coordinates, no approximation would be required and it would likely result in a more efficient query plan as the approach from before likely involves using the spatial index (R-Tree) to filter based on the first predicate and then perform a table scan for the second.
+
+An alternative approach would be to limit a input sphere's radius to a value where the differences between polar and euclidian coordinates are not significant and thus \texttt{ST\_3DDWithin} could be used.
+The risk is that this results in under-approximating the data which would make the server seemingly behave malicious.
+
+Alternatively \texttt{ST\_3DIntersects} could be used where sphere is approximated using a polyhedron getting rid of one of the two over-approximations.
+Since \texttt{ST\_3DIntersects} does not support polar coordinates, it would be required to limit the sphere's maximum radius to mitigate the possibility of under approximating the sphere's actual volume
+If \texttt{ST\_3DIntersects} supported geographical coordinates (which it does not), limiting the sphere's radius would no longer be required.
+
+
+
+% SLECT ST_Buffer(ST_Transform(ST_GeomFromText('ZPOINT(-105.05083 39.74823 50)', 4326), 2877), 1500);
 
 \subsection{Proofs of Presence and Absence}
 \label{sec:data-structure:precense-absence}
-Given a query for a volume $V$, the map server should prove that the returned data is in fact in the MHT and that no certificate was omitted.
-As described in \Cref{sec:data-structure:query}, the server directly only supports queries for binary strings that have a unique corresponding node $v$ in the MHT.
+Given a query for a volume $V$, the map server should prove that the returned data is in fact in the SMT and that no certificate was omitted.
+As described in \Cref{sec:data-structure:query}, the server directly only supports queries for binary strings that have a unique corresponding node $v$ in the SMT.
 Let $\mathcal{C}$ with $C \in \mathcal{C}$ be the set of all certificates stored at $v$.
 The server has to send the set $\{H(x) \: | \: \forall x \in \mathcal{C} \backslash \{C\}\}$ to the client as it is required to compute the node's hash (see Equations \ref{eq:hash-leaf} and \ref{eq:hash-certs-intermediate-node}).
 As described in \Cref{sec:data-structure:query}, if $v$ is an intermediate node, the query result will include the whole subtree rooted at $v$.
 Hence a client has all information to compute the hashes of $v$'s children by themselves.
 These are required to compute the hash of an intermediate node (see Equation \ref{eq:hash-intermediate-node}).
 
-What is left to complete the proof is the set of complementary hashes along the way to the root and the root hash itself as in a standard MHT.
+What is left to complete the proof is the set of complementary hashes along the way to the root and the root hash itself as in a standard SMT.
 Since in GeoPKI the intermediate nodes along the way to the root also have associated certificates, the set of their hashes is also required but as specified in \Cref{sec:data-structure:query}, this information is returned to the client anyway and can thus be computed locally.
 
-In a sparse MHT, proving the absence of any certificate in a subtree rooted at $v$ is the same as proving the presence of an empty node.
+In a sparse SMT, proving the absence of any certificate in a subtree rooted at $v$ is the same as proving the presence of an empty node.
 Thus when a client receives a shorted path up to the root than expected, it already has all information required to proof the node's absence in the tree.
 
-Given the binary MHT has $2^{B}$ leaves (see \Cref{sec:data-structure}), it's depth is $B$.
+Given the binary SMT has $2^{B}$ leaves (see \Cref{sec:data-structure}), it's depth is $B$.
 A proof of presence for a node $v$ at depth $d \in \{0, ..., B-1\}$ (zero is the root itself) then consists of the $d$ complementary node's hash along the path to the root.
 The size of these hashes is $256$ bits or $32$ bytes due to the use of SHA-256.
 Thus in the worst case a proof for a single leaf consists $\left(B-1\right) \cdot 32$~B $= 68 \cdot 32$~B $= 2'176$~B $\approx 2$~kB and is thus in the same order as an average X.509 certificate.
