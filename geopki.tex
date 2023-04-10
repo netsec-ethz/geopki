@@ -479,7 +479,7 @@ Non-Empty intersecting nodes are required as they contain certificates relevant 
 Using a spatial index optimized for intersections will likely perform better than a custom implementation.
 This solutions comes with a new problem:
 Using exclusively polar coordinates it is not possible to represent a sphere or circle and while PostgreSQL's postgis extension has a \texttt{ST\_DistanceSphere} function, it cannot make use of an index.
-Moreover \texttt{ST\_3DDWithin} does not support polar coordinates and simply treating the polar coordinates as if they were euclidian will cause wrong results.
+Moreover \texttt{ST\_3DDWithin} does not support polar coordinates and simply treating the polar coordinates as if they were cartesian will cause wrong results.
 Hence using an actual sphere seems infeasible but it can be over-approximated using a polyhedron which allows the usage of intersections.
 As in the case of \texttt{ST\_3DDWithin}, \texttt{ST\_3DIntersects} also does not support polar coordinates but \texttt{ST\_Intersects} does.
 This enables a similar approach as previously described based on two predicates:
@@ -489,7 +489,7 @@ As previously noted this over-approximates the result and in will result in more
 This is due to the two over-approximations: First approximating the circle using a polygon and then second extruding this polygon between the two limiting $z$ coordinates.
 If \texttt{ST\_3DDWithin} supported spherical coordinates, no approximation would be required and it would likely result in a more efficient query plan as the approach from before likely involves using the spatial index (R-Tree) to filter based on the first predicate and then perform a table scan for the second.
 
-An alternative approach would be to limit a input sphere's radius to a value where the differences between polar and euclidian coordinates are not significant and thus \texttt{ST\_3DDWithin} could be used.
+An alternative approach would be to limit a input sphere's radius to a value where the differences between polar and cartesian coordinates are not significant and thus \texttt{ST\_3DDWithin} could be used.
 The risk is that this results in under-approximating the data which would make the server seemingly behave malicious.
 
 Alternatively \texttt{ST\_3DIntersects} could be used where sphere is approximated using a polyhedron getting rid of one of the two over-approximations.
