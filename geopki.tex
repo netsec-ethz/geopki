@@ -452,6 +452,15 @@ Since no set $S'$ with a smaller response size can exist, $S$ is optimal.
 The question of how to map a point in space and radius to the set of binary strings remains but at least it is now clear what the answer should be.
 
 \subsection{Querying a Sphere}
+\begin{figure}
+	\centering
+    \includegraphics[width=0.75\linewidth]{./resources/query-approximation/sphere-approximation}
+    
+    \caption{
+    	Approximating a sphere using an extruded polygon with four, eight, sixteen or $32$ points.
+    }
+    \label{fig:sphere-approximation}
+\end{figure}
 
 One possibility to query a sphere is to walk the tree and intersect it with the volumes on each level of the tree.
 This process is repeated recursively until the reached level is a (sparse) ``leaf''.
@@ -460,7 +469,8 @@ When walking the tree like this, all information that has to be returned (includ
 To be more efficient, the first $B_{x} + B_{y}$ steps can be performed by intersecting a circle (at the height of the sphere's center where the radius is maximized) with a rectangle (the voxels areas at zero elevation).
 Analogously for the last $B_z$ steps, the sphere's and voxels' projections to the $z$ or $z$ axis can be intersected.
 Note that this over-approximates the result since a voxel is counted as intersecting if it intersects the polygon approximation of the circle extruded between its limiting $z$ coordinates.
-If we did not have to approximate the circle using a polygon it would correspond to intersecting the voxels with a cylinder.
+See \Cref{fig:sphere-approximation} for a visualization of this with different accuracies for the circle's approximation.
+Without approximating the circle using a polygon it would correspond to intersecting the voxels with a cylinder.
 This approach probably works fine for an in-memory data-structure but given the tree's size having it all in memory is infeasible.
 
 An alternative design is to store all non-empty nodes in a data management system such as PostgreSQL and build a spatial index that can be used for querying.
@@ -468,7 +478,7 @@ A response needs to include all intermediate and leaf nodes whose spatial repres
 Non-Empty intersecting nodes are required as they contain certificates relevant for the queried volume but intersecting empty nodes can be omitted as their hash is known or can be computed.
 Using a spatial index optimized for intersections will likely perform better than a custom implementation.
 This solutions comes with a new problem:
-Using exclusively polar coordinates it is not possible to represent a sphere and while PostgreSQL's postgis extension has a \texttt{ST\_DistanceSphere} function, it cannot make use of an index.
+Using exclusively polar coordinates it is not possible to represent a sphere or circle and while PostgreSQL's postgis extension has a \texttt{ST\_DistanceSphere} function, it cannot make use of an index.
 Moreover \texttt{ST\_3DDWithin} does not support polar coordinates and simply treating the polar coordinates as if they were euclidian will cause wrong results.
 Hence using an actual sphere seems infeasible but it can be over-approximated using a polyhedron which allows the usage of intersections.
 As in the case of \texttt{ST\_3DDWithin}, \texttt{ST\_3DIntersects} also does not support polar coordinates but \texttt{ST\_Intersects} does.
@@ -485,8 +495,10 @@ The risk is that this results in under-approximating the data which would make t
 Alternatively \texttt{ST\_3DIntersects} could be used where sphere is approximated using a polyhedron getting rid of one of the two over-approximations.
 Since \texttt{ST\_3DIntersects} does not support polar coordinates, it would be required to limit the sphere's maximum radius to mitigate the possibility of under approximating the sphere's actual volume
 If \texttt{ST\_3DIntersects} supported geographical coordinates (which it does not), limiting the sphere's radius would no longer be required.
+The just described approach works for all extruded polygon shapes and thus all shapes that can be approximated using these.
 
-
+MySQL has equivalent functions for two dimensional data but apparently not for three dimensional data.
+Given the above, a cartesian coordinate system as proposed in the original GeoPKI \cite{kim_geopki_2013} paper is easier to query but coordinate transformations are more cumbersome.
 
 % SLECT ST_Buffer(ST_Transform(ST_GeomFromText('ZPOINT(-105.05083 39.74823 50)', 4326), 2877), 1500);
 
