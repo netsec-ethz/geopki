@@ -457,7 +457,7 @@ The question of how to map a point in space and radius to the set of binary stri
     \includegraphics[width=0.75\linewidth]{./resources/query-approximation/sphere-approximation}
     
     \caption{
-    	Approximating a sphere using an extruded polygon with four, eight, sixteen or $32$ points.
+    	Approximating a sphere using an extruded polygon with four, eight, sixteen or $32$ vertices.
     }
     \label{fig:sphere-approximation}
 \end{figure}
@@ -499,6 +499,14 @@ The just described approach works for all extruded polygon shapes and thus all s
 
 MySQL has equivalent functions for two dimensional data but apparently not for three dimensional data.
 Given the above, a cartesian coordinate system as proposed in the original GeoPKI \cite{kim_geopki_2013} paper is easier to query but coordinate transformations are more cumbersome.
+
+\subsection{Approximating a circle using polar coordinates}
+
+Let $p$ be the center of the circle in polar coordinates and $r$ it's radius in meters.
+Let $n$ with $n \geq 3$ be the number of polygon's vertices used to approximate the circle.
+For each angle $a \in \left\{k \cdot \frac{360}{n} \: | \: k \in \{0, ..., n-1\} \right\}$ ``walk''\footnote{\url{https://geopy.readthedocs.io/en/stable/\#geopy.distance.Distance.destination}} $r$ meters on the geoid's surface starting from $p$ into the direction of $a$ where $a=0$ indicates north.
+The resulting set of points define a polygon that approximates the circle.
+See \Cref{fig:sphere-approximation} for examples how this shape can then be extruded to approximate a sphere.
 
 % SLECT ST_Buffer(ST_Transform(ST_GeomFromText('ZPOINT(-105.05083 39.74823 50)', 4326), 2877), 1500);
 
@@ -633,6 +641,7 @@ The used format should be flexible enough to support a variety of use cases such
 Open Street Maps uses polygons and RFC 7946 specifies the ``geospatial data interchange format'' GeoJSON \cite{butler_geojson_2016} that also makes use of polygons.
 One option would be to define additional types allowing for three dimensional polygons, another to use the ``properties'' field defined in RFC 7946.
 When going with the latter approach, each certificate could define a \texttt{GeometryCollection} of \texttt{Polygon}s or \texttt{MultiPolygon}s, each with an \texttt{elevation\_from} and \texttt{elevation\_to} property indicating the inclusive minimum and maximum elevation, respectively.
+Note that this representation only allows for extruded two dimensional polygons as primitives but their composition allows more complex shapes.
 Since the GeoJSON uses a text-encoding, serializing the data using e.g. protocol buffers as done by Mapbox \cite{mapbox_geobuf_2023} will result in a smaller encoding and fast read and write operations.
 
 \bibliographystyle{IEEEtran}
