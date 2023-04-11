@@ -466,47 +466,43 @@ One possibility to query a sphere is to walk the tree and intersect it with the 
 This process is repeated recursively until the reached level is a (sparse) ``leaf''.
 When walking the tree like this, all information that has to be returned (including the data for the proof) is obtained in one go.
 
-To be more efficient, the first $B_{x} + B_{y}$ steps can be performed by intersecting a circle (at the height of the sphere's center where the radius is maximized) with a rectangle (the voxels areas at zero elevation).
-Analogously for the last $B_z$ steps, the sphere's and voxels' projections to the $z$ or $z$ axis can be intersected.
-Note that this over-approximates the result since a voxel is counted as intersecting if it intersects the polygon approximation of the circle extruded between its limiting $z$ coordinates.
-See \Cref{fig:sphere-approximation} for a visualization of this with different accuracies for the circle's approximation.
-Without approximating the circle using a polygon it would correspond to intersecting the voxels with a cylinder.
+Alternatively, the first $B_{x} + B_{y}$ steps can be performed by intersecting a circle (at the height of the sphere's center where the radius is maximized) with rectangles (the voxels areas at zero elevation).
+Analogously for the last $B_z$ steps, the sphere's and voxels' projections to the $z$ axis can be intersected.
+Note that this over-approximates the result since a voxel is counted as intersecting if it intersects the the circle extruded between its limiting $z$ coordinates, i.e. the corresponding cylinder.
 This approach probably works fine for an in-memory data-structure but given the tree's size having it all in memory is infeasible.
 
 An alternative design is to store all non-empty nodes in a data management system such as PostgreSQL and build a spatial index that can be used for querying.
-A response needs to include all intermediate and leaf nodes whose spatial representation intersects the queried spehere.
+A response needs to include all intermediate and leaf nodes whose spatial representation intersects the queried sphere.
 Non-Empty intersecting nodes are required as they contain certificates relevant for the queried volume but intersecting empty nodes can be omitted as their hash is known or can be computed.
 Using a spatial index optimized for intersections will likely perform better than a custom implementation.
-This solutions comes with a new problem:
-Using exclusively polar coordinates it is not possible to represent a sphere or circle and while PostgreSQL's postgis extension has a \texttt{ST\_DistanceSphere} function, it cannot make use of an index.
-Moreover \texttt{ST\_3DDWithin} does not support polar coordinates and simply treating the polar coordinates as if they were cartesian will cause wrong results.
-Hence using an actual sphere seems infeasible but it can be over-approximated using a polyhedron which allows the usage of intersections.
-As in the case of \texttt{ST\_3DDWithin}, \texttt{ST\_3DIntersects} also does not support polar coordinates but \texttt{ST\_Intersects} does.
-This enables a similar approach as previously described based on two predicates:
-One predicate ensures the intersection with the polygon approximation of a circle at the sphere's center with the sphere's radius using \texttt{ST\_Intersects}.
-The other predicate ensures the $z$ coordinate is within a given sphere's range.
-As previously noted this over-approximates the result and in will result in more data returned than actually requested.
-This is due to the two over-approximations: First approximating the circle using a polygon and then second extruding this polygon between the two limiting $z$ coordinates.
-If \texttt{ST\_3DDWithin} supported spherical coordinates, no approximation would be required and it would likely result in a more efficient query plan as the approach from before likely involves using the spatial index (R-Tree) to filter based on the first predicate and then perform a table scan for the second.
+PostgreSQL's postgis extension has a \texttt{ST\_DWithin} that supports polar coordinates and a radius in meters but it only operates in two dimensions and the three-dimensional equivalent \texttt{ST\_3DDWithin} does not support polar coordinates.
+Simply treating the polar coordinates as if they were cartesian will cause wrong results.
+Hence using an actual three-dimensional sphere seems infeasible but it could be over-approximated using a polyhedron and check for intersections.
+Unfortunately as in the case of the three-dimensional intersection function \texttt{ST\_3DIntersects} also does not support polar coordinates.
+Thus directly using a three-dimensional spatial index does not seem to be possible when using polar coordinates.
+Falling back to two dimensions, \texttt{ST\_DWithin} and \texttt{ST\_Intersects} both support polar coordinates which enables a similar approach as previously described:
+First one predicate ensures the intersection with the circle defined by sphere's center and it's radius using \texttt{ST\_DWithin} or \texttt{ST\_Intersects}.
+In the case of \texttt{ST\_Intersects}, the circle needs to be approximated using a polygon as circles cannot be represented solely using polar coordinates.
+A second predicate ensures the $z$ coordinate is within a given sphere's range.
+As previously noted this approximates the sphere as a cylinder and in case of \texttt{ST\_DWithin} will result in more data returned than actually requested.
+When using \texttt{ST\_Intersects}, things get a bit more complicated as over-approximating a circle in polar coordinates does not seem to be a trivial task.
+Hence in this case it would probably be best to let the client perform the approximation to prevent the server accidentally omitting data due to approximation errors.
+% If \texttt{ST\_3DDWithin} supported spherical coordinates, no approximation would be required and it would likely result in a more efficient query plan as the approach from before likely involves using the spatial index (R-Tree) to filter based on the first predicate and then perform a table scan for the second.
 
-An alternative approach would be to limit a input sphere's radius to a value where the differences between polar and cartesian coordinates are not significant and thus \texttt{ST\_3DDWithin} could be used.
+An alternative approach would be to limit a input sphere's radius to a value where the differences between polar and cartesian coordinates are not significant and thus \texttt{ST\_3DDWithin} or \texttt{ST\_3DIntersects} could be used.
 The risk is that this results in under-approximating the data which would make the server seemingly behave malicious.
 
-Alternatively \texttt{ST\_3DIntersects} could be used where sphere is approximated using a polyhedron getting rid of one of the two over-approximations.
-Since \texttt{ST\_3DIntersects} does not support polar coordinates, it would be required to limit the sphere's maximum radius to mitigate the possibility of under approximating the sphere's actual volume
-If \texttt{ST\_3DIntersects} supported geographical coordinates (which it does not), limiting the sphere's radius would no longer be required.
-The just described approach works for all extruded polygon shapes and thus all shapes that can be approximated using these.
+MySQL has equivalent functions for two dimensional data but seemingly not for three dimensional data.
+Given the above, a cartesian coordinate system as proposed in the original GeoPKI \cite{kim_geopki_2013} paper would certainly be easier to query as \texttt{ST\_3DDWithin} could be used.
 
-MySQL has equivalent functions for two dimensional data but apparently not for three dimensional data.
-Given the above, a cartesian coordinate system as proposed in the original GeoPKI \cite{kim_geopki_2013} paper is easier to query but coordinate transformations are more cumbersome.
+\subsection{Under-approximating a Circle using Polar Coordinates}
 
-\subsection{Approximating a circle using polar coordinates}
-
+If \texttt{ST\_Intersects} is used, it is required to approximate the circle using a polygon.
 Let $p$ be the center of the circle in polar coordinates and $r$ it's radius in meters.
 Let $n$ with $n \geq 3$ be the number of polygon's vertices used to approximate the circle.
 For each angle $a \in \left\{k \cdot \frac{360}{n} \: | \: k \in \{0, ..., n-1\} \right\}$ ``walk''\footnote{\url{https://geopy.readthedocs.io/en/stable/\#geopy.distance.Distance.destination}} $r$ meters on the geoid's surface starting from $p$ into the direction of $a$ where $a=0$ indicates north.
-The resulting set of points define a polygon that approximates the circle.
-See \Cref{fig:sphere-approximation} for examples how this shape can then be extruded to approximate a sphere.
+The resulting set of points define a polygon that under-approximates the circle.
+See \Cref{fig:sphere-approximation} for examples how this shape can then be extruded to under-approximate a sphere.
 
 % SLECT ST_Buffer(ST_Transform(ST_GeomFromText('ZPOINT(-105.05083 39.74823 50)', 4326), 2877), 1500);
 
