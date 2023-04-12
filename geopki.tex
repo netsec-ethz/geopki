@@ -57,41 +57,47 @@
 \section{Model}
 \label{sec:model}
 
-The earth ellipsoid model of the existing world geodetic system (WGS) 84 \cite{noauthor_nga_nodate} is used.
-WGS 84 defines the \emph{semi-major axis} (half of the largest diameter of an ellipsoid, at the equator) $a$ to be $6'378'137.0$~meters \cite{noauthor_nga_nodate}. The \emph{semi-minor axis} (the polar radius) $b$ is defined as $6'356'752.3142~$meters \cite{noauthor_nga_nodate}.
-Standard polar coordinates (longitude, latitude) are used for referencing points on the planet's two-dimensional surface and a third coordinate, elevation, extends this to three dimensions.
-Longitude, latitude and elevation together refer to a unique point in three-dimensions.
+The earth ellipsoid model of the existing world geodetic system 84 (WGS84) \cite{noauthor_nga_nodate} is used.
+WGS84 defines the \emph{semi-major axis} (half of the largest diameter of an ellipsoid, at the equator) $a$ to be $6'378'137.0$~meters \cite{noauthor_nga_nodate}. The \emph{semi-minor axis} (the polar radius) $b$ is defined as $6'356'752.3142~$meters \cite{noauthor_nga_nodate}.
+Standard polar coordinates (longitude, latitude) are used for referencing points on the planet's two-dimensional surface and a third coordinate, altitude, extends this to three dimensions.
+Longitude, latitude and altitude together refer to a unique point in three-dimensions.
 
 Each of the three coordinates is discretized in a way that preserves meter-precision in the worst case.
-With the semi-major axis $a$, the maximum circumference of the ellipsoid equals $C_{x} :=2 a \pi$~meters.
-Using base two, $B_{x}:= \left\lceil \log_2(C_{x}) \right\rceil = 26$ bits for the longitude thus suffice to represent each possible meter value in the worst case.
-For the latitude the circumference is $2 b \pi$~meters but we only need to be able to represent half of it, so $C_{y} := b \pi$.
-Thus $\left\lceil\log2(C_y)\right\rceil = 25 = B_{x} - 1$ bits would suffice.
-Being slightly inefficient, $B_{y} := B_{x} =: B_{x,y}$ bits are used to make the binary format a bit easier to deal with.
-For elevation there is no natural bound so one has to be fixed.
+With the semi-major axis $a$, the maximum circumference of the ellipsoid equals $=2 a \pi$~meters.
+Using base two, $B_{x}:= \left\lceil \log_2(2 a \pi) \right\rceil = 26$ bits for the longitude thus suffice to represent each possible meter value in the worst case.
+Let $C_{x} := 2^{B_{x}} - 1$ denote the maximum discretized value for the longitude.
+For the latitude the circumference is $2 b \pi$~meters but we only need to be able to represent half of it, so $b \pi$.
+Thus $\left\lceil\log2(C_y)\right\rceil = 25 =: B_{y}$ bits suffice.
+Analogously to $C_{x}$, let $C_y := 2^{B_{y}} - 1$ the maximum discretized value for the latitude.
+For altitude there is no natural bound so one has to be fixed.
 At the time of writing, the highest point on earth is below $10'000$~meters above sea level \cite{us_department_of_commerce_what_nodate} and the lowest layer of earth's atmosphere, the troposphere, extends to about $18$~km \cite{dhaka_chapter_2023}.
 The Mariana Trench at about $10'000$~m below sea level \cite{gardner_so_2014} is likely a bound not exceeded in the near future.
-The necessity of allowing volumes below sea level arises from countries such as the Netherlands where parts of the surface's elevation is below sea level \cite{kabat_climate_2005} .
+The necessity of allowing volumes below sea level arises from countries such as the Netherlands where parts of the surface's altitude is below sea level \cite{kabat_climate_2005} .
 Moreover in the future, below sea level research stations might be built.
-Thus the range starting at a depth of $D:=-10'000$~m up to an elevation of $H:=20'000$~m above sea level should cover any current and near-future needs.
+Thus the range starting at a depth of $D:=-10'000$~m up to an altitude of $20'000$~m above sea level should cover any current and near-future needs.
 Covering this range requires $B_{z} := \left\lceil \log_2(H - D) \right\rceil = 15$ bits.
+In fact using $B_z$ bits starting at $D$ will cover the range from $D$ to $D + (2^{B_{z}} - 1) = 22'767 := H$.
+Complications might arise from distance calculations when using sea level as a reference as the sea level is not the same in all places and will increase in the future.
+Thus instead of using sea level as a reference, the geodetic altitude defined by WGS84~\cite{noauthor_nga_nodate} is used.
+Given the geoid's surface in WGS84 is about at the mean sea level (MSL), the range $[D, H]$ can be left as is.
+While it does not exactly cover the range described range with respect to local sea level, it approximates it.
 
 \section{Data Structure}
 \label{sec:data-structure}
 
 Inspired by F-PKI~\cite{chuat_f-pki_2022}, a sparse merkle hash tree (SMT) is used.
-Each leaf represents a full discretized coordinate using $B := 2 \cdot B_{x,y} + B_{z} = 68$ bits resulting in a total of $2^{B}$ leaves.
+Each leaf represents a full discretized coordinate using $B := \cdot B_{x} + B_{y} + B_{z} = 66$ bits resulting in a total of $2^{B}$ leaves.
 To have spatially close points somewhat close together in the SMT, the space-filling $Z$-order curve is used to sort the three dimensional locations in one dimension \cite{morton_computer_1966}.
-An example with $B_{x,y} = B_{z} = 2$ is shown in \Cref{fig:z-curve-example:two-bits}.
+An example with $B_{x} = B{y} = B_{z} = 2$ is shown in \Cref{fig:z-curve-example:two-bits}.
 GeoPKI uses a slightly modified 3D Z-order curve:
-Rather than using the full 3D Z-order curve, a 2D Z-order curve over the longitude and latitude is used and points with the same longitude and latitude but different elevation are put in sequence.
+Rather than using the full 3D Z-order curve, a 2D Z-order curve over the longitude and latitude is used and points with the same longitude and latitude but different altitude are put in sequence.
 While this leads to spatially close points being further apart in the 1-dimensional sorting, this modification allows for shorter proofs under some assumptions (will be discussed in \Cref{sec:optimizations}) and even results in a nicer binary representation.
 \Cref{fig:z-curve-example:two-bits-optim} contrasts this modification with the standard 3D Z-order curve shown in \Cref{fig:z-curve-example:two-bits}.
 
 \subsection{Leaf Binary Format}
 \label{sec:data-structure:leaf-binary}
 Each leaf of the SMT corresponds to a point and the tree leaves are sorted lexicographically by their binary representation in ascending order.
-A point tuple $p := (x,y,z)$ at longitude $x$, latitude $y$ and elevation $z$ with
+A point tuple $p := (x,y,z)$ at longitude $x$, latitude $y$ and altitude $z$ with
 \begin{align*}
 	(x, y, z) &\in [-180, 180] \times [-90, 90] \times [D, H]
 \end{align*}
@@ -129,19 +135,21 @@ After this transformation the following folds:
 	p' &\in [0, 2^{B_x}) \times [0, 2^{B_y}) \times [0, 2^{B_z})
 \end{align*}
 
-This formula holds since the first term in the longitude and latitude tuples can be at most $1$ and since $C_x < 2^{B_{x,y}}$, $C_y < 2^{B_{x,y}}$ and $H - D < 2^{B_z}$ hold.
-The three resulting integer numbers can now be represented using $B_{x,y}$, $B_{x,y}$ and $B_z$ bits, respectively. Let $p'' := (x_b, y_b, z_b)$ be their big-endian integer binary encoding with
+This formula holds since the first term in the longitude and latitude tuples can be at most $1$ and since $C_x$ and $C_y$ are the maximum values that can be represented using $B_x$ and $B_y$ bits, respectively.
+Moreover $H - D = 2^{B_z} - 1$ holds meaning the altitude can be represented using $B_z$ bits.
+The three resulting integer numbers can now be represented using $B_{x}$, $B_{y}$ and $B_z$ bits, respectively. Let $p'' := (x_b, y_b, z_b)$ be their big-endian integer binary encoding with
 \begin{align*}
-	p'' &\in \{0,1\}^{B_{x,y}} \times \{0,1\}^{B_{x,y}} \times \{0,1\}^{B_z}
+	p'' &\in \{0,1\}^{B_{x}} \times \{0,1\}^{B_{y}} \times \{0,1\}^{B_z}
 \end{align*}
 
 For $c \in \{x, y, z\}$ and for any integer $i \in \{0, ..., B_c-1\}$, let $c_{b,i}$ denote the $i$-th bit of $c_{b}$. Moreover let $||$ denote the concatenation operator.
 The binary representation $p_b$ of the point $p$ is then defined as
 \begin{align*}
-	p_b = \left(\concat_{i=0}^{B_{xy} - 1} x_{b,i} || y_{b,i} \right) || \left(\concat_{i=0}^{B_{z}-1} z_{b,i} \right)
+	p_b = \left(\concat_{i=0}^{B_{y} - 1} x_{b,i} || y_{b,i} \right) || x_{b,B_{x}-1} || \left(\concat_{i=0}^{B_{z}-1} z_{b,i} \right)
 \end{align*}
 
-In words, the binary representation of $p$ is the interleaving of the binary representation for the longitude and latitude concatenated to the binary representation of the elevation.
+In words, the binary representation of $p$ is the interleaving of the binary representation for the longitude and latitude concatenated to the binary representation of the altitude.
+
 \Cref{fig:leaf-representation:binary} shows an example of this binary encoding.
 
 % ($47.37643$, $8.54828$, $0$)
@@ -158,7 +166,7 @@ In words, the binary representation of $p$ is the interleaving of the binary rep
     \hfill
     \begin{subfigure}[t]{0.24\textwidth}
         \includegraphics[width=\textwidth]{./resources/z-example/two-bits.png}
-        \caption{2D Z-Order Curve with elevation in sequence}
+        \caption{2D Z-Order Curve with altitude in sequence}
         \label{fig:z-curve-example:two-bits-optim}
     \end{subfigure}
     \caption{
@@ -194,7 +202,7 @@ and the volume represented by point $p''$ is given by
     \centering
     \begin{subfigure}[t]{0.24\textwidth}
         \includegraphics[width=\textwidth]{./resources/leaf-representation/binary-representation.pdf}
-        \caption{Binary Representation of a (longitude, latitude, elevation) tuple.}
+        \caption{Binary Representation of a (longitude, latitude, altitude) tuple.}
         \label{fig:leaf-representation:binary}
     \end{subfigure}
     \hfill
@@ -217,65 +225,26 @@ The left child is the node with the binary representation equal to the intermedi
 The formula for computing the volume becomes more complex for intermediate nodes as it requires a case distinction:
 Let $s$ be the binary string of an intermediate node.
 
-
-\textbf{Case 1}: Assume length of $s$ is exactly $2 \cdot B_{x,y}$.
-Then the corresponding $x_d$ and $y_d$ are well defined as for the leaves.
-The corresponding point is
-\begin{align}
-\begin{split}
-\label{eq:intermediate-geometric-point-full-height}
-\left(x_d \cdot \frac{360}{C_x} - 180, y_d \cdot \frac{180}{C_y} - 90, D\right)
-\end{split}
-\end{align}
-and the covered volume is given by
-\begin{align}
-\begin{split}
-\label{eq:intermediate-geometric-volume-full-height}
-\left[x_d \cdot \frac{360}{C_x} - 180, (x_d + 1) \cdot \frac{360}{C_x} - 180\right) &\times\\
-\left[y_d \cdot \frac{180}{C_y} - 90, (y_d + 1) \cdot \frac{180}{C_y} - 90\right) &\times\\
-\left[D, H \right)&
-\end{split}
-\end{align}
-
-\textbf{Case 2}: Assume length of $s$ is strictly greater than $2 \cdot B_{x,y}$.
-Then the corresponding $x_d$ and $y_d$ are also well defined as for the leaves.
-Let $s_z$ be the remaining bits after the first $2 \cdot B_{x,y}$, let $l$ be it's length and let $s_{z,i}$ for $i \in \{0, ..., l-1\}$ be the $i$-th bit of $s_z$.
-The point corresponding to this bit string is
-\begin{align}
-\begin{split}
-\label{eq:intermediate-geometric-point-partial-height}
-\left(x_d \cdot \frac{360}{C_x} - 180, y_d \cdot \frac{180}{C_y} - 90, D + \sum_{i=0}^{l-1} 2^{B_z - 1 - i} \cdot s_{z,i}\right)
-\end{split}
-\end{align}
-and the covered volume is given by
-\begin{align}
-\begin{split}
-\label{eq:intermediate-geometric-volume-full-height}
-\left[x_d \cdot \frac{360}{C_x} - 180, (x_d + 1) \cdot \frac{360}{C_x} - 180\right) &\times\\
-\left[y_d \cdot \frac{180}{C_y} - 90, (y_d + 1) \cdot \frac{180}{C_y} - 90\right) &\times\\
-\left[D + \sum_{i=0}^{l-1} 2^{B_z - 1 - i} \cdot s_{z,i}, D +\left(\sum_{i=0}^{l-1} 2^{B_z - 1 - i} \cdot s_{z,i}\right) + 2^{B_z -l}\right)&
-\end{split}
-\end{align}
-
-\textbf{Case 3}: Assume length of $s$ is strictly smaller than $2 \cdot B_{x,y}$.
-In this case there are only partial bits for the longitude and latitude but certainly know that the full $z$ dimension is covered.
 Let $l$ be the length of $s$.
-Let $s_x$ and $s_y$ be the bit prefixes encoded in $s$ corresponding to the longitude and latitude, let $l_x$ and $l_y$ be the lengths of $s_x$ and $s_y$, and let $s_{x,i}$ and $s_{y,j}$ for $i \in \{0, ..., l_x-1\}, j \in \{0, ..., l_y-1\}$ correspond to the $i$-th and $j$-th bit of $s_x$ and $s_y$, respectively.
-It holds that $l = l_x + l_y$ and it is possible that $l_x$ is by exactly one larger than $l_y$, otherwise $l_x = l_y$.
+Let $s_x$, $s_y$, $s_z$ be the bit prefixes encoded in $s$ corresponding to the longitude, latitude and altitude, respectively.
+Moreover let $l_x$, $l_y$ and $l_z$ be the lengths of $s_x$, $s_y$ and $s_z$, respectively, and let $s_{c,i}$ for $i \in \{0, ..., l_c-1\}$ and $c \in \{x, y, z\}$ correspond to the $i$-th bit of $s_c$.
+It holds that $l = l_x + l_y + l_z$ and it is possible that $l_x$ is by exactly one larger than $l_y$, otherwise $l_x = l_y$.
 This directly follows from the interleaved binary encoding described in \Cref{sec:data-structure:leaf-binary}.
-Let $x'_d$ and $y'_d$ be the most-precise integers that can be re-constructed with the given bits:
+Let $x'_d$, $y'_d$, $z'_d$ be the most-precise integers that can be re-constructed with the given bits:
 \begin{align}
-	\label{eq:intermediate-geometric-point-partial-height}
+	\label{eq:intermediate-geometric-point-partial-height:x}
 	x'_d :&= \sum_{i=0}^{l_x - 1} 2^{B_{x,y} - 1 - i} \cdot s_{x,i}\\
-	\label{eq:intermediate-geometric-point-partial-height}
-	y'_d :&= \sum_{i=0}^{l_y - 1} 2^{B_{x,y} - 1 - i} \cdot s_{y,i}
+	\label{eq:intermediate-geometric-point-partial-height:y}
+	y'_d :&= \sum_{i=0}^{l_y - 1} 2^{B_{x,y} - 1 - i} \cdot s_{y,i}\\
+	\label{eq:intermediate-geometric-point-partial-height:z}
+	z'_d :&= \sum_{i=0}^{l_z - 1} 2^{B_{z} - 1 - i} \cdot s_{z,i}
 \end{align}
 
 Then the corresponding point is given by
 \begin{align}
 \begin{split}
 \label{eq:intermediate-geometric-point-partial-height}
-\left(x'_d \cdot \frac{360}{C_x} - 180,y_d \cdot \frac{180}{C_y} - 90, D\right)
+\left(x'_d \cdot \frac{360}{C_x} - 180,y_d \cdot \frac{180}{C_y} - 90, D + z'_d\right)
 \end{split}
 \end{align}
 and the covered volume by
@@ -284,9 +253,11 @@ and the covered volume by
 \label{eq:intermediate-geometric-volume-full-height}
 \left[x'_d \cdot \frac{360}{C_x} - 180, (x_d + 2^{B_{x,y} - l_x}) \cdot \frac{360}{C_x} - 180\right) &\times\\
 \left[y'_d \cdot \frac{180}{C_y} - 90, (y_d + 2^{B_{x,y} - l_y}) \cdot \frac{180}{C_y} - 90\right) &\times\\
-\left[D, H\right)&
+\left[D + z'_d, D + \left(z'_d + 2^{B_z - l_z}\right)\right)&
 \end{split}
 \end{align}
+
+This is the more general form of \Cref{eq:leaf-geometric-volume} and for $l_x = l_y = B_{x,y}$ and $l_z = B_z$ the two are equivalent.
 
 It is worth nothing is that in GeoPKI, intermediate nodes also store a set of certificates.
 When using a tree representing the geography (which can reduce proof sizes as described in \Cref{sec:alternative-designs}), this is almost a requirement.
@@ -409,7 +380,7 @@ In case of the placement of certificates in the tree, it is infeasible to place 
 As noted before, most places on earth are claimed by at least one country and thus the tree would not be sparse at all.
 
 A plausible heuristic balancing the returned data size with the number of subtrees loss in sparsity is to use a subtree level where the volume of $V$ is greater than or equal to a given fraction $f \in [0,1)$ of the voxel volumes at this level.
-For instance $f = \frac{1}{4}$ would result in \Cref{fig:worst-case:three} and $f = \frac{1}{2}$ in \Cref{fig:worst-case:four} (assuming all shown areas cover the full elevation spectrum).
+For instance $f = \frac{1}{4}$ would result in \Cref{fig:worst-case:three} and $f = \frac{1}{2}$ in \Cref{fig:worst-case:four} (assuming all shown areas cover the full altitude spectrum).
 The effectiveness of this heuristic and a good value for $f$ is to be determined using empirical experiments.
 
 \subsubsection{Query to Voxels}
@@ -466,7 +437,7 @@ One possibility to query a sphere is to walk the tree and intersect it with the 
 This process is repeated recursively until the reached level is a (sparse) ``leaf''.
 When walking the tree like this, all information that has to be returned (including the data for the proof) is obtained in one go.
 
-Alternatively, the first $B_{x} + B_{y}$ steps can be performed by intersecting a circle (at the height of the sphere's center where the radius is maximized) with rectangles (the voxels areas at zero elevation).
+Alternatively, the first $B_{x} + B_{y}$ steps can be performed by intersecting a circle (at the height of the sphere's center where the radius is maximized) with rectangles (the voxels areas at zero altitude).
 Analogously for the last $B_z$ steps, the sphere's and voxels' projections to the $z$ axis can be intersected.
 Note that this over-approximates the result since a voxel is counted as intersecting if it intersects the the circle extruded between its limiting $z$ coordinates, i.e. the corresponding cylinder.
 This approach probably works fine for an in-memory data-structure but given the tree's size having it all in memory is infeasible.
@@ -537,7 +508,7 @@ As in F-PKI~\cite{chuat_f-pki_2022} using a consistency tree over the root hashe
 
 First of all it should be noted that the asymmetric design of the binary string with respect to the $z$ dimension allows placing certificates higher in the tree and thus increase sparsity.
 
-Under the assumption most of the world is rather flat with respect to elevation, certificates can often be placed at intermediate nodes covering the full height. % TODO: possibly add citation for "most of the world is flat"
+Under the assumption most of the world is rather flat with respect to altitude, certificates can often be placed at intermediate nodes covering the full height. % TODO: possibly add citation for "most of the world is flat"
 This lowers the tree's height and thus reduces the proof sizes.
 For this to work, clients must not expect the certificates to be placed at a unique node in the tree.
 The placement does not matter as long as the certificate is stored with \emph{all nodes at one level} whose geometric representation intersect the certificate's claimed volume.
@@ -636,7 +607,7 @@ The claimed volume has to be specified in the X.509 certificate.
 The used format should be flexible enough to support a variety of use cases such as a set of disjoint volumes, rectangular but also circular volumes.
 Open Street Maps uses polygons and RFC 7946 specifies the ``geospatial data interchange format'' GeoJSON \cite{butler_geojson_2016} that also makes use of polygons.
 One option would be to define additional types allowing for three dimensional polygons, another to use the ``properties'' field defined in RFC 7946.
-When going with the latter approach, each certificate could define a \texttt{GeometryCollection} of \texttt{Polygon}s or \texttt{MultiPolygon}s, each with an \texttt{elevation\_from} and \texttt{elevation\_to} property indicating the inclusive minimum and maximum elevation, respectively.
+When going with the latter approach, each certificate could define a \texttt{GeometryCollection} of \texttt{Polygon}s or \texttt{MultiPolygon}s, each with an \texttt{altitude\_from} and \texttt{altitude\_to} property indicating the inclusive minimum and maximum altitude, respectively.
 Note that this representation only allows for extruded two dimensional polygons as primitives but their composition allows more complex shapes.
 Since the GeoJSON uses a text-encoding, serializing the data using e.g. protocol buffers as done by Mapbox \cite{mapbox_geobuf_2023} will result in a smaller encoding and fast read and write operations.
 
