@@ -67,7 +67,7 @@ With the semi-major axis $a$, the maximum circumference of the ellipsoid equals 
 Using base two, $B_{x}:= \left\lceil \log_2(2 a \pi) \right\rceil = 26$ bits for the longitude thus suffice to represent each possible meter value in the worst case.
 Let $C_{x} := 2^{B_{x}} - 1$ denote the maximum discretized value for the longitude.
 For the latitude the circumference is $2 b \pi$~meters but we only need to be able to represent half of it, so $b \pi$.
-Thus $\left\lceil\log2(C_y)\right\rceil = 25 =: B_{y}$ bits suffice.
+Thus $\left\lceil\log_2(C_y)\right\rceil = 25 =: B_{y}$ bits suffice.
 Analogously to $C_{x}$, let $C_y := 2^{B_{y}} - 1$ the maximum discretized value for the latitude.
 For altitude there is no natural bound so one has to be fixed.
 At the time of writing, the highest point on earth is below $10'000$~meters above sea level \cite{us_department_of_commerce_what_nodate} and the lowest layer of earth's atmosphere, the troposphere, extends to about $18$~km \cite{dhaka_chapter_2023}.
@@ -220,10 +220,10 @@ and the volume represented by point $p''$ is given by
 \subsection{Intermediate Nodes}
 \label{sec:data-structure:intermediate}
 Intermediate nodes in the SMT also correspond to a point and a volume following the same pattern as for the leaf nodes.
-The binary string corresponding to an intermediate node is simply the longest common prefix of it's two children and covers the whole volume of its two children.
+The bit string corresponding to an intermediate node is simply the longest common prefix of it's two children and covers the whole volume of its two children.
 The left child is the node with the binary representation equal to the intermediate node one's concatenated with a zero and the right child concatenated with a one.
 The formula for computing the volume becomes more complex for intermediate nodes as it requires a case distinction:
-Let $s$ be the binary string of an intermediate node.
+Let $s$ be the bit string of an intermediate node.
 
 Let $l$ be the length of $s$.
 Let $s_x$, $s_y$, $s_z$ be the bit prefixes encoded in $s$ corresponding to the longitude, latitude and altitude, respectively.
@@ -309,15 +309,15 @@ The constants $0$ and $1$ are prefixed in the hash computation to prevent collis
 \subsection{Querying the SMT}
 \label{sec:data-structure:query}
 
-Since many sizes of volumes can be represented by the binary format described in Sections \ref{sec:data-structure:leaf-binary} and \ref{sec:data-structure:intermediate}, the only type of query a GeoPKI map server supports is such a binary string.
-Such a binary string has a unique corresponding node in the tree (that might not exist as the tree is sparse).
+Since many sizes of volumes can be represented by the binary format described in Sections \ref{sec:data-structure:leaf-binary} and \ref{sec:data-structure:intermediate}, the only type of query a GeoPKI map server supports is such a bit string.
+Such a bit string has a unique corresponding node in the tree (that might not exist as the tree is sparse).
 The result then is the set of all certificates stored at intermediate nodes above the specified node (as these represent larger areas covering the queries point) and the set of all certificates stored in the subtree rooted at the specified node as these are within the queried area.
 The former set corresponds to the set of nodes whose corresponding binary representation are a prefix for the given query.
 The latter set corresponds to the set of nodes whose corresponding binary representation the given query is a prefix for.
 
 A trivial way to obtain this set of certificates is to walk the tree from the root and collect the certificates stored at the intermediate nodes along the way.
 If the next bit is a zero, go left, if it is one, go right.
-Once the node with a binary string corresponding to the query is found, the full subtree rooted at this node is walked recursively until an empty node or a leaf is found and all found certificates are returned.
+Once the node with a bit string corresponding to the query is found, the full subtree rooted at this node is walked recursively until an empty node or a leaf is found and all found certificates are returned.
 
 \subsection{Arbitrary Volumes and Certificate Placement}
 \label{sec:data-structure:arbitrary-volumes}
@@ -386,101 +386,47 @@ The effectiveness of this heuristic and a good value for $f$ is to be determined
 \subsubsection{Query to Voxels}
 
 For the transformation of queries to voxels to be queried the case turns out to be easier.
-In terms of response size it is always best to query each covered leaf individually.
-First a set of binary strings is defined to \emph{cover} a volume if and only if the union of the results returned when querying each of them contains all certificates intersecting said volume.
+In terms of response size it is always best to retrieve all individual leafs as directly querying a area higher up in the tree will always be a superset of that data.
 
-Proof:
+% First a set of bit strings is defined to \emph{cover} a volume if and only if the union of the results returned when querying each of them contains all certificates intersecting said volume.
 
-Let $V$ be the volume queried by the client and let $S$ be the smallest set of leaf binary strings that covers $V$.
-This set exists as the set of all leaves covers any volume that can be queried.
-The set $S$ is also unique since for each leaf it is possible to individually determine whether it has to be part of $S$. Next, assume there is some distinct set of binary strings $S' \neq S$ covering $V$.
-
-\textbf{Case 1}:
-Assume $S'$ contains only leaf binary strings.
-Since both cover $V$ and $S'$ is the smallest to do so, $S'$ must be a subset of $S$.
-Hence querying $S'$ will return at least as much data as querying $S$ would.
-%Moreover since $S \neq S'$, $S'$ must include at least one leaf whose geometric representation does not intersect $V$ (if it would it would also be part of $S$).
-
-\textbf{Case 2:}
-Assume $S'$ \textbf{not} only contains leaf binary strings.
-Then $S'$ must contain at least one binary string referring to a non-leaf.
-
-\textbf{Case 2a}: Assume all leaf binary strings descendant of all non-leaf nodes are in $S$.
-Then the covered volume is the same and the returned data is exactly the same:
-Querying a larger area rooted at an intermediate node $v$ returns it's full subtree and thus all certificates stored at its descendant leaves.
-Similarly, when directly querying all leaves of an intermediate node $v$ amounts to the same full subtree rooted at $v$ if duplicate intermediate nodes are omitted.
-In both cases the complementary hashes to the root node are required.
-
-\textbf{Case 2b:} Assume \textbf{not} all leaf binary strings descendant of all non-leaf nodes are in $S$.
-Then there is at least one non-leaf node that with a descendant leaf whose binary string is not part of $S$.
-The certificates returned when querying $S$ is thus a subset of the certificates returned when querying $S'$.
-In case the additional voxels covered by $S'$ are all empty, the exact same set of certificates is returned but the proof of absence of the empty nodes are not required when querying $S$.
-In case one of the voxels is non-empty, this is additional data only returned when querying $S'$ but not when querying $S$.
-Moreover these non-intersecting subtrees that at least contain one certificate of $\approx 2$kB size can be replaced by a $32$B hashes for the proof when querying $S$ rather than $S'$.
-
-Since no set $S'$ with a smaller response size can exist, $S$ is optimal.
-
-The question of how to map a point in space and radius to the set of binary strings remains but at least it is now clear what the answer should be.
-
-\subsection{Querying a Sphere}
-\begin{figure}
-	\centering
-    \includegraphics[width=0.75\linewidth]{./resources/query-approximation/sphere-approximation}
-    
-    \caption{
-    	Approximating a sphere using an extruded polygon with four, eight, sixteen or $32$ vertices.
-    }
-    \label{fig:sphere-approximation}
-\end{figure}
-
-One possibility to query a sphere is to walk the tree and intersect it with the volumes on each level of the tree.
-This process is repeated recursively until the reached level is a (sparse) ``leaf''.
-When walking the tree like this, all information that has to be returned (including the data for the proof) is obtained in one go.
-
-Alternatively, the first $B_{x} + B_{y}$ steps can be performed by intersecting a circle (at the height of the sphere's center where the radius is maximized) with rectangles (the voxels areas at zero altitude).
-Analogously for the last $B_z$ steps, the sphere's and voxels' projections to the $z$ axis can be intersected.
-Note that this over-approximates the result since a voxel is counted as intersecting if it intersects the the circle extruded between its limiting $z$ coordinates, i.e. the corresponding cylinder.
-This approach probably works fine for an in-memory data-structure but given the tree's size having it all in memory is infeasible.
-
-An alternative design is to store all non-empty nodes in a data management system such as PostgreSQL and build a spatial index that can be used for querying.
-A response needs to include all intermediate and leaf nodes whose spatial representation intersects the queried sphere.
-Non-Empty intersecting nodes are required as they contain certificates relevant for the queried volume but intersecting empty nodes can be omitted as their hash is known or can be computed.
-Using a spatial index optimized for intersections will likely perform better than a custom implementation.
-PostgreSQL's postgis extension has a \texttt{ST\_DWithin} that supports polar coordinates and a radius in meters but it only operates in two dimensions and the three-dimensional equivalent \texttt{ST\_3DDWithin} does not support polar coordinates.
-Simply treating the polar coordinates as if they were cartesian will cause wrong results.
-Hence using an actual three-dimensional sphere seems infeasible but it could be over-approximated using a polyhedron and check for intersections.
-Unfortunately as in the case of the three-dimensional intersection function \texttt{ST\_3DIntersects} also does not support polar coordinates.
-Thus directly using a three-dimensional spatial index does not seem to be possible when using polar coordinates.
-Falling back to two dimensions, \texttt{ST\_DWithin} and \texttt{ST\_Intersects} both support polar coordinates which enables a similar approach as previously described:
-First one predicate ensures the intersection with the circle defined by sphere's center and it's radius using \texttt{ST\_DWithin} or \texttt{ST\_Intersects}.
-In the case of \texttt{ST\_Intersects}, the circle needs to be approximated using a polygon as circles cannot be represented solely using polar coordinates.
-A second predicate ensures the $z$ coordinate is within a given sphere's range.
-As previously noted this approximates the sphere as a cylinder and in case of \texttt{ST\_DWithin} will result in more data returned than actually requested.
-When using \texttt{ST\_Intersects}, things get a bit more complicated as over-approximating a circle in polar coordinates does not seem to be a trivial task.
-Hence in this case it would probably be best to let the client perform the approximation to prevent the server accidentally omitting data due to approximation errors.
-% If \texttt{ST\_3DDWithin} supported spherical coordinates, no approximation would be required and it would likely result in a more efficient query plan as the approach from before likely involves using the spatial index (R-Tree) to filter based on the first predicate and then perform a table scan for the second.
-
-An alternative approach would be to limit a input sphere's radius to a value where the differences between polar and cartesian coordinates are not significant and thus \texttt{ST\_3DDWithin} or \texttt{ST\_3DIntersects} could be used.
-The risk is that this results in under-approximating the data which would make the server seemingly behave malicious.
-
-MySQL has equivalent functions for two dimensional data but seemingly not for three dimensional data.
-Given the above, a cartesian coordinate system as proposed in the original GeoPKI \cite{kim_geopki_2013} paper would certainly be easier to query as \texttt{ST\_3DDWithin} could be used.
-
-\subsection{Under-approximating a Circle using Polar Coordinates}
-
-If \texttt{ST\_Intersects} is used, it is required to approximate the circle using a polygon.
-Let $p$ be the center of the circle in polar coordinates and $r$ it's radius in meters.
-Let $n$ with $n \geq 3$ be the number of polygon's vertices used to approximate the circle.
-For each angle $a \in \left\{k \cdot \frac{360}{n} \: | \: k \in \{0, ..., n-1\} \right\}$ ``walk''\footnote{\url{https://geopy.readthedocs.io/en/stable/\#geopy.distance.Distance.destination}} $r$ meters on the geoid's surface starting from $p$ into the direction of $a$ where $a=0$ indicates north.
-The resulting set of points define a polygon that under-approximates the circle.
-See \Cref{fig:sphere-approximation} for examples how this shape can then be extruded to under-approximate a sphere.
-
-% SLECT ST_Buffer(ST_Transform(ST_GeomFromText('ZPOINT(-105.05083 39.74823 50)', 4326), 2877), 1500);
+%Proof:
+%
+%Let $V$ be the volume queried by the client and let $S$ be the smallest set of leaf bit strings that covers $V$.
+%This set exists as the set of all leaves covers any volume that can be queried.
+%The set $S$ is also unique since for each leaf it is possible to individually determine whether it has to be part of $S$. Next, assume there is some distinct set of bit strings $S' \neq S$ covering $V$.
+%
+%\textbf{Case 1}:
+%Assume $S'$ contains only leaf bit strings.
+%Since both cover $V$ and $S'$ is the smallest to do so, $S'$ must be a subset of $S$.
+%Hence querying $S'$ will return at least as much data as querying $S$ would.
+%%Moreover since $S \neq S'$, $S'$ must include at least one leaf whose geometric representation does not intersect $V$ (if it would it would also be part of $S$).
+%
+%\textbf{Case 2:}
+%Assume $S'$ \textbf{not} only contains leaf bit strings.
+%Then $S'$ must contain at least one bit string referring to a non-leaf.
+%
+%\textbf{Case 2a}: Assume all leaf bit strings descendant of all non-leaf nodes are in $S$.
+%Then the covered volume is the same and the returned data is exactly the same:
+%Querying a larger area rooted at an intermediate node $v$ returns it's full subtree and thus all certificates stored at its descendant leaves.
+%Similarly, when directly querying all leaves of an intermediate node $v$ amounts to the same full subtree rooted at $v$ if duplicate intermediate nodes are omitted.
+%In both cases the complementary hashes to the root node are required.
+%
+%\textbf{Case 2b:} Assume \textbf{not} all leaf bit strings descendant of all non-leaf nodes are in $S$.
+%Then there is at least one non-leaf node that with a descendant leaf whose bit string is not part of $S$.
+%The certificates returned when querying $S$ is thus a subset of the certificates returned when querying $S'$.
+%In case the additional voxels covered by $S'$ are all empty, the exact same set of certificates is returned but the proof of absence of the empty nodes are not required when querying $S$.
+%In case one of the voxels is non-empty, this is additional data only returned when querying $S'$ but not when querying $S$.
+%Moreover these non-intersecting subtrees that at least contain one certificate of $\approx 2$kB size can be replaced by a $32$B hashes for the proof when querying $S$ rather than $S'$.
+%
+%Since no set $S'$ with a smaller response size can exist, $S$ is optimal.
+%
+%The question of how to map a point in space and radius to the set of bit strings remains but at least it is now clear what the answer should be.
 
 \subsection{Proofs of Presence and Absence}
 \label{sec:data-structure:precense-absence}
 Given a query for a volume $V$, the map server should prove that the returned data is in fact in the SMT and that no certificate was omitted.
-As described in \Cref{sec:data-structure:query}, the server directly only supports queries for binary strings that have a unique corresponding node $v$ in the SMT.
+As described in \Cref{sec:data-structure:query}, the server directly only supports queries for bit strings that have a unique corresponding node $v$ in the SMT.
 Let $\mathcal{C}$ with $C \in \mathcal{C}$ be the set of all certificates stored at $v$.
 The server has to send the set $\{H(x) \: | \: \forall x \in \mathcal{C} \backslash \{C\}\}$ to the client as it is required to compute the node's hash (see Equations \ref{eq:hash-leaf} and \ref{eq:hash-certs-intermediate-node}).
 As described in \Cref{sec:data-structure:query}, if $v$ is an intermediate node, the query result will include the whole subtree rooted at $v$.
@@ -496,17 +442,131 @@ Thus when a client receives a shorted path up to the root than expected, it alre
 Given the binary SMT has $2^{B}$ leaves (see \Cref{sec:data-structure}), it's depth is $B$.
 A proof of presence for a node $v$ at depth $d \in \{0, ..., B-1\}$ (zero is the root itself) then consists of the $d$ complementary node's hash along the path to the root.
 The size of these hashes is $256$ bits or $32$ bytes due to the use of SHA-256.
-Thus in the worst case a proof for a single leaf consists $\left(B-1\right) \cdot 32$~B $= 68 \cdot 32$~B $= 2'176$~B $\approx 2$~kB and is thus in the same order as an average X.509 certificate.
+Thus in the worst case a proof for a single leaf consists $\left(B-1\right) \cdot 32$~B $= 66 \cdot 32$~B $= 2'112$~B $\approx 2$~kB and is thus in the same order as an average X.509 certificate.
 The size of such a proof is smaller the sparser the tree is and is always smaller if an intermediate node, i.e., not a leaf, is queried.
 
 \subsection{Proof of Consistency}
 \label{sec:data-structure:consistency}
 As in F-PKI~\cite{chuat_f-pki_2022} using a consistency tree over the root hashes.
 
+\section{Server Implementation}
+\label{sec:implementation}
+
+Due to the size of data it seems reasonable to use a data management engine on the server's side, storing the whole data structure in memory is infeasible at the time of writing.
+
+\subsection{Querying for a Sphere Efficiently}
+\label{sec:implementation:query-sphere}
+
+\begin{figure}
+	\centering
+    \includegraphics[width=0.25\linewidth]{./resources/query-approximation/cylinder}
+    
+    \caption{
+    	Approximating a sphere using a cylinder.
+    }
+    \label{fig:sphere-approximation}
+\end{figure}
+
+One possibility to query a sphere is to walk the tree and intersect it with the volumes on each level of the tree.
+This process is repeated recursively until the reached level is a (sparse) ``leaf''.
+When walking the tree like this, all information that has to be returned (including the data for the proof) is obtained in one go.
+The database management systems MySQL and PostgreSQL could be extended with a custom index performing the just described operations but they already have built-in support for spatial indexes.
+
+Both have support for two dimensional geodetic coordinates, PostgreSQL additionally supports three dimensional cartesian coordinates but none of them supports two dimensional geodetic coordinates plus a third cartesian altitude dimension.
+Transforming points to earth-centered, earth-fixed (ECEF) cartesian coordinates is straight-forward but the same does not apply to volumes since the coordinate system's grid lines are different.
+In the geodetic coordinate systems grid lines are curved while in a cartesian coordinate system they are straight lines.
+Hence the shape of volumes defined by their vertices is wildly different and would need to be over-approximated when wanting to use the three dimensional spatial index.
+While possible, such over-approximations do not seem to be trivial to compute. 
+
+Alternatively it is possible to directly make us of the two-dimensional spatial index with support for geodetic coordinates.
+In this approach the altitude is initially completely ignored and the voxel's two dimensional projection to the earth's surface is intersected with a circle with the sphere's radius whose center is the sphere's center also projected to earth's surface.
+After querying the spatial index for this, the returned data can be filtered based on the altitude.
+Note that this type of query no longer searches for volumes intersecting a sphere but rather over-approximates the sphere as an extruded circle, i.e. a cylinder (see \Cref{fig:sphere-approximation}).
+Due to the projection to the earth's surface, the radius of the cylinder has to be adjusted.
+When projecting two-dimensional shapes defined by vertices from higher altitudes to the earth's surface (by keeping the longitude and latitude but omitting the altitude), their area shrinks.
+Geodetic coordinates simply express the location on the two-dimensional ellipsoid surface where with increasing altitude the corresponding ellipsoid and thus surface area grow.
+Analogously when projecting shapes at negative altitudes, their area grows.
+This needs to be taken into account when performing the intersection with a circle on earth's surface.
+Assuming the original sphere that is queried for is below WGS84's ellipsoid surface and has a radius $r$, the radius used for computing the intersection on earth's surface has to be greater than $r$ since the distance between the sphere's center and all other points on that altitude has increased.
+Analogously, the radius can be decreased if the sphere's altitude is above the ellipsoids surface but in this case it is not necessarily required as over-approximating the result is fine when only considering correctness.
+Since it is the distances and not areas or volumes that are of interest, the circumferences of ellipses with the different radii should be compared.
+Given there is no easy formula for the circumference of an ellipse, the difference is over-approximated by considering spheres instead.
+The circumference of an ellipsoid is greater than the circle with a radius corresponding to the length of the ellipse's semi-minor axis ($b$ for WGS84).
+Similarly, an ellipsoids circumference is smaller than the circle with a radius corresponding to the length of the ellipse's semi-major axis ($a$ for WGS84).
+Thus the fraction by which distances grow from altitude $h$ with $h < 0$ to the earth's surface can be over-approximated as
+\begin{align}
+\begin{split}
+	&\frac{\text{circumference of WGS84 ellipse at }z=0}{\text{circumference of WGS84 ellipse at }z=h}\\
+	&\leq \frac{\text{circumference of circle with radius } a}{\text{circumference of circle with radius } (b+h)}\\
+	&= \frac{2 a \pi}{2 (b+h) \pi} = \frac{a}{b+h}\\
+	&\\
+\end{split}
+\end{align}
+
+For $h = D$ this results in $\leq 1.005$.
+
+Analogously the fraction by which distances shrink from altitude $h$ with $h > 0$ to the earth's surface can be over-approximated as
+\begin{align}
+\begin{split}
+	&\frac{\text{circumference of WGS84 ellipse at }z=h}{\text{circumference of WGS84 ellipse at }z=0}\\
+	&\leq \frac{\text{circumference of circle with radius } (a+h)}{\text{circumference of circle with radius } b}\\
+	&= \frac{2 (a+h) \pi}{2 b \pi} = \frac{a+h}{b}\\
+	&\\
+\end{split}
+\end{align}
+
+For $h = H$ this results in $\leq 1.007$.
+Given the small numbers and the fact that an over-approximation of the result does not affect correctness, a simple implementation could simply consist of multiplying the radius by $1.005$ to account for possible false negatives.
+It is probably advisable to account for this on the client's side to facilitate auditing.
+Otherwise a server might claim to not be malicious but return wrong results due to wrong approximations.
+
+\subsection{Database Tables and Schemas}
+\label{sec:implementation:schemas}
+
+When using a 2D spatial index as described in \Cref{sec:implementation:query-sphere}, the tables \texttt{nodes} and \texttt{certificates} are used.
+The table \texttt{nodes} has the following columns:
+\begin{itemize}
+	\item \texttt{bit\_string} of type \texttt{bit varying (66)}
+	
+	Stores the bit strings described in Sections \ref{sec:data-structure:leaf-binary} and \ref{sec:data-structure:intermediate}.
+	The table is clustered by the value resulting in geographically close rows being stored somewhat close together on disk.
+	\item \texttt{area} of type \texttt{geography}
+	
+	Stores the 2D projection of the voxel corresponding to the row's \texttt{bit\_string} in the database's internal format.
+	There is a 2D spatial index on this column.
+	\item \texttt{altitude\_min} of type \texttt{smallint | null}
+	
+	Stores the minimum altitude corresponding to the row's \texttt{bit\_string}.
+	\item \texttt{altitude\_max} of type \texttt{smallint | null}
+	
+	Stores the maximum altitude corresponding to the row's \texttt{bit\_string}.
+	\item \texttt{certificate\_hashes} of type \texttt{bytea[]}
+	
+	Stores the hashes of the certificates belonging to this node and is by default an empty array.
+	The hashes are foreign keys to the \texttt{certificates} table.
+	\item \texttt{neighbor\_hash} of type \texttt{bytea | null}
+	
+	Stores the hash of the node corresponding to the row's neighbor in the SMT (flipping the last bit in the row's bit string) if it is non-empty and otherwise is equal to null.
+	This hash might be required for the SMT proof when this row is retrieved.
+	\item \texttt{left\_child\_hash} of type \texttt{bytea | null}
+	
+	Stores the hash of the node corresponding to the row's left child in the SMT (adding a $0$ to the row's bit string) if it is non-empty and otherwise is equal to null.
+	This hash might be required for the SMT proof when this row is retrieved.
+	\item \texttt{right\_child\_hash} of type \texttt{bytea | null}
+	
+	Stores the hash of the node corresponding to the row's right child in the SMT (adding a $1$ to the row's bit string) if it is non-empty and otherwise is equal to null.
+	This hash might be required for the SMT proof when this row is retrieved.
+\end{itemize}
+
+All columns other than \texttt{bit\_string} and \texttt{certificate\_hashes}, are redundant and could be computed based on other information inside the database but are stored explicitly to speed up queries.
+To ensure consistency, constraints and triggers are used wherever possible.
+
+The \texttt{certificates} table only consists of two columns, the primary key \texttt{certificate\_hash} of type \texttt{bytea} storing the SHA256 hash of the certificate and the column \texttt{certificate}, also of type \texttt{bytea}, storing the certificate itself.
+
 \section{Optimizations}
 \label{sec:optimizations}
 
-First of all it should be noted that the asymmetric design of the binary string with respect to the $z$ dimension allows placing certificates higher in the tree and thus increase sparsity.
+First of all it should be noted that the asymmetric design of the bit string with respect to the $z$ dimension allows placing certificates higher in the tree and thus increase sparsity.
 
 Under the assumption most of the world is rather flat with respect to altitude, certificates can often be placed at intermediate nodes covering the full height. % TODO: possibly add citation for "most of the world is flat"
 This lowers the tree's height and thus reduces the proof sizes.
@@ -548,9 +608,9 @@ Hence when the certificate is placed in the subtree of the queried volume it wil
     \label{fig:wrap-around}
 \end{figure}
 
-\Cref{sec:data-structure:query} describes how the map server only serves an answer to a single binary string query.
+\Cref{sec:data-structure:query} describes how the map server only serves an answer to a single bit string query.
 While such an API works, there is room for improvement if correlated queries are answered at the same time.
-For instance when the client derives the different binary strings to query a single volume as described in \Cref{sec:data-structure:arbitrary-volumes}, the queries share the path to the root from their lowest common ancestor.
+For instance when the client derives the different bit strings to query a single volume as described in \Cref{sec:data-structure:arbitrary-volumes}, the queries share the path to the root from their lowest common ancestor.
 By replying with a single answer for such a set of queries, the data along this shared path has to be returned just once.
 Given the use of the Z-order curve (see \Cref{sec:data-structure}) to order the leaves, points spatially close should also be somewhat close in the tree and thus have a common ancestor on lower levels.
 Though in the worst case it is still possible that the only common ancestor is the root even if the two areas are spatially close.
