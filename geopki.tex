@@ -306,18 +306,18 @@ The hash value of the intermediate node is then defined as
 
 The constants $0$ and $1$ are prefixed in the hash computation to prevent collisions where a given hash $H(a || b)$ for some $a$ and $b$ could simultaneously refer to a leaf with content $a || b$ or a intermediate node with children hash values $a$ and $b$.
 
-\subsection{Querying the SMT}
-\label{sec:data-structure:query}
-
-Since many sizes of volumes can be represented by the binary format described in Sections \ref{sec:data-structure:leaf-binary} and \ref{sec:data-structure:intermediate}, the only type of query a GeoPKI map server supports is such a bit string.
-Such a bit string has a unique corresponding node in the tree (that might not exist as the tree is sparse).
-The result then is the set of all certificates stored at intermediate nodes above the specified node (as these represent larger areas covering the queries point) and the set of all certificates stored in the subtree rooted at the specified node as these are within the queried area.
-The former set corresponds to the set of nodes whose corresponding binary representation are a prefix for the given query.
-The latter set corresponds to the set of nodes whose corresponding binary representation the given query is a prefix for.
-
-A trivial way to obtain this set of certificates is to walk the tree from the root and collect the certificates stored at the intermediate nodes along the way.
-If the next bit is a zero, go left, if it is one, go right.
-Once the node with a bit string corresponding to the query is found, the full subtree rooted at this node is walked recursively until an empty node or a leaf is found and all found certificates are returned.
+%\subsection{Querying the SMT}
+%\label{sec:data-structure:query}
+%
+%Since many sizes of volumes can be represented by the binary format described in Sections \ref{sec:data-structure:leaf-binary} and \ref{sec:data-structure:intermediate}, it is for now assumed that the only type of query a GeoPKI map server supports is such a bit string.
+%Such a bit string has a unique corresponding node in the tree (that might not exist as the tree is sparse).
+%The result then is the set of all certificates stored at intermediate nodes above the specified node (as these represent larger areas covering the queries point) and the set of all certificates stored in the subtree rooted at the specified node as these are within the queried area.
+%The former set corresponds to the set of nodes whose corresponding binary representation are a prefix for the given query.
+%The latter set corresponds to the set of nodes whose corresponding binary representation the given query is a prefix for.
+%
+%A trivial way to obtain this set of certificates is to walk the tree from the root and collect the certificates stored at the intermediate nodes along the way.
+%If the next bit is a zero, go left, if it is one, go right.
+%Once the node with a bit string corresponding to the query is found, the full subtree rooted at this node is walked recursively until an empty node or a leaf is found and all found certificates are returned.
 
 \subsection{Arbitrary Volumes and Certificate Placement}
 \label{sec:data-structure:arbitrary-volumes}
@@ -425,19 +425,14 @@ In terms of response size it is always best to retrieve all individual leafs as 
 
 \subsection{Proofs of Presence and Absence}
 \label{sec:data-structure:precense-absence}
-Given a query for a volume $V$, the map server should prove that the returned data is in fact in the SMT and that no certificate was omitted.
-As described in \Cref{sec:data-structure:query}, the server directly only supports queries for bit strings that have a unique corresponding node $v$ in the SMT.
-Let $\mathcal{C}$ with $C \in \mathcal{C}$ be the set of all certificates stored at $v$.
-The server has to send the set $\{H(x) \: | \: \forall x \in \mathcal{C} \backslash \{C\}\}$ to the client as it is required to compute the node's hash (see Equations \ref{eq:hash-leaf} and \ref{eq:hash-certs-intermediate-node}).
-As described in \Cref{sec:data-structure:query}, if $v$ is an intermediate node, the query result will include the whole subtree rooted at $v$.
-Hence a client has all information to compute the hashes of $v$'s children by themselves.
-These are required to compute the hash of an intermediate node (see Equation \ref{eq:hash-intermediate-node}).
+Given a query for a volume, the map server should prove that the returned data is in fact in the SMT and that no certificate was omitted.
+Let $V$ be the set of non-empty voxel that intersect with the query volume and for each $v \in V$ let $\mathcal{C}_v$ be the set of all certificates associated with $v$.
+For each such $v \in V$, the server has to send the set $\{H(x) \: | \: \forall x \in \mathcal{C}_v \}$ to the client as it is required to compute the node's hash (see Equations \ref{eq:hash-leaf} and \ref{eq:hash-certs-intermediate-node}).
+Due to the fact that parent voxels always cover a super-volume of their children, $V$ includes the transitive closure of the parent relation.
+For nodes where a child is not in $V$, this child's hash has to be included in the server's response as it is necessary to compute the node's hash as shown in see Equation \ref{eq:hash-intermediate-node}.
 
-What is left to complete the proof is the set of complementary hashes along the way to the root and the root hash itself as in a standard SMT.
-Since in GeoPKI the intermediate nodes along the way to the root also have associated certificates, the set of their hashes is also required but as specified in \Cref{sec:data-structure:query}, this information is returned to the client anyway and can thus be computed locally.
-
-In a sparse SMT, proving the absence of any certificate in a subtree rooted at $v$ is the same as proving the presence of an empty node.
-Thus when a client receives a shorted path up to the root than expected, it already has all information required to proof the node's absence in the tree.
+In a sparse SMT, proving the absence of any certificate in a volume is the same as providing the data  within that volume along with a proof which then allows a client to verify its absence.
+Similarly, the presence of an empty node proofs the absence of any certificates in that subtree.
 
 Given the binary SMT has $2^{B}$ leaves (see \Cref{sec:data-structure}), it's depth is $B$.
 A proof of presence for a node $v$ at depth $d \in \{0, ..., B-1\}$ (zero is the root itself) then consists of the $d$ complementary node's hash along the path to the root.
@@ -547,19 +542,19 @@ The table \texttt{nodes} has the following columns:
 	\item \texttt{neighbor\_hash} of type \texttt{bytea | null}
 	
 	Stores the hash of the node corresponding to the row's neighbor in the SMT (flipping the last bit in the row's bit string) if it is non-empty and otherwise is equal to null.
-	This hash might be required for the SMT proof when this row is retrieved.
+	This hash might be required for the SMT proof when a row is retrieved.
 	\item \texttt{left\_child\_hash} of type \texttt{bytea | null}
 	
 	Stores the hash of the node corresponding to the row's left child in the SMT (adding a $0$ to the row's bit string) if it is non-empty and otherwise is equal to null.
-	This hash might be required for the SMT proof when this row is retrieved.
+	This hash might be required for the SMT proof when a row is retrieved.
 	\item \texttt{right\_child\_hash} of type \texttt{bytea | null}
 	
 	Stores the hash of the node corresponding to the row's right child in the SMT (adding a $1$ to the row's bit string) if it is non-empty and otherwise is equal to null.
-	This hash might be required for the SMT proof when this row is retrieved.
+	This hash might be required for the SMT proof when a row is retrieved.
 \end{itemize}
 
 All columns other than \texttt{bit\_string} and \texttt{certificate\_hashes}, are redundant and could be computed based on other information inside the database but are stored explicitly to speed up queries.
-To ensure consistency, constraints and triggers are used wherever possible.
+To ensure consistency, constraints are used.
 
 The \texttt{certificates} table only consists of two columns, the primary key \texttt{certificate\_hash} of type \texttt{bytea} storing the SHA256 hash of the certificate and the column \texttt{certificate}, also of type \texttt{bytea}, storing the certificate itself.
 
