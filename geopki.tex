@@ -62,12 +62,12 @@ WGS84 defines the \emph{semi-major axis} (half of the largest diameter of an ell
 Standard polar coordinates (longitude, latitude) are used for referencing points on the planet's two-dimensional surface and a third coordinate, altitude, extends this to three dimensions.
 Longitude, latitude and altitude together refer to a unique point in three-dimensions.
 
-Each of the three coordinates is discretized in a way that preserves meter-precision in the worst case.
+Each of the three coordinates is discretized in a way that preserves $u := 20$ meter-precision in the worst case.
 With the semi-major axis $a$, the maximum circumference of the ellipsoid equals $=2 a \pi$~meters.
-Using base two, $B_{x}:= \left\lceil \log_2(2 a \pi) \right\rceil = 26$ bits for the longitude thus suffice to represent each possible meter value in the worst case.
+Using base two, $B_{x}:= \left\lceil \log_2(\frac{2 a \pi}{u}) \right\rceil = 21$ bits for the longitude thus suffice to represent each possible meter value in the worst case.
 Let $C_{x} := 2^{B_{x}} - 1$ denote the maximum discretized value for the longitude.
 For the latitude the circumference is $2 b \pi$~meters but we only need to be able to represent half of it, so $b \pi$.
-Thus $\left\lceil\log_2(C_y)\right\rceil = 25 =: B_{y}$ bits suffice.
+Thus $\left\lceil\log_2(\frac{b \pi}{u})\right\rceil = 20 =: B_{y}$ bits suffice.
 Analogously to $C_{x}$, let $C_y := 2^{B_{y}} - 1$ the maximum discretized value for the latitude.
 For altitude there is no natural bound so one has to be fixed.
 At the time of writing, the highest point on earth is below $10'000$~meters above sea level \cite{us_department_of_commerce_what_nodate} and the lowest layer of earth's atmosphere, the troposphere, extends to about $18$~km \cite{dhaka_chapter_2023}.
@@ -75,8 +75,8 @@ The Mariana Trench at about $10'000$~m below sea level \cite{gardner_so_2014} is
 The necessity of allowing volumes below sea level arises from countries such as the Netherlands where parts of the surface's altitude is below sea level \cite{kabat_climate_2005} .
 Moreover in the future, below sea level research stations might be built.
 Thus the range starting at a depth of $D:=-10'000$~m up to an altitude of $20'000$~m above sea level should cover any current and near-future needs.
-Covering this range requires $B_{z} := \left\lceil \log_2(H - D) \right\rceil = 15$ bits.
-In fact using $B_z$ bits starting at $D$ will cover the range from $D$ to $D + (2^{B_{z}} - 1) = 22'767 := H$.
+Covering this range requires $B_{z} := \left\lceil \log_2(\frac{H - D}{u}) \right\rceil = 11$ bits.
+In fact using $B_z$ bits starting at $D$ will cover the range from $D$ to $D + (2^{B_{z}} - 1) \cdot u = 30'940 := H$.
 Complications might arise from distance calculations when using sea level as a reference as the sea level is not the same in all places and will increase in the future.
 Thus instead of using sea level as a reference, the geodetic altitude defined by WGS84~\cite{noauthor_nga_nodate} is used.
 Given the geoid's surface in WGS84 is about at the mean sea level (MSL), the range $[D, H]$ can be left as is.
@@ -86,12 +86,12 @@ While it does not exactly cover the range described range with respect to local 
 \label{sec:data-structure}
 
 Inspired by F-PKI~\cite{chuat_f-pki_2022}, a sparse merkle hash tree (SMT) is used.
-Each leaf represents a full discretized coordinate using $B := \cdot B_{x} + B_{y} + B_{z} = 66$ bits resulting in a total of $2^{B}$ leaves.
+Each leaf represents a full discretized coordinate using $B := \cdot B_{x} + B_{y} + B_{z} = 52$ bits resulting in a total of $2^{B}$ leaves.
 To have spatially close points somewhat close together in the SMT, the space-filling $Z$-order curve is used to sort the three dimensional locations in one dimension \cite{morton_computer_1966}.
 An example with $B_{x} = B{y} = B_{z} = 2$ is shown in \Cref{fig:z-curve-example:two-bits}.
 GeoPKI uses a slightly modified 3D Z-order curve:
 Rather than using the full 3D Z-order curve, a 2D Z-order curve over the longitude and latitude is used and points with the same longitude and latitude but different altitude are put in sequence.
-While this leads to spatially close points being further apart in the 1-dimensional sorting, this modification allows for shorter proofs under some assumptions (will be discussed in \Cref{sec:optimizations}) and even results in a nicer binary representation.
+While this leads to spatially close points being further apart in the 1-dimensional sorting, this modification allows for shorter proofs under some assumptions (will be discussed in \Cref{sec:optimizations}).
 \Cref{fig:z-curve-example:two-bits-optim} contrasts this modification with the standard 3D Z-order curve shown in \Cref{fig:z-curve-example:two-bits}.
 
 \subsection{Leaf Binary Format}
@@ -122,7 +122,7 @@ p' :&=
 \right\rfloor,
 %
 \left\lfloor
-z - D
+\frac{z - D}{u}
 \right\rfloor
 %
 \right)
@@ -183,7 +183,7 @@ In case of the floor functions shown in \Cref{eq:discretization}, the point corr
 \begin{align}
 \begin{split}
 \label{eq:leaf-geometric-point}
-\left(x_d \cdot \frac{360}{C_x} - 180,x_d \cdot \frac{180}{C_y} - 90, z_d + D\right)
+\left(x_d \cdot \frac{360}{C_x} - 180,x_d \cdot \frac{180}{C_y} - 90, z_d \cdot u + D\right)
 \end{split}
 \end{align}
 and the volume represented by point $p''$ is given by
@@ -192,7 +192,7 @@ and the volume represented by point $p''$ is given by
 \label{eq:leaf-geometric-volume}
 \left[x_d \cdot \frac{360}{C_x} - 180, (x_d + 1) \cdot \frac{360}{C_x} - 180\right) &\times\\
 \left[y_d \cdot \frac{180}{C_y} - 90, (y_d + 1) \cdot \frac{180}{C_y} - 90\right) &\times\\
-\left[z_d + D, z_d + D + 1 \right)&
+\left[D + z_d \cdot u, D + z_d \cdot u + 1 \right)&
 \end{split}
 \end{align}
 
@@ -244,7 +244,7 @@ Then the corresponding point is given by
 \begin{align}
 \begin{split}
 \label{eq:intermediate-geometric-point-partial-height}
-\left(x'_d \cdot \frac{360}{C_x} - 180,y_d \cdot \frac{180}{C_y} - 90, D + z'_d\right)
+\left(x'_d \cdot \frac{360}{C_x} - 180,y_d \cdot \frac{180}{C_y} - 90, D + z'_d \cdot u\right)
 \end{split}
 \end{align}
 and the covered volume by
@@ -253,7 +253,7 @@ and the covered volume by
 \label{eq:intermediate-geometric-volume-full-height}
 \left[x'_d \cdot \frac{360}{C_x} - 180, (x_d + 2^{B_{x,y} - l_x}) \cdot \frac{360}{C_x} - 180\right) &\times\\
 \left[y'_d \cdot \frac{180}{C_y} - 90, (y_d + 2^{B_{x,y} - l_y}) \cdot \frac{180}{C_y} - 90\right) &\times\\
-\left[D + z'_d, D + \left(z'_d + 2^{B_z - l_z}\right)\right)&
+\left[D + z'_d \cdot u, D + \left(z'_d + 2^{B_z - l_z}\right) \cdot u\right)&
 \end{split}
 \end{align}
 
@@ -271,19 +271,13 @@ The just described tree is combined with a SMT.
 As in F-PKI \cite{chuat_f-pki_2022}, each leaf stores a set of certificates.
 Let $C_0, C_1, ..., C_{n-1}$ be the sequence of certificates located in a leaf, sorted lexicographically by their SHA-256 hashes in ascending order.
 The hashes are computed on the PEM encoding of the X.509 certificates.
-\ck{sort by sha256 hash and then by binary representation? (should never occur though as then we would have bigger problems due to a sha-256 collision in a certificate...)}
-\nico{I hope the sentence clearer now? I just wanted to clearly specify what the hash is computed on. It could be the decoded binary value, the base64 encoding, the PEM encoding, the DER encoding, ...}
 The leaf's hash value is then defined as
 \begin{align}
 	\label{eq:hash-leaf}
 	H(0 || H(C_0) || H(C_1) || ... || H(C_n))
 \end{align}
 where $H$ is SHA-256.
-The hash value of an empty / non-existent leaf in the SMT is $H(0)$.
-\ck{are empty nodes constructed iteratively starting from the leaf, i.e., H(0) at depth $B_x+B_y+B_z$? Or does an intermediate node with value H(0) at any depth represent an empty subtree?}
-\nico{I think F-PKI constructs them iteratively, right? I don't think it matters too much or did you discuss any advantages / disadvantages when deciding that? Using the same value at any depth can save some computations but I have not properly thought about the implications this would have.}
-
-
+The hash value of an empty / non-existent leaf or intermediate node in the SMT is $H(0)$.
 An intermediate node in the tree has two children (two intermediate nodes or two leaves) and in GeoPKI also stores a set of certificates.
 As before, let $C_0, C_1, ..., C_{n-1}$ be the sequence of certificates located in an intermediate node, sorted lexicographically by the SHA-256 hashes of the PEM encoding in ascending order.
 Hash $h_3$ over the list of certificates is defined as
@@ -372,56 +366,21 @@ If the client queries for a large area, it is fine to return a lot of data.
 But in case of a query for a small area, the size of the returned data should be in relation to the queried area.
 Given the split lines do not move when going to a deeper level in the tree, it is always necessary to return multiple voxels.
 The number of required voxels is monotonically increasing when going deeper down in the tree but the area covered by them monotonically decreases as the voxel approximation for $V$ becomes more accurate.
-With decreasing area, the data that has to be returned also monotonically decreases as the subtrees contain at most as much data as any of their super-trees.
 
 \subsubsection{Claimed Volumes to Voxels}
 
 In case of the placement of certificates in the tree, it is infeasible to place certificates claiming a volume $V$ in all leaves covered by $V$ due to the loss in sparsity and the resulting explosion in storage requirements.
 As noted before, most places on earth are claimed by at least one country and thus the tree would not be sparse at all.
 
-A plausible heuristic balancing the returned data size with the number of subtrees loss in sparsity is to use a subtree level where the volume of $V$ is greater than or equal to a given fraction $f \in [0,1)$ of the voxel volumes at this level.
+One possible heuristic balancing the returned data size with the number of subtrees loss in sparsity is to use a subtree level where the volume of $V$ is greater than or equal to a given factor $f \in [0, \infty)$ of the voxel volumes at this level.
 For instance $f = \frac{1}{4}$ would result in \Cref{fig:worst-case:three} and $f = \frac{1}{2}$ in \Cref{fig:worst-case:four} (assuming all shown areas cover the full altitude spectrum).
-The effectiveness of this heuristic and a good value for $f$ is to be determined using empirical experiments.
+% Another heuristic would not use $f$ for the general subtree level volume but for each individual voxel, i.e. only use a specific voxel for a given polyhedron if that polyhedron covers at least the fraction $f$ of the voxel's volume.
+The effectiveness of this heuristic and a good value for $f$ is to be determined.
 
 \subsubsection{Query to Voxels}
 
 For the transformation of queries to voxels to be queried the case turns out to be easier.
-In terms of response size it is always best to retrieve all individual leafs as directly querying a area higher up in the tree will always be a superset of that data.
-
-% First a set of bit strings is defined to \emph{cover} a volume if and only if the union of the results returned when querying each of them contains all certificates intersecting said volume.
-
-%Proof:
-%
-%Let $V$ be the volume queried by the client and let $S$ be the smallest set of leaf bit strings that covers $V$.
-%This set exists as the set of all leaves covers any volume that can be queried.
-%The set $S$ is also unique since for each leaf it is possible to individually determine whether it has to be part of $S$. Next, assume there is some distinct set of bit strings $S' \neq S$ covering $V$.
-%
-%\textbf{Case 1}:
-%Assume $S'$ contains only leaf bit strings.
-%Since both cover $V$ and $S'$ is the smallest to do so, $S'$ must be a subset of $S$.
-%Hence querying $S'$ will return at least as much data as querying $S$ would.
-%%Moreover since $S \neq S'$, $S'$ must include at least one leaf whose geometric representation does not intersect $V$ (if it would it would also be part of $S$).
-%
-%\textbf{Case 2:}
-%Assume $S'$ \textbf{not} only contains leaf bit strings.
-%Then $S'$ must contain at least one bit string referring to a non-leaf.
-%
-%\textbf{Case 2a}: Assume all leaf bit strings descendant of all non-leaf nodes are in $S$.
-%Then the covered volume is the same and the returned data is exactly the same:
-%Querying a larger area rooted at an intermediate node $v$ returns it's full subtree and thus all certificates stored at its descendant leaves.
-%Similarly, when directly querying all leaves of an intermediate node $v$ amounts to the same full subtree rooted at $v$ if duplicate intermediate nodes are omitted.
-%In both cases the complementary hashes to the root node are required.
-%
-%\textbf{Case 2b:} Assume \textbf{not} all leaf bit strings descendant of all non-leaf nodes are in $S$.
-%Then there is at least one non-leaf node that with a descendant leaf whose bit string is not part of $S$.
-%The certificates returned when querying $S$ is thus a subset of the certificates returned when querying $S'$.
-%In case the additional voxels covered by $S'$ are all empty, the exact same set of certificates is returned but the proof of absence of the empty nodes are not required when querying $S$.
-%In case one of the voxels is non-empty, this is additional data only returned when querying $S'$ but not when querying $S$.
-%Moreover these non-intersecting subtrees that at least contain one certificate of $\approx 2$kB size can be replaced by a $32$B hashes for the proof when querying $S$ rather than $S'$.
-%
-%Since no set $S'$ with a smaller response size can exist, $S$ is optimal.
-%
-%The question of how to map a point in space and radius to the set of bit strings remains but at least it is now clear what the answer should be.
+In terms of response size it is always best to retrieve all individual leaves as directly querying a area higher up in the tree (including it's whole subtree) will always be a superset of that data.
 
 \subsection{Proofs of Presence and Absence}
 \label{sec:data-structure:precense-absence}
@@ -437,12 +396,60 @@ Similarly, the presence of an empty node proofs the absence of any certificates 
 Given the binary SMT has $2^{B}$ leaves (see \Cref{sec:data-structure}), it's depth is $B$.
 A proof of presence for a node $v$ at depth $d \in \{0, ..., B-1\}$ (zero is the root itself) then consists of the $d$ complementary node's hash along the path to the root.
 The size of these hashes is $256$ bits or $32$ bytes due to the use of SHA-256.
-Thus in the worst case a proof for a single leaf consists $\left(B-1\right) \cdot 32$~B $= 66 \cdot 32$~B $= 2'112$~B $\approx 2$~kB and is thus in the same order as an average X.509 certificate.
+Thus in the worst case a proof for a single leaf consists $\left(B-1\right) \cdot 32$~B $= 51 \cdot 32$~B $= 1'632$~B $\approx 1.6$~KiB and is thus slightly smaller than the average X.509 certificate ($\approx 2$~KiB).
 The size of such a proof is smaller the sparser the tree is and is always smaller if an intermediate node, i.e., not a leaf, is queried.
 
 \subsection{Proof of Consistency}
 \label{sec:data-structure:consistency}
 As in F-PKI~\cite{chuat_f-pki_2022} using a consistency tree over the root hashes.
+
+\section{Optimization Goals}
+\label{sec:optimization-goals}
+
+There are several factors a GeoPKI implementation should optimize for. This includes response size, response latency, the number of requests that can be answered per second (throughput) but also the server storage space and insertion time.
+Some of these criteria conflict and some balance between them has to be found.
+One example for such a conflict is response size and server storage space which was already mentioned in \Cref{sec:data-structure:arbitrary-volumes}.
+Placing certificates higher up in the tree reduces the number of places where the certificate has to be stored but leads to the certificate being included in queries where the query volume does not intersect the certificate's polygon but the voxel it is stored at.
+Placing them exclusively in voxels that are fully covered by the polygon and only use full-depth voxels for partially covered ones reduces the likelihood of it being included in a query unnecessarily as far as possible.
+Unfortunately this leads to many full-depth voxels (i.e. reduces sparsity / increases the required storage) and increases the response size close to the border of a polygon as a certificate has to be included multiple times, once for each voxel in which it is present.
+Moreover the more complex the approach the more complex (and likely slower) the insertion.
+The following Sections discuss what the different goals depend on.
+
+\subsection{Response Size}
+The response size depends on the number of non-empty voxels intersecting a given query volume.
+This in turn depends on the number of certificates in the system, the spatial distribution of their volumes, the query volume and how certificates are assigned to voxels.
+Specifically the number of returned superfluous certificates and the number of returned duplicate certificates (when stored in multiple voxels within the query volume) should be minimized.
+
+\subsection{Response Latency and Throughput}
+Response latency and throughput depend the response size but also the concrete software implementation and the hardware the implementation is running on.
+
+\subsection{Storage Requirements}
+The required storage depends on the total number of certificates in the system, their spatial distribution, how certificates are assigned to voxels but also the concrete software implementation.
+For the assignment, reducing the number of voxels where a given certificate is stored should be minimized.
+
+\subsection{Insertion Time}
+Insertion time will mostly depend on how certificates are assigned to voxels, the concrete software implementation and the hardware it is running on.
+For the certificate assignment, the assignment algorithm's runtime complexity and number of voxels where a given certificate is stored should be minimized.
+
+\subsection{Summary}
+Assuming the soft- and hardware are optimized, finding the aforementioned balance between returning superfluous certificates and storing certificates in too many voxels seems to be the factor influencing most optimizations goals.
+Having a higher precision than the average query size does not make sense as this can only increase the number of certificates that are returned multiple times because they are assigned to multiple small voxels.
+Assuming an average query radius of $r := 10$~m, the precision $u = 2 \cdot r$ intersects at most $2^3 = 8$ leaf voxels, two along each dimension.
+In the worst case, all of the dimensions align with the first split in the respective dimension.
+For the altitude this would mean that each pair of voxels with the same longitude and latitude bounds share at least $B_x + B_y$ voxels in the hierarchy or rather it is possible to omit $(2^2 - 1) \cdot (B_x + B_y)$ voxel duplicates.
+For the longitude and latitude, in the worst case only the two top levels are shared meaning it is only possible to omit the root three times and the two nodes at the second level once.
+Thus including the hierarchy, in the worst case $2^3 \cdot B - (2^2 - 1) \cdot (B_x + B_y) - 3 \cdot 1 - 2 = 288$ voxels have to be returned.
+
+In the best case they are all adjacent in the tree, i.e. the path matches until depth $B_x + B_y - 2$ for all of them allowing the omission of seven times that number of voxels.
+After this depth, two levels are required for the four distinct longitude/latitude boundaries.
+Within each of them, the two leaf voxels can share a path of up to $B_z - 1$ allowing the omission of four times number of voxels.
+Thus including the hierarchy, in the best case $2^3 \cdot B - (2^3 - 1) \cdot (B_x + B_y - 2) - 2^2 \cdot (B_z - 1) = 103$ voxels.
+
+%Both of these estimates assume all leaf voxels at the full depth are non-empty which will likely only be the case in cities.
+%Assuming the voxel assignment is done more precisely, having sub $20$~m precision reduces the likelihood of fetching redundant certificates whose polygon does not intersect the query sphere but is assigned to the neighboring voxel which does intersect the query sphere.
+%The problem is that along the border of a polygon this results in many voxels with the same certificate and the likelihood of a query intersecting not just one but multiple of them increases.
+%In this scenario the number of duplicate certificate hashes returned would
+
 
 \section{Server Implementation}
 \label{sec:implementation}
@@ -521,7 +528,7 @@ Otherwise a server might claim to not be malicious but return wrong results due 
 When using a 2D spatial index as described in \Cref{sec:implementation:query-sphere}, the tables \texttt{nodes} and \texttt{certificates} are used.
 The table \texttt{nodes} has the following columns:
 \begin{itemize}
-	\item \texttt{bit\_string} of type \texttt{bit varying (66)}
+	\item \texttt{bit\_string} of type \texttt{bit varying (52)}
 	
 	Stores the bit strings described in Sections \ref{sec:data-structure:leaf-binary} and \ref{sec:data-structure:intermediate}.
 	The table is clustered by the value resulting in geographically close rows being stored somewhat close together on disk.
@@ -558,81 +565,19 @@ To ensure consistency, constraints are used.
 
 The \texttt{certificates} table only consists of two columns, the primary key \texttt{certificate\_hash} of type \texttt{bytea} storing the SHA256 hash of the certificate and the column \texttt{certificate}, also of type \texttt{bytea}, storing the certificate itself.
 
-\section{Optimizations}
-\label{sec:optimizations}
-
-First of all it should be noted that the asymmetric design of the bit string with respect to the $z$ dimension allows placing certificates higher in the tree and thus increase sparsity.
-
-Under the assumption most of the world is rather flat with respect to altitude, certificates can often be placed at intermediate nodes covering the full height. % TODO: possibly add citation for "most of the world is flat"
-This lowers the tree's height and thus reduces the proof sizes.
-For this to work, clients must not expect the certificates to be placed at a unique node in the tree.
-The placement does not matter as long as the certificate is stored with \emph{all nodes at one level} whose geometric representation intersect the certificate's claimed volume.
-This is because a GeoPKI map server always returns the data along the path to the root together with the whole subtree.
-Hence when the certificate is placed in the subtree of the queried volume it will always be included but if it is placed higher in the tree it will only be included if the certificate is stored at one of the parent nodes.
-
-\begin{figure}
-    \centering
-    \begin{subfigure}[t]{0.11\textwidth}
-        \includegraphics[width=\textwidth]{./resources/worst-case/wrap-around-1.pdf}
-        \caption{Areas after one split}
-        \label{fig:wrap-around:one}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[t]{0.11\textwidth}
-        \includegraphics[width=\textwidth]{./resources/worst-case/wrap-around-2.pdf}
-        \caption{Areas after two splits}
-        \label{fig:wrap-around:two}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[t]{0.11\textwidth}
-        \includegraphics[width=\textwidth]{./resources/worst-case/wrap-around-3.pdf}
-        \caption{Areas after three splits}
-        \label{fig:wrap-around:three}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[t]{0.11\textwidth}
-        \includegraphics[width=\textwidth]{./resources/worst-case/wrap-around-4.pdf}
-        \caption{Areas after four splits}
-        \label{fig:wrap-around:four}
-    \end{subfigure}
-    \caption{
-    	The two-dimensional surface (longitude, latitude) after the first, second, third and fourth split.
-    	The blue circle shows a possible area to be claimed by a certificate or the desired query area of a client.
-    	The area colored in red is the minimum area that has to be retrieved using the given number of splits.
-    }
-    \label{fig:wrap-around}
-\end{figure}
-
-\Cref{sec:data-structure:query} describes how the map server only serves an answer to a single bit string query.
-While such an API works, there is room for improvement if correlated queries are answered at the same time.
-For instance when the client derives the different bit strings to query a single volume as described in \Cref{sec:data-structure:arbitrary-volumes}, the queries share the path to the root from their lowest common ancestor.
-By replying with a single answer for such a set of queries, the data along this shared path has to be returned just once.
-Given the use of the Z-order curve (see \Cref{sec:data-structure}) to order the leaves, points spatially close should also be somewhat close in the tree and thus have a common ancestor on lower levels.
-Though in the worst case it is still possible that the only common ancestor is the root even if the two areas are spatially close.
-This happens when the volume covers both sides of the first split done in the binary tree. This scenario is depicted in \Cref{fig:worst-case:one}.
-It seems impossible to avoid such a worst-case scenario entirely when using a tree as described in \Cref{sec:alternative-designs}.
-
-Considering that earth is a sphere and that the coordinates wrap around, the situation becomes even more difficult since a similar situation happens at the points where the coordinate system wraps around.
-This scenario is depicted in \Cref{fig:wrap-around}.
-This wrap-around can be interpreted as being part of the first split since the problem occurs exactly on the opposite side of the first split when considering the $x$-axis as wrapping around.
-To reduce it's impact it would be possible to shift the longitude coordinate system west by $30^{\circ}$.
-This way this circle around earth passes through the Atlantic Ocean and Pacific Ocean rather than central Europe.
-
-An additional optimization would be to set $B_y$ to $25$ rather than $26$ bits.
-This slightly complicates the notations, definitions and formats but is otherwise straight-forward to implement.
-
 \section{Alternative Designs}
 \label{sec:alternative-designs}
 
 An alternative design could use a (hybrid-)quadtree or (hybrid-)octree where most intermediate nodes have four or eight children, respectively.
+For simplicity let's assume $B_{y} = B_{x} = 21 := B_{x,y}$ in the following analysis.
 ``Hybrid'' and ``most'' because $B_{x} = B_{y} > B_{z}$ which means the volume cannot be subdivided fully using a quad- or octree.
 Hence when using an octree with eight children, the $z$ dimension is already exhausted after $B_{z}$ splits and will from there continue to only have four children (i.e. a quadtree).
 When using a quadtree, the first $B_{x,y}$ splits would solely concern the $x$ and $y$ dimensions and after that the children will be binary trees of height $B_{z}$ only splitting the $z$ dimension.
 This will decrease the tree's height but increase the proof size due to the larger number of neighboring hashes that have to be provided on each level.
-For the hybrid-quadtree, the tree height would be $\log_4(2^{2 \cdot B_{x,y}})= \log_4(4^{B_{x,y}}) = B_{x,y} = 26$ plus the $\log_2(2^{B_z}) = B_z = 15$ for the binary subtrees.
+For the hybrid-quadtree, the tree height would be $\log_4(2^{2 \cdot B_{x,y}})= \log_4(4^{B_{x,y}}) = B_{x,y} = 21$ plus the $\log_2(2^{B_z}) = B_z = 11$ for the binary subtrees.
 For the hybrid-octree the tree height would be
-$\log_8(2^{B_z}) = \log_8(8^{B_z/3}) = B_z/3 = 5$ plus the $\log_4(2^{B - B_z}) = \log_4(2^{2 \cdot B_{x,y}}) = B_{x,y} = 26$ for the quad-subtrees.
-The proof size of a leaf would thus increase to $(26 \cdot (4 - 1) + (15 - 1) \cdot (2 - 1)) \cdot 32$~B $= 2'944$~B $\approx$ $3$~kB and $(5 \cdot (8 - 1) + (26 - 1) \cdot (4 - 1)) \cdot 32$~B $= 3'520$~B $\approx$ $3.5$~kB, respectively.
+$\log_8(2^{3 \cdot B_z}) = \log_8(8^{B_z}) = B_z = 11$ plus the $\lceil \log_4(2^{B - 3 \cdot B_z}) \rceil = 10$ for the quad-subtrees.
+The proof size of a leaf would thus increase to $(21 \cdot (4 - 1) + (11 - 1) \cdot (2 - 1)) \cdot 32$~B $= 2'336$~B $\approx$ $2$~KiB and $(11 \cdot (8 - 1) + (10 - 1) \cdot (4 - 1)) \cdot 32$~B $= 3'328$~B $\approx$ $3$~kB, respectively.
 The ones are subtracted from the tree height since the on the last level no complementary hash has to be returned.
 The ones subtracted from the number of neighbors is due to the fact that the hash resulting from the leaf itself does not have to be provided as it can be computed by the client.
 
