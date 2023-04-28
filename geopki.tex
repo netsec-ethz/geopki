@@ -62,12 +62,12 @@ WGS84 defines the \emph{semi-major axis} (half of the largest diameter of an ell
 Standard polar coordinates (longitude, latitude) are used for referencing points on the planet's two-dimensional surface and a third coordinate, altitude, extends this to three dimensions.
 Longitude, latitude and altitude together refer to a unique point in three-dimensions.
 
-Each of the three coordinates is discretized in a way that preserves $u := 20$ meter-precision in the worst case.
+Each of the three coordinates is discretized in a way that preserves $u := 1$ meter-precision in the worst case.
 With the semi-major axis $a$, the maximum circumference of the ellipsoid equals $=2 a \pi$~meters.
-Using base two, $B_{x}:= \left\lceil \log_2(\frac{2 a \pi}{u}) \right\rceil = 21$ bits for the longitude thus suffice to represent each possible meter value in the worst case.
+Using base two, $B_{x}:= \left\lceil \log_2(\frac{2 a \pi}{u}) \right\rceil = 26$ bits for the longitude thus suffice to represent each possible meter value in the worst case.
 Let $C_{x} := 2^{B_{x}} - 1$ denote the maximum discretized value for the longitude.
 For the latitude the circumference is $2 b \pi$~meters but we only need to be able to represent half of it, so $b \pi$.
-Thus $\left\lceil\log_2(\frac{b \pi}{u})\right\rceil = 20 =: B_{y}$ bits suffice.
+Thus $\left\lceil\log_2(\frac{b \pi}{u})\right\rceil = 25 =: B_{y}$ bits suffice.
 Analogously to $C_{x}$, let $C_y := 2^{B_{y}} - 1$ the maximum discretized value for the latitude.
 For altitude there is no natural bound so one has to be fixed.
 At the time of writing, the highest point on earth is below $10'000$~meters above sea level \cite{us_department_of_commerce_what_nodate} and the lowest layer of earth's atmosphere, the troposphere, extends to about $18$~km \cite{dhaka_chapter_2023}.
@@ -75,8 +75,8 @@ The Mariana Trench at about $10'000$~m below sea level \cite{gardner_so_2014} is
 The necessity of allowing volumes below sea level arises from countries such as the Netherlands where parts of the surface's altitude is below sea level \cite{kabat_climate_2005} .
 Moreover in the future, below sea level research stations might be built.
 Thus the range starting at a depth of $D:=-10'000$~m up to an altitude of $20'000$~m above sea level should cover any current and near-future needs.
-Covering this range requires $B_{z} := \left\lceil \log_2(\frac{H - D}{u}) \right\rceil = 11$ bits.
-In fact using $B_z$ bits starting at $D$ will cover the range from $D$ to $D + (2^{B_{z}} - 1) \cdot u = 30'940 := H$.
+Covering this range requires $B_{z} := \left\lceil \log_2(\frac{H - D}{u}) \right\rceil = 15$ bits.
+In fact using $B_z$ bits starting at $D$ will cover the range from $D$ to $D + (2^{B_{z}} - 1) \cdot u = 22'767 := H$.
 Complications might arise from distance calculations when using sea level as a reference as the sea level is not the same in all places and will increase in the future.
 Thus instead of using sea level as a reference, the geodetic altitude defined by WGS84~\cite{noauthor_nga_nodate} is used.
 Given the geoid's surface in WGS84 is about at the mean sea level (MSL), the range $[D, H]$ can be left as is.
@@ -86,7 +86,7 @@ While it does not exactly cover the range described range with respect to local 
 \label{sec:data-structure}
 
 Inspired by F-PKI~\cite{chuat_f-pki_2022}, a sparse merkle hash tree (SMT) is used.
-Each leaf represents a full discretized coordinate using $B := \cdot B_{x} + B_{y} + B_{z} = 52$ bits resulting in a total of $2^{B}$ leaves.
+Each leaf represents a full discretized coordinate using $B := \cdot B_{x} + B_{y} + B_{z} = 66$ bits resulting in a total of $2^{B}$ leaves.
 To have spatially close points somewhat close together in the SMT, the space-filling $Z$-order curve is used to sort the three dimensional locations in one dimension \cite{morton_computer_1966}.
 An example with $B_{x} = B{y} = B_{z} = 2$ is shown in \Cref{fig:z-curve-example:two-bits}.
 GeoPKI uses a slightly modified 3D Z-order curve:
@@ -396,7 +396,7 @@ Similarly, the presence of an empty node proofs the absence of any certificates 
 Given the binary SMT has $2^{B}$ leaves (see \Cref{sec:data-structure}), it's depth is $B$.
 A proof of presence for a node $v$ at depth $d \in \{0, ..., B-1\}$ (zero is the root itself) then consists of the $d$ complementary node's hash along the path to the root.
 The size of these hashes is $256$ bits or $32$ bytes due to the use of SHA-256.
-Thus in the worst case a proof for a single leaf consists $\left(B-1\right) \cdot 32$~B $= 51 \cdot 32$~B $= 1'632$~B $\approx 1.6$~KiB and is thus slightly smaller than the average X.509 certificate ($\approx 2$~KiB).
+Thus in the worst case a proof for a single leaf consists $\left(B-1\right) \cdot 32$~B $= 66 \cdot 32$~B $= 2'112$~B $\approx 2$~KiB and is thus in the same order as an average X.509 certificate.
 The size of such a proof is smaller the sparser the tree is and is always smaller if an intermediate node, i.e., not a leaf, is queried.
 
 \subsection{Proof of Consistency}
@@ -528,7 +528,7 @@ Otherwise a server might claim to not be malicious but return wrong results due 
 When using a 2D spatial index as described in \Cref{sec:implementation:query-sphere}, the tables \texttt{nodes} and \texttt{certificates} are used.
 The table \texttt{nodes} has the following columns:
 \begin{itemize}
-	\item \texttt{bit\_string} of type \texttt{bit varying (52)}
+	\item \texttt{bit\_string} of type \texttt{bit varying (66)}
 	
 	Stores the bit strings described in Sections \ref{sec:data-structure:leaf-binary} and \ref{sec:data-structure:intermediate}.
 	The table is clustered by the value resulting in geographically close rows being stored somewhat close together on disk.
@@ -569,15 +569,15 @@ The \texttt{certificates} table only consists of two columns, the primary key \t
 \label{sec:alternative-designs}
 
 An alternative design could use a (hybrid-)quadtree or (hybrid-)octree where most intermediate nodes have four or eight children, respectively.
-For simplicity let's assume $B_{y} = B_{x} = 21 := B_{x,y}$ in the following analysis.
+For simplicity let's assume $B_{y} = B_{x} = 26 := B_{x,y}$ in the following analysis.
 ``Hybrid'' and ``most'' because $B_{x} = B_{y} > B_{z}$ which means the volume cannot be subdivided fully using a quad- or octree.
 Hence when using an octree with eight children, the $z$ dimension is already exhausted after $B_{z}$ splits and will from there continue to only have four children (i.e. a quadtree).
 When using a quadtree, the first $B_{x,y}$ splits would solely concern the $x$ and $y$ dimensions and after that the children will be binary trees of height $B_{z}$ only splitting the $z$ dimension.
 This will decrease the tree's height but increase the proof size due to the larger number of neighboring hashes that have to be provided on each level.
-For the hybrid-quadtree, the tree height would be $\log_4(2^{2 \cdot B_{x,y}})= \log_4(4^{B_{x,y}}) = B_{x,y} = 21$ plus the $\log_2(2^{B_z}) = B_z = 11$ for the binary subtrees.
+For the hybrid-quadtree, the tree height would be $\log_4(2^{2 \cdot B_{x,y}})= \log_4(4^{B_{x,y}}) = B_{x,y} = 26$ plus the $\log_2(2^{B_z}) = B_z = 15$ for the binary subtrees.
 For the hybrid-octree the tree height would be
-$\log_8(2^{3 \cdot B_z}) = \log_8(8^{B_z}) = B_z = 11$ plus the $\lceil \log_4(2^{B - 3 \cdot B_z}) \rceil = 10$ for the quad-subtrees.
-The proof size of a leaf would thus increase to $(21 \cdot (4 - 1) + (11 - 1) \cdot (2 - 1)) \cdot 32$~B $= 2'336$~B $\approx$ $2$~KiB and $(11 \cdot (8 - 1) + (10 - 1) \cdot (4 - 1)) \cdot 32$~B $= 3'328$~B $\approx$ $3$~kB, respectively.
+$\log_8(2^{3 \cdot B_z}) = \log_8(8^{B_z}) = B_z = 15$ plus the $\lceil \log_4(2^{B - 3 \cdot B_z}) \rceil = 21$ for the quad-subtrees.
+The proof size of a leaf would thus increase to $(26 \cdot (4 - 1) + (15 - 1) \cdot (2 - 1)) \cdot 32$~B $= 2'944$~B $\approx$ $3$~KiB and $(15 \cdot (8 - 1) + (21 - 1) \cdot (4 - 1)) \cdot 32$~B $= 3'630$~B $\approx$ $3.5$~KiB, respectively.
 The ones are subtracted from the tree height since the on the last level no complementary hash has to be returned.
 The ones subtracted from the number of neighbors is due to the fact that the hash resulting from the leaf itself does not have to be provided as it can be computed by the client.
 
