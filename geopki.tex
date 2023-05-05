@@ -18,7 +18,30 @@
 \usepackage{scalerel}
 \DeclareMathOperator*{\concat}{\scalerel*{||}{\sum}}
 
-%\DeclareMathOperator*{\barr}{\scalerel*{\maltese}{\textstyle\sum}}
+
+\usepackage{listings}
+\usepackage{color}
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+\lstset{language=SQL,
+  basicstyle={\small\ttfamily},
+  belowskip=3mm,
+  breakatwhitespace=true,
+  breaklines=true,
+  classoffset=0,
+  columns=flexible,
+  commentstyle=\color{dkgreen},
+  framexleftmargin=0.25em,
+  frameshape={}{yy}{}{}, %To remove to vertical lines on left, set `frameshape={}{}{}{}`
+  keywordstyle=\color{blue},
+  numbers=none, %If you want line numbers, set `numbers=left`
+  numberstyle=\tiny\color{gray},
+  showstringspaces=false,
+  stringstyle=\color{mauve},
+  tabsize=3,
+  xleftmargin =1em
+}
 
 \title{\Large GeoPKI \vspace{-1.1em}}
 % \author{}
@@ -472,16 +495,18 @@ Due to the size of data it seems reasonable to use a data management engine on t
 One possibility to query a sphere is to walk the tree and intersect it with the volumes on each level of the tree.
 This process is repeated recursively until the reached level is a (sparse) ``leaf''.
 When walking the tree like this, all information that has to be returned (including the data for the proof) is obtained in one go.
-The database management systems MySQL and PostgreSQL could be extended with a custom index performing the just described operations but they already have built-in support for spatial indexes.
+Such a process would require writing a custom database index which for the moment is out of scope.
 
-Both have support for two dimensional geodetic coordinates, PostgreSQL additionally supports three dimensional cartesian coordinates but none of them supports two dimensional geodetic coordinates plus a third cartesian altitude dimension.
+\subsubsection{Spatial Index}
+Fortunately there are alternatives.
+Both, MySQL and PostgreSQL have support for two dimensional geodetic coordinates, PostgreSQL additionally supports three dimensional cartesian coordinates but none of them supports two dimensional geodetic coordinates plus a third cartesian altitude dimension.
 Transforming points to earth-centered, earth-fixed (ECEF) cartesian coordinates is straight-forward but the same does not apply to volumes since the coordinate system's grid lines are different.
 In the geodetic coordinate systems grid lines are curved while in a cartesian coordinate system they are straight lines.
 Hence the shape of volumes defined by their vertices is wildly different and would need to be over-approximated when wanting to use the three dimensional spatial index.
-While possible, such over-approximations do not seem to be trivial to compute. 
+While possible, such over-approximations do not seem trivial to compute. 
 
 Alternatively it is possible to directly make us of the two-dimensional spatial index with support for geodetic coordinates.
-In this approach the altitude is initially completely ignored and the voxel's two dimensional projection to the earth's surface is intersected with a circle with the sphere's radius whose center is the sphere's center also projected to earth's surface.
+In this approach the altitude is initially ignored and the voxel's two dimensional projection to the earth's surface is intersected with a circle with the sphere's radius whose center is the sphere's center also projected to earth's surface.
 After querying the spatial index for this, the returned data can be filtered based on the altitude.
 Note that this type of query no longer searches for volumes intersecting a sphere but rather over-approximates the sphere as an extruded circle, i.e. a cylinder (see \Cref{fig:sphere-approximation}).
 Due to the projection to the earth's surface, the radius of the cylinder has to be adjusted.
@@ -522,26 +547,138 @@ Given the small numbers and the fact that an over-approximation of the result do
 It is probably advisable to account for this on the client's side to facilitate auditing.
 Otherwise a server might claim to not be malicious but return wrong results due to wrong approximations.
 
+A query on the server side
+
+\begin{lstlisting}[language=SQL]
+SELECT * FROM nodes
+WHERE ST_DWITHIN(
+    area,
+    query_point,
+    query_radius
+  ) AND
+min_altitude_of_bit_string(bit_string) <= (query_z + query_radius) AND
+max_altitude_of_bit_string(bit_string) >= (query_z - query_radius)
+\end{lstlisting}
+
+where the functions \texttt{min\_altitude\_of\_bit\_string} and \texttt{max\_altitude\_of\_bit\_string} are respectively defined as follows:
+\begin{lstlisting}[language=Python]
+# python syntax, ljust = right pad
+return int(bit_string[52:].ljust(15, "0"), 2)
+\end{lstlisting}
+
+\begin{lstlisting}[language=Python]
+# python syntax, ljust = right pad
+return int(bit_string[52:].ljust(15, "1"), 2)
+\end{lstlisting}
+
+Unfortunately the spatial index used by \texttt{ST\_DWIITHIN} is rather expensive resulting in a lower query throughput than one would hope for.
+% TODO refer to measurements
+
+\subsubsection{Prefix Matching}
+Smaller bit strings represent larger volumes and in allowing a request for all certificates inside such a volume to be concisely represented by such a bit string.
+Since in the definition of the bit strings the altitude bits are simply appended to the interleaved longitude and latitude bits, sending a prefix that covers more in the surface dimension will always cover the full height.
+Based on the idea of the previous approach of querying a cylinder, it is possible to additionally send a minimum and maximum altitude with a bit string of length $\leq 52$ (whose geometric representation covers the full height).
+The server then returns all voxels whose bit string start with the given query bit string whose geometric representation intersects the given altitude range (several subtrees).
+Additionally it must return all voxels whose bit string are a prefix of the given query bit string (the path to the tree root).
+Seemingly the DB is not able to process the following statement looking for all prefixes efficiently.
+\begin{lstlisting}[language=SQL]
+WHERE '0100110...' LIKE bit_string || '%'
+\end{lstlisting}
+
+To prevent a full table scan, it can be converted in a set of point queries.
+Moreover prefix matching is only supported on strings so an additional \texttt{bit\_string\_txt} column has to be created and indexed.
+The full query in SQL can then be written as follows:
+\begin{lstlisting}[language=SQL]
+SELECT * FROM nodes
+WHERE bit_string IN (b'0', b'01', ...)
+UNION ALL
+SELECT * FROM nodes
+WHERE bit_string_txt LIKE '0100110...%' AND
+min_altitude_of_bit_string(bit_string) <= (query_z + query_radius) AND
+max_altitude_of_bit_string(bit_string) >= (query_z - query_radius)
+\end{lstlisting}
+By (over-)approximating any volume using bit strings, clients can this way query for any desired cylinder.
+In order to approximate a desired query volume, the same algorithm that is used to assign voxels to a certificate can be used, possibly with different parameters.
+Note that this approach pushes some work to the client to simplify the server's task.
+\subsubsection{Integer Range Queries}
+Building on the previous approach, it is possible to transform the prefix matching operation into an integer range query.
+Each bit string is interpreted as an integer.
+For bit strings longer than $52$ bits only the first $52$ (encoding the longitude and latitude) are taken and for bit strings shorter than $52$, the bits are right padded with zeros up to $52$ bits.
+The resulting $52$ bits are then interpreted as a (big endian) integer.
+More formally the integers are obtained by calling the function \texttt{to\_surface\_integer(bit\_string, c)} with \texttt{c="0"} where \texttt{to\_surface\_integer} is defined as follows:
+\begin{lstlisting}[language=Python]
+# python syntax, ljust = right pad
+return int(bit_string[:52].ljust(52, c), 2)
+\end{lstlisting}
+The \texttt{bit\_string\_txt} string column is replaced by a \texttt{bit\_string\_52} bigint column.
+The a prefix search for some bit string \texttt{query\_bit\_string} can then be replaced by a range search among the integer representations described above.
+The lower and upper bounds $L$ and $R$ are then defined as
+\begin{align*}
+	L &= \texttt{to\_surface\_integer(query\_bit\_string, "0")}\\
+	R &= \texttt{to\_surface\_integer(query\_bit\_string, "1")}
+\end{align*}
+
+This allows the SQL query to be written as
+\begin{lstlisting}[language=SQL]
+SELECT * FROM nodes
+WHERE bit_string IN (b'0', b'01', ...)
+UNION ALL
+SELECT * FROM nodes
+WHERE
+bit_string_52 >= L AND
+bit_string_52 <= R AND
+min_altitude_of_bit_string(bit_string) <= (query_z + query_radius) AND
+max_altitude_of_bit_string(bit_string) >= (query_z - query_radius)
+\end{lstlisting}
+
+The following proof shows this returns all desired results.
+Proof by contradiction:
+Assume some row that should have been in the results is missing.
+The bit string corresponding to the row must be longer than the queried bit string, otherwise it would be a prefix of it and thus explicitly listed in the first part of the query (i.e. \texttt{IN (...)}).
+Moreover the row must share all initial bits with the bits with the queried bit string, otherwise it is not supposed to be returned.
+Thus its integer value must be between $L$, the minimum value with all zeros after the queried bit string prefix, and $R$, the maximum value with all ones after the queried bit string prefix.
+
+It is left to show that this does not return more results than required but this is not true since additional results are returned.
+Interestingly the additionally returned results are a subset of the prefixes that we want to retrieve anyway though so it only reduces the number of prefixes that have to be explicitly listed in the first query part.
+More specifically, the query returns all rows whose bit string, the queried bit string is a prefix for plus all prefixes of the queried bit string that can be obtained by omitting trailing zeros.
+
+Proof:
+If the queried bit string is a prefix for a row's bit string, it should be returned so assume this is not the case.
+
+\textbf{Case 1:} Assume the corresponding bit string's length is greater than or equal to the queried bit string's.
+Since the queried bit string is not a prefix, there must be a position in the query bit string two two bit strings have a different bit.
+This results in the corresponding integer representation being strictly greater than $R$ (if it has a $1$ in the position where the query bit string has a $0$) or strictly smaller than $L$ (if it has a $0$ in the position where the query bit string has a $1$).
+Thus it violates the condition and cannot be returned by the second part of the query.
+Moreover the first part of the query only covers prefixes of the queried bit string which are by definition strictly shorter and thus it also cannot be returned by the first part of the query.
+Hence this assumption leads to a contradiction.
+
+\textbf{Case 2:} Assume the corresponding bit string's length is strictly smaller than the queried bit string's.
+
+Assuming the row's bit string is not a prefix of the queried bit string, then by the same argument as in case 1 there must be a position where the two have mismatching bits resulting in the integer bounds being violated.
+Moreover it not being a prefix by definition prevents it from being included by the first part of the query.
+
+Hence the last remaining case is when the row is a prefix of the queried bit string.
+While in any case this is a row we want, it is possible to narrow down exactly what additional prefixes are returned.
+In the best case it would be all of them but unfortunately this is also not the case.
+Since integers are zero extended to $52$ bits, the integer representations of two bit strings is the same if they match when omitting all trailing zeros.
+And this is exactly the set of additional prefixes that are returned.
+Removing a trailing zero does not change the integer representation while removing a trailing one effectively replaces this one with a zero in the integer representation.
+Replacing a one with a zero means it the integer does not satisfy the range bounds as it will be too small.
+
 \subsection{Database Tables and Schemas}
 \label{sec:implementation:schemas}
 
-When using a 2D spatial index as described in \Cref{sec:implementation:query-sphere}, the tables \texttt{nodes} and \texttt{certificates} are used.
+When using a integer range query as described in \Cref{sec:implementation:query-sphere}, the tables \texttt{nodes} and \texttt{certificates} are used.
 The table \texttt{nodes} has the following columns:
 \begin{itemize}
 	\item \texttt{bit\_string} of type \texttt{bit varying (66)}
 	
 	Stores the bit strings described in Sections \ref{sec:data-structure:leaf-binary} and \ref{sec:data-structure:intermediate}.
-	The table is clustered by the value resulting in geographically close rows being stored somewhat close together on disk.
-	\item \texttt{area} of type \texttt{geography}
+	There is a non-clustered index on this column enabling fast point queries.
+	\item \texttt{bit\_string\_52} of type \texttt{bigint} (64 bit integer)
 	
-	Stores the 2D projection of the voxel corresponding to the row's \texttt{bit\_string} in the database's internal format.
-	There is a 2D spatial index on this column.
-	\item \texttt{altitude\_min} of type \texttt{smallint | null}
-	
-	Stores the minimum altitude corresponding to the row's \texttt{bit\_string}.
-	\item \texttt{altitude\_max} of type \texttt{smallint | null}
-	
-	Stores the maximum altitude corresponding to the row's \texttt{bit\_string}.
+	Stores \texttt{to\_surface\_integer} called on the \texttt{bit\_string} column with \texttt{c="0"} to enable fast range queries.
+	There is a B-Tree index on this column and the table is clustered by this index.
 	\item \texttt{certificate\_hashes} of type \texttt{bytea[]}
 	
 	Stores the hashes of the certificates belonging to this node and is by default an empty array.
