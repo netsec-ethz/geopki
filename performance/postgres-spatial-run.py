@@ -1,0 +1,343 @@
+from typing import Dict, Any, Union, Optional, List, Tuple
+import click
+from getpass import getpass
+from multiprocessing import Pool, Process, Event, Value
+import time
+import random
+import math
+
+from geopy import distance
+
+import psycopg2
+
+MAX_RADIUS_M = 10 * 1000
+MAX_CIRCUMFERENCE_M = 2 * MAX_RADIUS_M * math.pi
+
+# for 10km this still allows each meter as output
+SAMPLING_PRECISION_RADIUS = math.ceil(MAX_RADIUS_M)
+
+# 360 degrees
+# with 10km radius, circumference is 2 * (10km) * π = 62.83kms
+SAMPLING_PRECISION_BEARING = math.ceil(MAX_CIRCUMFERENCE_M)
+
+QUERY_PLACES: List[Tuple[float, float, int]] = [
+    # longitude, latitude, radius in meters
+    (8.5389201, 47.3771551, 2000),  # zurich
+    (13.4014152, 52.5214838, 8000),  # berlin
+    (-0.1295305, 51.5070465, 10000),  # london
+    (2.3488568, 48.8571225, 4000),  # paris
+    (14.4314693, 50.0838005, 3000),  # prague
+    (30.3288451, 59.9104786, 4000),  # st petersburg
+]
+
+
+def sample_circle(latitude: float, longitude: float, radius_m: float) -> Tuple[float, float]:
+    r = radius_m * \
+        random.randint(0, SAMPLING_PRECISION_RADIUS) / \
+        SAMPLING_PRECISION_RADIUS
+
+    bearing = (
+        360 * random.randint(0, SAMPLING_PRECISION_BEARING) /
+        SAMPLING_PRECISION_BEARING
+    ) % 360
+
+    p = distance.distance(
+        meters=r
+    ).destination(
+        (latitude, longitude),
+        bearing=bearing
+    )
+
+    return p.latitude, p.longitude
+
+
+def generate_queries(query_count: int):
+    query_set: List[float, float, int] = []
+
+    for _ in range(query_count):
+        # randomly sample a city
+        query_place_longitude, query_place_latitude, query_place_radius_m = random.choice(
+            QUERY_PLACES
+        )
+        latitude, longitude = sample_circle(
+            longitude=query_place_longitude,
+            latitude=query_place_latitude,
+            radius_m=query_place_radius_m
+        )
+
+        altitude = 22767  # 22'767 = 0 altitude
+
+        query_set.append((longitude, latitude, altitude))
+
+    return query_set
+
+
+class ProcessArgs:
+    def __init__(
+            self,
+            db_host: str,
+            db_port: int,
+            db_name: str,
+            db_user: str,
+            db_pass: str,
+            query_radius: int,
+            batch_size: int,
+            count_only: bool,
+            query_set_size: int,
+            start_event: Event,
+            ready_event: Event,
+            stop_event: Event
+    ) -> None:
+        self.db_host = db_host
+        self.db_port = db_port
+        self.db_name = db_name
+        self.db_user = db_user
+        self.db_pass = db_pass
+        self.query_radius = query_radius
+        self.batch_size = batch_size
+        self.count_only = count_only
+        self.query_set_size = query_set_size
+        self.start_event = start_event
+        self.ready_event = ready_event
+        self.stop_event = stop_event
+
+
+def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_value: Value):
+    result_count = 0
+    executed_queries = 0
+    query_idx = 0
+
+    conn = psycopg2.connect(
+        host=args.db_host,
+        port=args.db_port,
+        database=args.db_name,
+        user=args.db_user,
+        password=args.db_pass
+    )
+
+    cursor = conn.cursor()
+
+    # pre-generate a query set
+    query_set = generate_queries(args.query_set_size)
+
+    # signal we're ready
+    args.ready_event.set()
+
+    # wait for start signal
+    args.start_event.wait()
+
+    # work until stop is signalled
+    while True:
+        query_idx = (query_idx + args.batch_size) % len(query_set)
+        queries = query_set[
+            query_idx:(query_idx + args.batch_size)
+        ]
+
+        # execute query / queries
+
+        cursor.execute(
+            ";".join([
+                f"SELECT {'COUNT(*)' if args.count_only else '*'} FROM query_by_cylinder("
+                f"ST_SetSRID(ST_Point({longitude}, {latitude}),4326)::geography,"
+                f"{altitude}::smallint,"
+                f"{args.query_radius}"
+                f")"
+                for longitude, latitude, altitude in queries
+            ])
+        )
+
+        # simulate fetching all results
+        result_count_tmp = len(cursor.fetchall())
+
+        # check whether we need to stop, if we have to do not count the last queries
+        if args.stop_event.is_set():
+            break
+
+        # increase result and query counters
+        result_count += result_count_tmp
+        executed_queries += args.batch_size
+
+    cursor.close()
+    conn.close()
+
+    executed_queries_value.value = executed_queries
+    result_count_value.value = result_count
+
+
+@click.command()
+@click.option(
+    '--db-host',
+    '-h',
+    'db_host',
+    type=str,
+    required=True
+)
+@click.option(
+    '--db-port',
+    '-p',
+    'db_port',
+    type=int,
+    required=True
+)
+@click.option(
+    '--db-name',
+    '-n',
+    'db_name',
+    type=str,
+    required=True
+)
+@click.option(
+    '--db-user',
+    '-u',
+    'db_user',
+    type=str,
+    required=True
+)
+@click.option(
+    '--db-pass',
+    '-u',
+    'db_pass',
+    type=str,
+    required=False
+)
+@click.option(
+    '--threads',
+    '-m',
+    'num_threads',
+    type=int,
+    default=2
+)
+@click.option(
+    '--time',
+    '-t',
+    'time_s',
+    type=int,
+    default=10
+)
+@click.option(
+    '--query-radius',
+    '-r',
+    'query_radius',
+    type=int,
+    default=10
+)
+@click.option(
+    '--qps-set-size',
+    '-q',
+    'qps_set_size',
+    type=int,
+    default=5000
+)
+@click.option('--count-only', 'count_only', flag_value=True, default=False)
+@click.option(
+    '--batch-size',
+    '-b',
+    'batch_size',
+    type=int,
+    default=80
+)
+def main(
+    db_host: str,
+    db_port: int,
+    db_name: str,
+    db_user: str,
+    db_pass: Optional[str],
+    num_threads: int,
+    time_s: int,
+    query_radius: int,
+    batch_size: int,
+    qps_set_size: int,
+    count_only: bool
+):
+
+    # ensure no duplicate queries are sent
+    assert qps_set_size >= batch_size
+
+    if db_pass is None:
+        db_pass = getpass(
+            f"Password for {db_user}:{db_name}@{db_host}:{db_port}: "
+        )
+
+    start_event = Event()
+    stop_event = Event()
+
+    ready_events = [
+        Event()
+        for _ in range(num_threads)
+    ]
+
+    executed_queries_values = [
+        Value("i", 0, lock=False)
+        for _ in range(num_threads)
+    ]
+    result_count_values = [
+        Value("i", 0, lock=False)
+        for _ in range(num_threads)
+    ]
+
+    processes: List[Process] = [
+        Process(
+            target=run_queries,
+            args=(
+                ProcessArgs(
+                    db_host=db_host,
+                    db_port=db_port,
+                    db_name=db_name,
+                    db_user=db_user,
+                    db_pass=db_pass,
+                    query_radius=query_radius,
+                    batch_size=batch_size,
+                    count_only=count_only,
+                    query_set_size=qps_set_size,
+                    start_event=start_event,
+                    ready_event=ready_event,
+                    stop_event=stop_event,
+                ),
+                executed_queries_values,
+                result_count_value
+            )
+        )
+        for i, ready_event, executed_queries_values, result_count_value
+        in zip(
+            range(num_threads),
+            ready_events,
+            executed_queries_values,
+            result_count_values
+        )
+    ]
+
+    # initiate all threads
+    for process in processes:
+        process.start()
+
+    # wait for all process to be ready
+    for ready_event in ready_events:
+        ready_event.wait()
+
+    # give start signal
+    # start = time.time()
+    start_event.set()
+    # wait for the given time
+    time.sleep(time_s)
+    # then signal termination to the threads
+    stop_event.set()
+
+    # wait for all of them to terminate
+    for process in processes:
+        process.join()
+
+    # stop = time.time()
+
+    executed_queries = 0
+    result_count = 0
+
+    for xq, rc in zip(executed_queries_values, result_count_values):
+        # read out result
+        executed_queries += xq.value
+        result_count += rc.value
+
+    print(f"{num_threads},{time_s},{query_radius},{executed_queries},{result_count}")
+
+
+if __name__ == '__main__':
+    main()
