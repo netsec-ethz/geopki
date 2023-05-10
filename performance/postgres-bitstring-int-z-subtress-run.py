@@ -191,7 +191,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                         ("SELECT COUNT(*) FROM (" if args.count_only else "") +
                         "UNION".join(
                             [
-                                f"(SELECT bit_string, certificate_hashes, neighbor_hash, left_child_hash, right_child_hash "
+                                f"(SELECT bit_string_51, bit_string_15, certificate_hashes, neighbor_hash, left_child_hash, right_child_hash, altitude_child_hash "
                                 f"FROM nodes "
                                 f"WHERE bit_string IN (" +
                                 ','.join(point_queries) + ") "
@@ -199,11 +199,11 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                                 "SELECT bit_string, certificate_hashes, neighbor_hash, left_child_hash, right_child_hash "
                                 "FROM nodes "
                                 f"WHERE "
-                                f"bit_string_51 >= {imin} AND "
-                                f"bit_string_51 <= {imax} AND "
+                                f"bit_string_51_int >= {imin} AND "
+                                f"bit_string_51_int <= {imax} AND "
                                 # fix altitude for now
-                                f"min_altitude_of_bit_string(bit_string) <= {22767 - args.query_radius} AND "
-                                f"max_altitude_of_bit_string(bit_string) >= {22767 + args.query_radius}"
+                                f"min_altitude_of_bit_string(bit_string_15) <= {22767 - args.query_radius} AND "
+                                f"max_altitude_of_bit_string(bit_string_15) >= {22767 + args.query_radius}"
                                 f")"
                                 for point_queries, imin, imax in bit_strings
                             ])

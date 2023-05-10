@@ -32,10 +32,25 @@ INSERT_INTO_NODES_BITSTRING_INT_STR = (
     f"INSERT INTO nodes (" +
     ",".join([
         "bit_string",
-        "bit_string_52",
+        "bit_string_51",
         "neighbor_hash",
         "left_child_hash",
         "right_child_hash",
+        "certificate_hashes"
+    ]) +
+    f") VALUES\n"
+)
+INSERT_INTO_NODES_BITSTRING_INT_Z_SUBTREES_STR = (
+    f"INSERT INTO nodes (" +
+    ",".join([
+        "bit_string_51",
+        "bit_string_51_int",
+        "bit_string_15",
+        "neighbor_hash",
+        "xy_left_child_hash",
+        "xy_right_child_hash",
+        "z_left_child_hash",
+        "z_right_child_hash",
         "certificate_hashes"
     ]) +
     f") VALUES\n"
@@ -92,8 +107,10 @@ class BitStringRow:
         self.bit_string = bit_string
         self.certificate_hashes = certificate_hashes
 
-        self.left_child_hash: Optional[bytes] = None
-        self.right_child_hash: Optional[bytes] = None
+        self.xy_left_child_hash: Optional[bytes] = None
+        self.xy_right_child_hash: Optional[bytes] = None
+        self.z_left_child_hash: Optional[bytes] = None
+        self.z_right_child_hash: Optional[bytes] = None
         self.neighbor_hash: Optional[bytes] = None
         self.hash = None
 
@@ -472,7 +489,7 @@ def main(
         bit_string_left_child = bit_string + "0"
         bit_string_right_child = bit_string + "1"
 
-        row.left_child_hash = (
+        row.xy_left_child_hash = (
             None if len(bit_string) == 66 else
             (
                 bit_string_map[bit_string_left_child].hash if bit_string_left_child in bit_string_map
@@ -480,7 +497,7 @@ def main(
             )
         )
 
-        row.right_child_hash = (
+        row.xy_right_child_hash = (
             None if len(bit_string) == 66 else
             (
                 bit_string_map[bit_string_right_child].hash if bit_string_right_child in bit_string_map
@@ -501,15 +518,15 @@ def main(
             if len(row.certificate_hashes) > 0:
                 row.hash = hashlib.sha256(
                     b"\x01" +
-                    row.left_child_hash +
-                    row.right_child_hash +
+                    row.xy_left_child_hash +
+                    row.xy_right_child_hash +
                     hashlib.sha256(row.get_certificate_hashes()).digest()
                 ).digest()
             else:
                 row.hash = hashlib.sha256(
                     b"\x01" +
-                    row.left_child_hash +
-                    row.right_child_hash
+                    row.xy_left_child_hash +
+                    row.xy_right_child_hash
                 ).digest()
 
         # flip last bit
@@ -545,13 +562,15 @@ def main(
             ZOrderBitString.from_bit_string(bit_string).to_voxel_bounds()
         )
 
-        bit_string_52_int = int(
-            bit_string[:52].ljust(52, '0'),
+        bit_string_51_int = int(
+            bit_string[:51].ljust(51, '0'),
             2
         )
         neighbor_hash = "NULL" if row.neighbor_hash is None else f"E'\\\\x{row.neighbor_hash.hex()}'"
-        left_child_hash = "NULL" if row.left_child_hash is None else f"E'\\\\x{row.left_child_hash.hex()}'"
-        right_child_hash = "NULL" if row.right_child_hash is None else f"E'\\\\x{row.right_child_hash.hex()}'"
+        xy_left_child_hash = "NULL" if row.xy_left_child_hash is None else f"E'\\\\x{row.xy_left_child_hash.hex()}'"
+        xy_right_child_hash = "NULL" if row.xy_right_child_hash is None else f"E'\\\\x{row.xy_right_child_hash.hex()}'"
+        z_left_child_hash = "NULL" if row.z_left_child_hash is None else f"E'\\\\x{row.z_left_child_hash.hex()}'"
+        z_right_child_hash = "NULL" if row.z_right_child_hash is None else f"E'\\\\x{row.z_right_child_hash.hex()}'"
         certificate_hashes = f",".join(
             [
                 f"E'\\\\x{h.hex()}'::bytea"
@@ -564,6 +583,8 @@ def main(
         if is_first_line:
             if mode == "bitstring-int":
                 size += f.write(INSERT_INTO_NODES_BITSTRING_INT_STR)
+            elif mode == "bitstring-int-z-subtrees":
+                size += f.write(INSERT_INTO_NODES_BITSTRING_INT_Z_SUBTREES_STR)
             elif mode == "spatial":
                 size += f.write(INSERT_INTO_NODES_STR)
 
@@ -573,11 +594,15 @@ def main(
 
         if mode == "bitstring-int":
             size += f.write(
-                f"('{bit_string}', {bit_string_52_int}, {neighbor_hash}, {left_child_hash}, {right_child_hash}, {certificate_hash_array})"
+                f"('{bit_string}', {bit_string_51_int}, {neighbor_hash}, {xy_left_child_hash}, {xy_right_child_hash}, {certificate_hash_array})"
+            )
+        elif mode == "bitstring-int-z-subtrees":
+            size += f.write(
+                f"(b'{bit_string[:51]}', {bit_string_51_int}, b'{bit_string[51:]}', {neighbor_hash}, {xy_left_child_hash}, {xy_right_child_hash}, {z_left_child_hash}, {z_right_child_hash}, {certificate_hash_array})"
             )
         else:
             size += f.write(
-                f"(b'{bit_string}', {polygon}, {neighbor_hash}, {left_child_hash}, {right_child_hash}, {certificate_hash_array})"
+                f"(b'{bit_string}', {polygon}, {neighbor_hash}, {xy_left_child_hash}, {xy_right_child_hash}, {certificate_hash_array})"
             )
 
         if size >= MAX_FILE_SIZE:

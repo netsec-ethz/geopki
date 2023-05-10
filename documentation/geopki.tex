@@ -563,12 +563,12 @@ max_altitude_of_bit_string(bit_string) >= (query_z - query_radius)
 where the functions \texttt{min\_altitude\_of\_bit\_string} and \texttt{max\_altitude\_of\_bit\_string} are respectively defined as follows:
 \begin{lstlisting}[language=Python]
 # python syntax, ljust = right pad
-return int(bit_string[52:].ljust(15, "0"), 2)
+return int(bit_string[51:].ljust(15, "0"), 2)
 \end{lstlisting}
 
 \begin{lstlisting}[language=Python]
 # python syntax, ljust = right pad
-return int(bit_string[52:].ljust(15, "1"), 2)
+return int(bit_string[51:].ljust(15, "1"), 2)
 \end{lstlisting}
 
 Unfortunately the spatial index used by \texttt{ST\_DWIITHIN} is rather expensive resulting in a lower query throughput than one would hope for.
@@ -577,7 +577,7 @@ Unfortunately the spatial index used by \texttt{ST\_DWIITHIN} is rather expensiv
 \subsubsection{Prefix Matching}
 Smaller bit strings represent larger volumes and in allowing a request for all certificates inside such a volume to be concisely represented by such a bit string.
 Since in the definition of the bit strings the altitude bits are simply appended to the interleaved longitude and latitude bits, sending a prefix that covers more in the surface dimension will always cover the full height.
-Based on the idea of the previous approach of querying a cylinder, it is possible to additionally send a minimum and maximum altitude with a bit string of length $\leq 52$ (whose geometric representation covers the full height).
+Based on the idea of the previous approach of querying a cylinder, it is possible to additionally send a minimum and maximum altitude with a bit string of length $\leq 51$ (whose geometric representation covers the full height).
 The server then returns all voxels whose bit string start with the given query bit string whose geometric representation intersects the given altitude range (several subtrees).
 Additionally it must return all voxels whose bit string are a prefix of the given query bit string (the path to the tree root).
 Seemingly the DB is not able to process the following statement looking for all prefixes efficiently.
@@ -603,14 +603,14 @@ Note that this approach pushes some work to the client to simplify the server's 
 \subsubsection{Integer Range Queries}
 Building on the previous approach, it is possible to transform the prefix matching operation into an integer range query.
 Each bit string is interpreted as an integer.
-For bit strings longer than $52$ bits only the first $52$ (encoding the longitude and latitude) are taken and for bit strings shorter than $52$, the bits are right padded with zeros up to $52$ bits.
-The resulting $52$ bits are then interpreted as a (big endian) integer.
+For bit strings longer than $51$ bits only the first $51$ (encoding the longitude and latitude) are taken and for bit strings shorter than $51$, the bits are right padded with zeros up to $51$ bits.
+The resulting $51$ bits are then interpreted as a (big endian) integer.
 More formally the integers are obtained by calling the function \texttt{to\_surface\_integer(bit\_string, c)} with \texttt{c="0"} where \texttt{to\_surface\_integer} is defined as follows:
 \begin{lstlisting}[language=Python]
 # python syntax, ljust = right pad
-return int(bit_string[:52].ljust(52, c), 2)
+return int(bit_string[:51].ljust(51, c), 2)
 \end{lstlisting}
-The \texttt{bit\_string\_txt} string column is replaced by a \texttt{bit\_string\_52} bigint column.
+The \texttt{bit\_string\_txt} string column is replaced by a \texttt{bit\_string\_51} bigint column.
 The a prefix search for some bit string \texttt{query\_bit\_string} can then be replaced by a range search among the integer representations described above.
 The lower and upper bounds $L$ and $R$ are then defined as
 \begin{align*}
@@ -625,8 +625,8 @@ WHERE bit_string IN (b'0', b'01', ...)
 UNION ALL
 SELECT * FROM nodes
 WHERE
-bit_string_52 >= L AND
-bit_string_52 <= R AND
+bit_string_51 >= L AND
+bit_string_51 <= R AND
 min_altitude_of_bit_string(bit_string) <= (query_z + query_radius) AND
 max_altitude_of_bit_string(bit_string) >= (query_z - query_radius)
 \end{lstlisting}
@@ -660,7 +660,7 @@ Moreover it not being a prefix by definition prevents it from being included by 
 Hence the last remaining case is when the row is a prefix of the queried bit string.
 While in any case this is a row we want, it is possible to narrow down exactly what additional prefixes are returned.
 In the best case it would be all of them but unfortunately this is also not the case.
-Since integers are zero extended to $52$ bits, the integer representations of two bit strings is the same if they match when omitting all trailing zeros.
+Since integers are zero extended to $51$ bits, the integer representations of two bit strings is the same if they match when omitting all trailing zeros.
 And this is exactly the set of additional prefixes that are returned.
 Removing a trailing zero does not change the integer representation while removing a trailing one effectively replaces this one with a zero in the integer representation.
 Replacing a one with a zero means it the integer does not satisfy the range bounds as it will be too small.
@@ -675,7 +675,7 @@ The table \texttt{nodes} has the following columns:
 	
 	Stores the bit strings described in Sections \ref{sec:data-structure:leaf-binary} and \ref{sec:data-structure:intermediate}.
 	There is a non-clustered index on this column enabling fast point queries.
-	\item \texttt{bit\_string\_52} of type \texttt{bigint} (64 bit integer)
+	\item \texttt{bit\_string\_51} of type \texttt{bigint} (64 bit integer)
 	
 	Stores \texttt{to\_surface\_integer} called on the \texttt{bit\_string} column with \texttt{c="0"} to enable fast range queries.
 	There is a B-Tree index on this column and the table is clustered by this index.
