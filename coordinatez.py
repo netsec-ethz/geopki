@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Tuple, Union, Dict
+from typing import List, Tuple, Union, Dict, Set
 import math
 from collections import deque
 from geopy import distance
@@ -703,8 +703,8 @@ class DiscretizedVoxel:
         )
 
 
-def polygon_to_2d_bit_strings(
-        polygon: Polygon,
+def polygons_to_2d_bit_strings(
+        polygons: List[Polygon],
         f_grow: float,
         f_min=0.0
 ) -> List[str]:
@@ -733,120 +733,152 @@ def polygon_to_2d_bit_strings(
 
     Parameters
     ----------
-    :param polygon: The polygon to turn into bit strings
+    :param polygons: The list of polygon to turn into bit strings
     :param f_grow: The z coordinate in the EEC coordinate system
     :param f_min: The z coordinate in the EEC coordinate system
     :returns: A list of 2D bit strings approximating the circle
     """
 
-    # this will be the list of bitstrings of the chosen size
-    intersecting_areas: List[str] = []
+    intersecting_areas_all_polygons: Set[str] = set()
 
-    # perform the BFS
-    visited: Dict[str, bool] = {}
-    q = deque()
-    q.append(
-        DiscretizedVoxel.from_coordinate(
-            GeodeticCoordinate(
-                longitude=polygon[0]['lon'],
-                latitude=polygon[0]['lat'],
-                altitude=0
+    for polygon in polygons:
+        # this will be the list of bitstrings of the chosen size
+        intersecting_areas: Set[str] = set()
+
+        # perform the BFS
+        visited: Dict[str, bool] = {}
+        q = deque()
+        q.append(
+            DiscretizedVoxel.from_coordinate(
+                GeodeticCoordinate(
+                    longitude=polygon[0]['lon'],
+                    latitude=polygon[0]['lat'],
+                    altitude=0
+                )
+            ).grow_2d_to_area(
+                max_area=polygon.area * f_grow
             )
-        ).grow_2d_to_area(
-            max_area=polygon.area * f_grow
         )
-    )
 
-    while len(q) > 0:
-        voxel: DiscretizedVoxel = q.popleft()
-        bit_string = voxel.to_bit_string()
+        while len(q) > 0:
+            voxel: DiscretizedVoxel = q.popleft()
+            bit_string = voxel.to_bit_string()
 
-        if bit_string in visited:
-            continue
+            if bit_string in visited:
+                continue
 
-        # mark as visited
-        visited[bit_string] = True
+            # mark as visited
+            visited[bit_string] = True
 
-        voxel_shadow = voxel.to_shapely_area()
+            voxel_shadow = voxel.to_shapely_area()
 
-        # check for intersection. always take the first area
-        if len(intersecting_areas) > 0 and not (
-            voxel_shadow.intersection(polygon).area > f_min * voxel_shadow.area
-        ):
+            # check for intersection. always take the first area
+            if len(intersecting_areas) > 0 and not (
+                voxel_shadow.intersection(
+                    polygon).area > f_min * voxel_shadow.area
+            ):
 
-            continue
+                continue
 
-        # add to intersection list
-        intersecting_areas.append(bit_string)
+            # add to intersection list
+            intersecting_areas.add(bit_string)
 
-        # visit neighbors of a
-        for dx in [-1, 0, 1]:
-            for dy in [-1, 0, 1]:
+            # visit neighbors of a
+            for dx in [-1, 0, 1]:
+                for dy in [-1, 0, 1]:
 
-                # compute neighbor coordinates
-                y_next = (
-                    voxel.y_min + dy *
-                    (1 << (DiscretizedVoxel.Y_BITS - voxel.y_precision))
-                )
-
-                x_next = (
-                    voxel.x_min + dx *
-                    (1 << (DiscretizedVoxel.X_BITS - voxel.x_precision))
-                ) % DiscretizedVoxel.C_X
-
-                if y_next < 0:
-                    # the y-coordinate 'flips', we can account for this
-                    # by only rotating around x and set y to 0
-                    y_next = 0
-                    # if we overflow, the x coordinate wraps around
-                    x_next = (
-                        x_next + math.floor(DiscretizedVoxel.C_X / 2)
-                    ) % DiscretizedVoxel.C_X
-                elif y_next >= DiscretizedVoxel.C_Y:
-                    # the y-coordinate 'flips', we can account for this
-                    # by rotating around x and set y to C_Y - step size = original y
-                    y_next = voxel.y_min
-                    # if we overflow the x coordinate wraps around
-                    x_next = (
-                        x_next + math.floor(DiscretizedVoxel.C_X / 2)
-                    ) % DiscretizedVoxel.C_X
-
-                # clear bottom bits of the x coordinate, might be messed up after wrapping around
-                bl = len(bin(x_next)[2:]) - voxel.x_precision
-                if bl > 0:
-                    x_next = (x_next >> bl) << bl
-
-                q.append(
-                    DiscretizedVoxel(
-                        x_min=x_next,
-                        x_precision=voxel.x_precision,
-                        y_min=y_next,
-                        y_precision=voxel.y_precision,
-                        # z will stay the same
-                        z_min=voxel.z_min,
-                        z_precision=voxel.z_precision,
+                    # compute neighbor coordinates
+                    y_next = (
+                        voxel.y_min + dy *
+                        (1 << (DiscretizedVoxel.Y_BITS - voxel.y_precision))
                     )
-                )
 
-    # after computing the intersecting voxels, merge them
+                    x_next = (
+                        voxel.x_min + dx *
+                        (1 << (DiscretizedVoxel.X_BITS - voxel.x_precision))
+                    ) % DiscretizedVoxel.C_X
+
+                    if y_next < 0:
+                        # the y-coordinate 'flips', we can account for this
+                        # by only rotating around x and set y to 0
+                        y_next = 0
+                        # if we overflow, the x coordinate wraps around
+                        x_next = (
+                            x_next + math.floor(DiscretizedVoxel.C_X / 2)
+                        ) % DiscretizedVoxel.C_X
+                    elif y_next >= DiscretizedVoxel.C_Y:
+                        # the y-coordinate 'flips', we can account for this
+                        # by rotating around x and set y to C_Y - step size = original y
+                        y_next = voxel.y_min
+                        # if we overflow the x coordinate wraps around
+                        x_next = (
+                            x_next + math.floor(DiscretizedVoxel.C_X / 2)
+                        ) % DiscretizedVoxel.C_X
+
+                    # clear bottom bits of the x coordinate, might be messed up after wrapping around
+                    bl = len(bin(x_next)[2:]) - voxel.x_precision
+                    if bl > 0:
+                        x_next = (x_next >> bl) << bl
+
+                    q.append(
+                        DiscretizedVoxel(
+                            x_min=x_next,
+                            x_precision=voxel.x_precision,
+                            y_min=y_next,
+                            y_precision=voxel.y_precision,
+                            # z will stay the same
+                            z_min=voxel.z_min,
+                            z_precision=voxel.z_precision,
+                        )
+                    )
+
+        # append `intersecting_areas` to list for all polygons
+        intersecting_areas_all_polygons = intersecting_areas_all_polygons.union(
+            intersecting_areas
+        )
+
+    # after computing the intersecting voxels, merge them and remove redundant ones
     results: List[str] = []
 
+    # transform set to list
+    intersecting_areas_all_polygons_list: List[str] = list(
+        intersecting_areas_all_polygons
+    )
+
     bit_string_idx = 0
-    while bit_string_idx < len(intersecting_areas):
-        bit_string = intersecting_areas[bit_string_idx]
+    while bit_string_idx < len(intersecting_areas_all_polygons_list):
+        bit_string = intersecting_areas_all_polygons_list[bit_string_idx]
         # increase idx for the next iteration
         bit_string_idx += 1
+
+        # check if this bit string is redundant, i.e. a shorter prefix is also
+        # part of
+        skip = False
+        # iterate over all prefixes of that bitstring from largest/shortest to smallest/longest
+        for i in range(1, len(bit_string)):
+            # check if any of its prefixes (larger areas) is also part of intersecting_areas_all_polygons_list
+            if bit_string[:i] in intersecting_areas_all_polygons_list:
+                # if it is, ignore this one as the certificate will be included in the larger/shorter
+                # prefix
+                skip = True
+                break
+
+        if skip:
+            # ignore by skipping over this index
+            continue
 
         # check if area can be merged with neighbor
         bit_string_neighbor = (
             bit_string[:-1] + ("0" if bit_string[-1:] == "1" else "1")
         )
-        if bit_string_neighbor in intersecting_areas:
+
+        if bit_string_neighbor in intersecting_areas_all_polygons_list:
             # yes it can. ignore current bit_string by skipping (continue)
-            # remove neighbor to prevent covering the same area twice
-            intersecting_areas.remove(bit_string_neighbor)
+            # if the neighbor is visited afterwards it will be skipped because
+            # the list contains a prefix of it
+
             # add parent at the end of the list to make sure duplicate test is performed with parent again
-            intersecting_areas.append(bit_string[:-1])
+            intersecting_areas_all_polygons_list.append(bit_string[:-1])
 
         # from this point on bit_string is sucessfully taken
         results.append(bit_string)
