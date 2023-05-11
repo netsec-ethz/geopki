@@ -709,7 +709,7 @@ def polygons_to_2d_bit_strings(
         f_min=0.0
 ) -> List[str]:
     """
-    Computes a set of 2D bit strings from a given polygon.
+    Computes a set of 2D bit strings from a given set of polygons.
     `f_grow` and `f_min` are parameters influencing the accuracy
     of the approximation.
 
@@ -726,6 +726,8 @@ def polygons_to_2d_bit_strings(
 
     After the BFS, neighboring voxels intersecting the polygon are
     merged and only their parent bit string is returned.
+    Redundant bit strings are omitted (e.g. ones where the result
+    also contains a prefix of them).
 
     The level of the approximation's accuracy is determined by `f_grow`.
     By setting `f_grow = 0`, the best possible approximation is computed,
@@ -953,6 +955,22 @@ def smallest_enclosing_z_bit_string(
         min_altitude: float,
         max_altitude: float
 ) -> str:
+    """
+    Returns the single longest / most precise bit string encompassing both,
+    `min_altitude` and `max_altitude`. In contrast to
+    `polygons_to_2d_bit_strings`. Since it only returns
+    a single bit string it is much more likely to use a shorter / less
+    precise bit string than `polygons_to_2d_bit_strings` but
+    results in a sparser tree. Under the assumption that the altitude
+    is rather sparse this seems to be a good tradeoff.
+
+    Parameters
+    ----------
+    :param min_altitude: The minimum altitude that should be covered
+    :param max_altitude: The maximum altitude that should be covered
+    :returns: The most precise bit string encompassing the two altitude values
+    """
+
     discretized_z_min = bin(math.floor(
         (min_altitude - DiscretizedVoxel.D) / DiscretizedVoxel.U
     ))[2:].rjust(DiscretizedVoxel.Z_BITS, "0")
@@ -970,3 +988,43 @@ def smallest_enclosing_z_bit_string(
 
     # use max, bit string can be longer
     return bit_string
+
+
+def extruded_polygons_to_bit_string_tuples(
+        polygons: List[Polygon],
+        min_altitude: float,
+        max_altitude: float,
+        f_grow: float,
+        f_min=0.0
+) -> List[Tuple[str, str]]:
+    """
+    Returns the single longest / most precise bit string encompassing both,
+    `min_altitude` and `max_altitude`. In contrast to
+    `polygons_to_2d_bit_strings`. Since it only returns
+    a single bit string it is much more likely to use a shorter / less
+    precise bit string than `polygons_to_2d_bit_strings` but
+    results in a sparser tree. Under the assumption that the altitude
+    is rather sparse this seems to be a good tradeoff.
+
+    Parameters
+    ----------
+    :param center: The center of the circle
+    :param radius_m: The radius of the circle in meters
+    :returns: A polygon approximation of the circle
+    """
+
+    xy_bit_strings = polygons_to_2d_bit_strings(
+        polygons=polygons,
+        f_grow=f_grow,
+        f_min=f_min
+    )
+
+    z_bit_string = smallest_enclosing_z_bit_string(
+        min_altitude=min_altitude,
+        max_altitude=max_altitude
+    )
+
+    return [
+        (xy_bit_string, z_bit_string)
+        for xy_bit_string in xy_bit_strings
+    ]
