@@ -736,8 +736,9 @@ def polygons_to_2d_bit_strings(
     Parameters
     ----------
     :param polygons: The list of polygon to turn into bit strings
-    :param f_grow: The z coordinate in the EEC coordinate system
-    :param f_min: The z coordinate in the EEC coordinate system
+    :param f_grow: The fraction of a polygons area which should be used for the voxel size
+    :param f_min: The minimum fraction of the 2D shadow of a voxel that has to intersect
+        a polygon for the bit string to be considered.
     :returns: A list of 2D bit strings approximating the circle
     """
 
@@ -777,7 +778,8 @@ def polygons_to_2d_bit_strings(
             # check for intersection. always take the first area
             if len(intersecting_areas) > 0 and not (
                 voxel_shadow.intersection(
-                    polygon).area > f_min * voxel_shadow.area
+                    polygon
+                ).area > f_min * voxel_shadow.area
             ):
 
                 continue
@@ -971,13 +973,17 @@ def smallest_enclosing_z_bit_string(
     :returns: The most precise bit string encompassing the two altitude values
     """
 
-    discretized_z_min = bin(math.floor(
-        (min_altitude - DiscretizedVoxel.D) / DiscretizedVoxel.U
-    ))[2:].rjust(DiscretizedVoxel.Z_BITS, "0")
+    discretized_z_min = bin(
+        math.floor(
+            (min_altitude - DiscretizedVoxel.D) / DiscretizedVoxel.U
+        )
+    )[2:].rjust(DiscretizedVoxel.Z_BITS, "0")
 
-    discretized_z_max = bin(math.floor(
-        (max_altitude - DiscretizedVoxel.D) / DiscretizedVoxel.U
-    ))[2:].rjust(DiscretizedVoxel.Z_BITS, "0")
+    discretized_z_max = bin(
+        math.floor(
+            (max_altitude - DiscretizedVoxel.D) / DiscretizedVoxel.U
+        )
+    )[2:].rjust(DiscretizedVoxel.Z_BITS, "0")
 
     bit_string = ""
     for b1, b2 in zip(discretized_z_min, discretized_z_max):
@@ -994,29 +1000,29 @@ def extruded_polygons_to_bit_string_tuples(
         polygons: List[Polygon],
         min_altitude: float,
         max_altitude: float,
-        f_grow: float,
-        f_min=0.0
+        f_grow: float
 ) -> List[Tuple[str, str]]:
     """
-    Returns the single longest / most precise bit string encompassing both,
-    `min_altitude` and `max_altitude`. In contrast to
-    `polygons_to_2d_bit_strings`. Since it only returns
-    a single bit string it is much more likely to use a shorter / less
-    precise bit string than `polygons_to_2d_bit_strings` but
-    results in a sparser tree. Under the assumption that the altitude
-    is rather sparse this seems to be a good tradeoff.
+    Returns the cross product of `polygons_to_2d_bit_strings` and
+    `smallest_enclosing_z_bit_string` for the given parameters
+    resulting in the set of all bit string tuples where a given
+    extruded polygon should be assigned. Always over-approximates,
+    i.e. covers the whole extruded polygon.
 
     Parameters
     ----------
-    :param center: The center of the circle
-    :param radius_m: The radius of the circle in meters
-    :returns: A polygon approximation of the circle
+    :param polygons: A list of polygons that should be mapped to voxels
+    :param min_altitude: The lower altitude bound for the extruded polygon
+    :param max_altitude: The upper altitude bound for the extruded polygon
+    :param f_grow: The fraction of a polygons area which should be used for the voxel size
+    :returns: A set of bit string tuples 
     """
 
     xy_bit_strings = polygons_to_2d_bit_strings(
         polygons=polygons,
         f_grow=f_grow,
-        f_min=f_min
+        # always over-approximate
+        f_min=0
     )
 
     z_bit_string = smallest_enclosing_z_bit_string(

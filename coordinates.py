@@ -433,8 +433,9 @@ def polygons_to_2d_bit_strings(
     Parameters
     ----------
     :param polygons: The list of polygon to turn into bit strings
-    :param f_grow: The z coordinate in the EEC coordinate system
-    :param f_min: The z coordinate in the EEC coordinate system
+    :param f_grow: The fraction of a polygons area which should be used for the voxel size
+    :param f_min: The minimum fraction of the 2D shadow of a voxel that has to intersect
+        a polygon for the bit string to be considered.
     :returns: A list of 2D bit strings approximating the circle
     """
 
@@ -679,13 +680,17 @@ def smallest_enclosing_z_bit_string(
     :returns: The most precise bit string encompassing the two altitude values
     """
 
-    discretized_z_min = bin(math.floor(
-        (min_altitude - ZOrderBitString.D) / ZOrderBitString.U
-    ))[2:].rjust(ZOrderBitString.Z_BITS, "0")
+    discretized_z_min = bin(
+        math.floor(
+            (min_altitude - ZOrderBitString.D) / ZOrderBitString.U
+        )
+    )[2:].rjust(ZOrderBitString.Z_BITS, "0")
 
-    discretized_z_max = bin(math.floor(
-        (max_altitude - ZOrderBitString.D) / ZOrderBitString.U
-    ))[2:].rjust(ZOrderBitString.Z_BITS, "0")
+    discretized_z_max = bin(
+        math.floor(
+            (max_altitude - ZOrderBitString.D) / ZOrderBitString.U
+        )
+    )[2:].rjust(ZOrderBitString.Z_BITS, "0")
 
     bit_string = ""
     for b1, b2 in zip(discretized_z_min, discretized_z_max):
@@ -698,33 +703,31 @@ def smallest_enclosing_z_bit_string(
     return bit_string
 
 
-def extruded_polygons_to_bit_string_tuples(
+def extruded_polygons_to_bit_strings(
         polygons: List[Polygon],
         min_altitude: float,
         max_altitude: float,
-        f_grow: float,
-        f_min=0.0
-) -> List[Tuple[str, str]]:
+        f_grow: float
+) -> List[str]:
     """
-    Returns the single longest / most precise bit string encompassing both,
-    `min_altitude` and `max_altitude`. In contrast to
-    `polygons_to_2d_bit_strings`. Since it only returns
-    a single bit string it is much more likely to use a shorter / less
-    precise bit string than `polygons_to_2d_bit_strings` but
-    results in a sparser tree. Under the assumption that the altitude
-    is rather sparse this seems to be a good tradeoff.
+    Returns all bit strings to cover the given extruded polygon.
 
     Parameters
     ----------
-    :param center: The center of the circle
-    :param radius_m: The radius of the circle in meters
-    :returns: A polygon approximation of the circle
+    :param polygons: A list of polygons that should be mapped to voxels
+    :param min_altitude: The lower altitude bound for the extruded polygon
+    :param max_altitude: The upper altitude bound for the extruded polygon
+    :param f_grow: The fraction of a polygons area which should be used for the voxel size
+    :returns: A set of bit strings 
     """
+
+    XY_BITS = ZOrderBitString.X_BITS + ZOrderBitString.Y_BITS
 
     xy_bit_strings = polygons_to_2d_bit_strings(
         polygons=polygons,
         f_grow=f_grow,
-        f_min=f_min
+        # always over-approximate
+        f_min=0
     )
 
     z_bit_string = smallest_enclosing_z_bit_string(
@@ -732,7 +735,35 @@ def extruded_polygons_to_bit_string_tuples(
         max_altitude=max_altitude
     )
 
-    return [
-        (xy_bit_string, z_bit_string)
-        for xy_bit_string in xy_bit_strings
-    ]
+    # the full height has to be covered
+    if z_bit_string == '':
+        return xy_bit_strings
+
+    results: List[str] = []
+
+    # when we don't use tuples we have to compute all possible
+    # substrings up to a length of 51 for the xy_bit_strings
+    # and then append the z_bit_string
+    for xy_bit_string in xy_bit_strings:
+        fill_length = XY_BITS - len(xy_bit_string)
+
+        assert fill_length >= 0
+
+        # check if xy_bit_string already has the full length
+        if fill_length == 0:
+            results.append(
+                xy_bit_string + z_bit_string
+            )
+            continue
+
+        # if not, several bit strings have to be generated
+        max_int = int(fill_length * "1", 2)
+
+        for i in range(max_int + 1):
+            results.append(
+                xy_bit_string +
+                bin(i)[2:].ljust(fill_length, "0") +
+                z_bit_string
+            )
+
+    return results
