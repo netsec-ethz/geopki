@@ -16,6 +16,8 @@ import hashlib
 INITIAL_AREA_FRACTION = 1
 MAX_FILE_SIZE = 300 * 1000 * 1000  # 300 MB
 
+DEFAULT_HASH = hashlib.sha256(b"\x00").digest()
+
 INSERT_INTO_NODES_STR = (
     f"INSERT INTO nodes (" +
     ",".join([
@@ -457,12 +459,59 @@ def main(
 
         row.xy_left_child_hash = (
             bit_string_map[xy_left_child].hash if xy_left_child in bit_string_map
-            else hashlib.sha256(b"\x00").digest()
+            else DEFAULT_HASH
         )
 
-        row.xy_right_child_hash = hashlib.sha256(b"\x00").digest()
-        row.neighbor_hash = hashlib.sha256(b"\x00").digest()
-        row.hash = hashlib.sha256(b"\x00").digest()
+        row.xy_right_child_hash = (
+            bit_string_map[xy_right_child].hash if xy_right_child in bit_string_map
+            else DEFAULT_HASH
+        )
+
+        row.z_right_child_hash = (
+            bit_string_map[z_left_child].hash if z_left_child in bit_string_map
+            else DEFAULT_HASH
+        )
+
+        row.z_left_child_hash = (
+            bit_string_map[z_right_child].hash if z_right_child in bit_string_map
+            else DEFAULT_HASH
+        )
+
+        if neighbor in bit_string_map:
+            # neighbor exists, set it's neighbor hash
+            # when iterating over the neighbor, this row's neighbor hash will be set
+            bit_string_map[neighbor].neighbor_hash = row.hash
+        else:
+            # neighbor does not exist, own neighbor hash is set to the empty one
+            row.neighbor_hash = DEFAULT_HASH
+
+         # compute this node's hash
+        if len(xy_bit_string) == 51 and len(z_bit_string) == 15:
+            # for leaves the hash is H(0 || H(C_0) || H(C_1) | ...)
+            row.hash = hashlib.sha256(
+                b"\x00" +
+                row.get_certificate_hashes()
+            ).digest()
+        else:
+            # for intermediate nodes H(1 || h_1 || h_2) if there are no certificate hashes
+            # and H(1 || h_1 || h_2 || h_3) otherwise
+            if len(row.certificate_hashes) > 0:
+                row.hash = hashlib.sha256(
+                    b"\x01" +
+                    row.xy_left_child_hash +
+                    row.xy_right_child_hash +
+                    row.z_left_child_hash +
+                    row.z_right_child_hash +
+                    hashlib.sha256(row.get_certificate_hashes()).digest()
+                ).digest()
+            else:
+                row.hash = hashlib.sha256(
+                    b"\x01" +
+                    row.xy_left_child_hash +
+                    row.xy_right_child_hash +
+                    row.z_left_child_hash +
+                    row.z_right_child_hash
+                ).digest()
 
     f = open(os.path.join(output_path_nodes, "part-0.sql"), "w")
     size = 0
