@@ -990,6 +990,10 @@ def smallest_enclosing_z_bit_string(
     :returns: The most precise bit string encompassing the two altitude values
     """
 
+    assert altitude_min >= DiscretizedVoxel.D and altitude_min <= DiscretizedVoxel.H
+    assert altitude_max >= DiscretizedVoxel.D and altitude_max <= DiscretizedVoxel.H
+    assert altitude_min <= altitude_max
+
     discretized_z_min = bin(
         math.floor(
             (altitude_min - DiscretizedVoxel.D) / DiscretizedVoxel.U

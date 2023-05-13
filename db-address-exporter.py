@@ -231,7 +231,8 @@ def level_to_altitude(
             max_level = float(max_level)
 
             # for now just assume one level is three meters
-            return min_level * 3, (max_level + 1) * 3
+            # bound check in case of weirdly formatted data
+            return max(min_level * 3, DiscretizedVoxel.D), min((max_level + 1) * 3, DiscretizedVoxel.H)
     else:
         # use float(), apparently there is floor -0.5 in the dataset
         try:
@@ -242,7 +243,8 @@ def level_to_altitude(
             assert min_level <= level and level <= max_level
 
             # for now just assume one level is three meters
-            return level * 3, (level + 1) * 3
+            # bound check in case of weirdly formatted data
+            return max(min_level * 3, DiscretizedVoxel.D), min((max_level + 1) * 3, DiscretizedVoxel.H)
 
         except ValueError:
             print(level, min_level, max_level)
