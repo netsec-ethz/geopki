@@ -3,7 +3,7 @@ from typing import List, Tuple, Union, Dict, Set
 import math
 from collections import deque
 from geopy import distance
-from shapely import box, Point, Polygon
+from shapely import box, Point, Polygon, GEOSException
 
 SEMI_MAJOR_AXIS_A_M = 6378137.0
 "The semi major axis of the WGS84 ellipsoid model ('radius' at the equator)."
@@ -784,13 +784,22 @@ def polygons_to_2d_bit_strings(
             voxel_shadow = voxel.to_shapely_area()
 
             # check for intersection. always take the first area
-            if len(intersecting_areas) > 0 and not (
-                voxel_shadow.intersection(
-                    polygon
-                ).area > f_min * voxel_shadow.area
-            ):
+            try:
+                if len(intersecting_areas) > 0 and not (
+                    voxel_shadow.intersection(
+                        polygon
+                    ).area > f_min * voxel_shadow.area
+                ):
 
-                continue
+                    continue
+            except GEOSException:
+                if len(intersecting_areas) > 0 and not (
+                   voxel_shadow.intersection(
+                       polygon.buffer(0)
+                   ).area > f_min * voxel_shadow.area
+                   ):
+
+                    continue
 
             # add to intersection list
             intersecting_areas.add(bit_string)
