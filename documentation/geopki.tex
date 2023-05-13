@@ -87,10 +87,10 @@ Longitude, latitude and altitude together refer to a unique point in three-dimen
 
 Each of the three coordinates is discretized in a way that preserves $u := 1$ meter-precision in the worst case.
 With the semi-major axis $a$, the maximum circumference of the ellipsoid equals $=2 a \pi$~meters.
-Using base two, $B_{x}:= \left\lceil \log_2(\frac{2 a \pi}{u}) \right\rceil = 26$ bits for the longitude thus suffice to represent each possible meter value in the worst case.
+Using base two, $B_{x}:= \left\lfloor \log_2(\frac{2 a \pi}{u}) \right\rfloor + 1 = 26$ bits for the longitude thus suffice to represent each possible meter value in the worst case.
 Let $C_{x} := 2^{B_{x}} - 1$ denote the maximum discretized value for the longitude.
 For the latitude the circumference is $2 b \pi$~meters but we only need to be able to represent half of it, so $b \pi$.
-Thus $\left\lceil\log_2(\frac{b \pi}{u})\right\rceil = 25 =: B_{y}$ bits suffice.
+Thus $\left\lfloor\log_2(\frac{b \pi}{u})\right\rfloor + 1 = 25 =: B_{y}$ bits suffice.
 Analogously to $C_{x}$, let $C_y := 2^{B_{y}} - 1$ the maximum discretized value for the latitude.
 For altitude there is no natural bound so one has to be fixed.
 At the time of writing, the highest point on earth is below $10'000$~meters above sea level \cite{us_department_of_commerce_what_nodate} and the lowest layer of earth's atmosphere, the troposphere, extends to about $18$~km \cite{dhaka_chapter_2023}.
@@ -98,7 +98,7 @@ The Mariana Trench at about $10'000$~m below sea level \cite{gardner_so_2014} is
 The necessity of allowing volumes below sea level arises from countries such as the Netherlands where parts of the surface's altitude is below sea level \cite{kabat_climate_2005} .
 Moreover in the future, below sea level research stations might be built.
 Thus the range starting at a depth of $D:=-10'000$~m up to an altitude of $20'000$~m above sea level should cover any current and near-future needs.
-Covering this range requires $B_{z} := \left\lceil \log_2(\frac{H - D}{u}) \right\rceil = 15$ bits.
+Covering this range requires $B_{z} := \left\lfloor \log_2(\frac{H - D}{u}) \right\rfloor + 1 = 15$ bits.
 In fact using $B_z$ bits starting at $D$ will cover the range from $D$ to $D + (2^{B_{z}} - 1) \cdot u = 22'767 := H$.
 Complications might arise from distance calculations when using sea level as a reference as the sea level is not the same in all places and will increase in the future.
 Thus instead of using sea level as a reference, the geodetic altitude defined by WGS84~\cite{noauthor_nga_nodate} is used.

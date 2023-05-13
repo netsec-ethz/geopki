@@ -4,8 +4,8 @@ import numpy as np
 from tqdm import tqdm
 from typing import Dict, List, Tuple, Optional, Set
 from shapely import Polygon, MultiPolygon, box, to_geojson
-from coordinates import ZOrderBitString, GeodeticCoordinate
-from collections import deque
+from coordinates import ZOrderBitString, GeodeticCoordinate, extruded_polygons_to_bit_strings
+from coordinatez import DiscretizedVoxel, extruded_polygons_to_bit_string_tuples
 import matplotlib.pyplot as plt
 import json
 import os
@@ -69,15 +69,17 @@ class GeoCertificate:
     def __init__(
         self,
         domain: str,
-        area: MultiPolygon,
-        area_id: str,
+        certificate_id: str,
+        list_of_multipolygons: List[List[List[Dict[str, float]]]],
+        list_of_levels: List[str],
         parents: np.ndarray,
         children: np.ndarray,
     ) -> None:
 
         self.domain = domain
-        self.area = area
-        self.area_id = area_id
+        self.certificate_id = certificate_id
+        self.list_of_multipolygons = list_of_multipolygons
+        self.list_of_levels = list_of_levels
         self.parents: List[str] = parents.tolist()
         self.children: List[str] = children.tolist()
 
@@ -85,8 +87,23 @@ class GeoCertificate:
         return json.dumps(
             {
                 'domain': self.domain,
-                'area': json.loads(to_geojson(self.area)),
-                'area_id': self.area_id,
+                'area': [
+                    json.loads(
+                        to_geojson(
+                            MultiPolygon(
+                                [
+                                    Polygon(
+                                        [(x['lon'], x['lat']) for x in polygon]
+                                    )
+                                    for polygon in multipolygon
+                                ]
+                            )
+                        )
+                    )
+                    for multipolygon in self.list_of_multipolygons
+                ],
+                'levels': list(self.list_of_levels),
+                'certificate_id': self.certificate_id,
                 # 'parents': self.parents,
                 # 'children': self.children,
             },
@@ -100,11 +117,9 @@ class GeoCertificate:
 class BitStringRow:
     def __init__(
             self,
-            bit_string: str,
             certificate_hashes: Set[bytes],
     ) -> None:
 
-        self.bit_string = bit_string
         self.certificate_hashes = certificate_hashes
 
         self.xy_left_child_hash: Optional[bytes] = None
@@ -184,6 +199,54 @@ def grow_initial_area(initial_area: ZOrderBitString, area: float, plot=False):
     return initial_area
 
 
+def level_to_altitude(
+    min_level: Optional[str],
+    max_level: Optional[str],
+    level: str
+) -> Tuple[float, float]:
+    if level == "@":
+        # is a node
+        # no floors in this building, just use the full height
+        assert min_level == '@'
+        assert max_level == '@'
+
+        return DiscretizedVoxel.D, DiscretizedVoxel.H
+    elif level == '':
+        # is a building / area
+        # if there are nodes within the building, min_level and max_level
+        # might be set
+
+        if min_level == '@' and max_level == '@':
+            # all floors span the full building height
+            # --> don't have any reference points
+            return DiscretizedVoxel.D, DiscretizedVoxel.H
+        elif min_level == '' and max_level == '':
+            # some building without any areas / nodes within in
+            return DiscretizedVoxel.D, DiscretizedVoxel.H
+        else:
+            # span the full height given by min_level and max_level
+            min_level = float(min_level)
+            max_level = float(max_level)
+
+            # for now just assume one level is three meters
+            return min_level * 3, (max_level + 1) * 3
+    else:
+        # use float(), apparently there is floor -0.5 in the dataset
+        try:
+            level = float(level)
+            min_level = float(min_level)
+            max_level = float(max_level)
+
+            assert min_level <= level and level <= max_level
+
+            # for now just assume one level is three meters
+            return level * 3, (level + 1) * 3
+
+        except ValueError:
+            print(level, min_level, max_level)
+            raise
+
+
 @click.command()
 # the domain-location file
 @click.argument('input_path', type=click.Path(exists=True))
@@ -191,7 +254,8 @@ def grow_initial_area(initial_area: ZOrderBitString, area: float, plot=False):
 @click.argument('output_path_nodes', type=click.Path(exists=False))
 @click.argument('output_path_certificates', type=click.Path(exists=False))
 @click.option('--plot', 'plot', flag_value=True, default=False)
-@click.option('--bitstring', 'mode', flag_value='bitstring-int', default='bitstring-int')
+@click.option('--bitstring-zsub', 'mode', flag_value='bitstring-int-z-subtrees', default='bitstring-int-z-subtrees')
+@click.option('--bitstring', 'mode', flag_value='bitstring-int')
 @click.option('--spatial', 'mode', flag_value='spatial')
 def main(
     input_path: str,
@@ -201,7 +265,7 @@ def main(
     mode: str,
 ):
 
-    if not mode in ["bitstring-int", "spatial"]:
+    if not mode in ["bitstring-int-z-subtrees", "bitstring-int", "spatial"]:
         raise Exception(f"Unsupported mode '{mode}'")
 
     if input_path.endswith(".parquet"):
@@ -218,7 +282,10 @@ def main(
         raise Exception(f"Certificate output path has to be a directory")
 
     geo_certificates: List[GeoCertificate] = []
-    bit_string_map: Dict[str, BitStringRow] = {}
+
+    # in case individual bit strings and not bit string tuples are used,
+    # the second string in the tuple must be set to ''
+    bit_string_map: Dict[Tuple[str, str], BitStringRow] = {}
 
     for row_i, (idx, row) in tqdm(
         enumerate(df.iterrows()),
@@ -226,51 +293,39 @@ def main(
         desc="locate buildings"
     ):
 
-        if row['domain'] is None or not isinstance(row['domain'], str):
+        domain = row['domain']
+
+        if domain is None or not isinstance(domain, str) or domain.strip() == '':
             continue
 
         # china
-        # if row['area_id'] != "rel:270056":
+        # if row['certificate_id'] != "rel:270056":
         #     continue
 
         # ethz
-        # if not "way:192151232" in row['area_id']:
+        # if not "way:192151232" in row['certificate_id']:
         #     continue
 
-        # 'area_id', 'polygons', 'parents', 'children', 'domain'
-        valid_polygons = [
-            polygon
-            for polygon in row['polygons']
-            # exclude not proper areas
-            if polygon[0] == polygon[-1]
-        ]
-
-        if len(valid_polygons) <= 0:
-            continue
-
-        area_id = row['area_id']
+        # 'certificate_id', 'list_of_polygons', 'list_of_levels', 'domain', 'min_building_level', 'max_building_level', 'parents', 'children'
 
         # China
-        # if area_id == "rel:270056":
+        # if certificate_id == "rel:270056":
         #     plot = True
-
+        certificate_id = row['certificate_id']
+        list_of_multipolygons = row['list_of_multipolygons']
+        list_of_levels = row['list_of_levels']
         parents = row['parents']
         children = row['children']
-        domain = row['domain']
+        min_level = row['min_building_level']
+        max_level = row['max_building_level']
 
-        multi_polygon = MultiPolygon(
-            [
-                Polygon(
-                    [(x['lon'], x['lat']) for x in poly]
-                )
-                for poly in valid_polygons
-            ]
-        )
+        assert len(list_of_multipolygons) == len(list_of_levels)
 
         geo_cert = GeoCertificate(
             domain=domain,
-            area=multi_polygon,
-            area_id=area_id,
+            certificate_id=certificate_id,
+            list_of_multipolygons=list_of_multipolygons,
+            list_of_levels=list_of_levels,
             parents=parents,
             children=children,
         )
@@ -279,193 +334,84 @@ def main(
             geo_cert
         )
 
-        # for each polygon perform the search separately
-        initial_areas = [
-            (
-                ZOrderBitString.from_bit_string(
-                    ZOrderBitString.from_coordinate(
-                        GeodeticCoordinate(
-                            longitude=polygon[0]['lon'],
-                            latitude=polygon[0]['lat'],
-                            altitude=0
-                        )
-                    ).to_bit_string()
-                    # remove z-bits
-                    [:(ZOrderBitString.X_BITS + ZOrderBitString.Y_BITS)]
-                ),
+        for multipolygon, level in zip(list_of_multipolygons, list_of_levels):
+
+            try:
+                altitude_min, altitude_max = level_to_altitude(
+                    min_level,
+                    max_level,
+                    level
+                )
+            except (ValueError, AssertionError):
+                print(row)
+                raise
+
+            shapely_polygons = [
                 Polygon(
                     [(x['lon'], x['lat']) for x in polygon]
                 )
-            )
-            for polygon in valid_polygons
-        ]
+                for polygon in multipolygon
+            ]
 
-        intersecting_areas: List[str] = []
-
-        # iterate over initial areas with they associated polygon
-        # for each compute the intersecting voxels
-        for initial_area, polygon in initial_areas:
-            # walk around that voxel and find other intersecting ones
-            # BFS
-            visited: Dict[str, bool] = {}
-            q = deque()
-            q.append(
-                grow_initial_area(
-                    initial_area=initial_area,
-                    # area=multi_polygon.area,
-                    area=polygon.area,
-                    plot=plot
-                )
-            )
-
-            # print(initial_area.to_bit_string())
-            if plot:
-                x, y = polygon.exterior.xy
-                plt.plot(x, y, color="b")
-
-            while len(q) > 0:
-                a: ZOrderBitString = q.popleft()
-                bit_string = a.to_bit_string()
-
-                if bit_string in visited:
-                    continue
-
-                # mark as visited
-                visited[bit_string] = True
-
-                asa = a.to_shapely_area()
-
-                # check for intersection
-                if not (
-                    asa.intersects(polygon)
+            if mode == "bitstring-int-z-subtrees":
+                for xy_bit_string, z_bit_string in extruded_polygons_to_bit_string_tuples(
+                    polygons=shapely_polygons,
+                    altitude_min=altitude_min,
+                    altitude_max=altitude_max,
+                    f_grow=INITIAL_AREA_FRACTION
                 ):
-                    # if plot:
-                    #     x, y = asa.exterior.xy
-                    #     plt.plot(x, y, color="r")
-
-                    continue
-
-                # if plot:
-                #     x, y = asa.exterior.xy
-                #     plt.plot(x, y, color="purple", linewidth=5)
-
-                # add to intersection list
-                intersecting_areas.append(bit_string)
-
-                # visit neighbors of a
-                for dx in [-1, 0, 1]:
-                    for dy in [-1, 0, 1]:
-
-                        y_next = (
-                            a.y_min + dy *
-                            (1 << (ZOrderBitString.Y_BITS - a.y_precision))
+                    if (xy_bit_string, z_bit_string) in bit_string_map:
+                        bit_string_map[(xy_bit_string, z_bit_string)].certificate_hashes.add(
+                            geo_cert.hash()
+                        )
+                    else:
+                        bit_string_map[(xy_bit_string, z_bit_string)] = BitStringRow(
+                            certificate_hashes=set([geo_cert.hash()])
                         )
 
-                        x_next = (
-                            a.x_min + dx *
-                            (1 << (ZOrderBitString.X_BITS - a.x_precision))
-                        ) % ZOrderBitString.C_X
-
-                        if y_next < 0:
-                            # the y-coordinate 'flips', we can account for this
-                            # by only rotating around x and set y to 0
-                            y_next = 0
-                            # if we overflow, the x coordinate wraps around
-                            x_next = (
-                                x_next + math.floor(ZOrderBitString.C_X / 2)
-                            ) % ZOrderBitString.C_X
-                        elif y_next >= ZOrderBitString.C_Y:
-                            # the y-coordinate 'flips', we can account for this
-                            # by rotating around x and set y to C_Y - step size = original y
-                            y_next = a.y_min
-                            # if we overflow the x coordinate wraps around
-                            x_next = (
-                                x_next + math.floor(ZOrderBitString.C_X / 2)
-                            ) % ZOrderBitString.C_X
-
-                        # clear bottom bits of the x coordinate, might be messed up after wrapping around
-                        bl = len(bin(x_next)[2:]) - a.x_precision
-                        if bl > 0:
-                            x_next = (x_next >> bl) << bl
-
-                        q.append(
-                            ZOrderBitString(
-                                x_min=x_next,
-                                x_precision=a.x_precision,
-                                y_min=y_next,
-                                y_precision=a.y_precision,
-                                # z will stay the same
-                                z_min=a.z_min,
-                                z_precision=a.z_precision,
+                    # iterate over all prefixes of that bit string and add them to bit_string_map
+                    # first iterate over prefixes of z_bit_string, including the empty string ''
+                    for i in range(0, len(z_bit_string)):
+                        z_bit_string_prefix = z_bit_string[:i]
+                        if not ((xy_bit_string, z_bit_string_prefix) in bit_string_map):
+                            # add an empty entry
+                            bit_string_map[(xy_bit_string, z_bit_string_prefix)] = BitStringRow(
+                                certificate_hashes=set()
                             )
+
+                    # next iterate over prefixes of xy_bit_string
+                    for i in range(1, len(xy_bit_string)):
+                        xy_bit_string_prefix = xy_bit_string[:i]
+                        if not ((xy_bit_string_prefix, '') in bit_string_map):
+                            # add an empty entry
+                            bit_string_map[(xy_bit_string_prefix, '')] = BitStringRow(
+                                certificate_hashes=set()
+                            )
+            else:
+
+                for bit_string in extruded_polygons_to_bit_strings(
+                    polygons=shapely_polygons,
+                    altitude_min=altitude_min,
+                    altitude_max=altitude_max,
+                    f_grow=INITIAL_AREA_FRACTION
+                ):
+                    if (bit_string, '') in bit_string_map:
+                        bit_string_map[(bit_string, '')].certificate_hashes.add(
+                            geo_cert.hash()
+                        )
+                    else:
+                        bit_string_map[(bit_string, '')] = BitStringRow(
+                            certificate_hashes=set([geo_cert.hash()])
                         )
 
-        # after computing the intersecting voxels, prune them and add the certificates to a map
-        bit_string_idx = 0
-        while bit_string_idx < len(intersecting_areas):
-            bit_string = intersecting_areas[bit_string_idx]
-            # increase idx for the next iteration
-            bit_string_idx += 1
-
-            skip = False
-            # iterate over all prefixes of that bitstring from largest/shortest to smallest/longest
-            for i in range(1, len(bit_string)):
-                # check if any of its prefixes (larger areas) is also part of intersecting_areas
-                if bit_string[:i] in intersecting_areas:
-                    # if it is, ignore this one as the certificate will be included in the larger/shorter
-                    # prefix
-                    skip = True
-                    break
-
-            if skip:
-                # ignore by skipping over this index
-                continue
-
-            # check if area can be merged with neighbor
-            bit_string_neighbor = (
-                bit_string[:-1] + ("0" if bit_string[-1:] == "1" else "1")
-            )
-            if bit_string_neighbor in intersecting_areas:
-                # yes it can. ignore current bit_string by skipping (continue)
-                # but remove neighbor to prevent duplicate area
-                intersecting_areas.remove(bit_string_neighbor)
-                # and add parent at the end of the list to make sure duplicate test is performed with parent again
-                intersecting_areas.append(bit_string[:-1])
-
-                continue
-
-            # from this point on bit_string is sucessfully taken
-
-            if plot:
-                x, y = ZOrderBitString.from_bit_string(
-                    bit_string=bit_string
-                ).to_shapely_area().exterior.xy
-
-                plt.plot(x, y, color="g", linewidth=5)
-
-            if bit_string in bit_string_map:
-                bit_string_map[bit_string].certificate_hashes.add(
-                    geo_cert.hash()
-                )
-            else:
-                bit_string_map[bit_string] = BitStringRow(
-                    bit_string=bit_string,
-                    certificate_hashes=set([geo_cert.hash()])
-                )
-
-            # iterate over all prefixes of that bitstring and add them to bit_string_map
-            for i in range(1, len(bit_string)):
-                bit_string_prefix = bit_string[:i]
-                if not (bit_string_prefix in bit_string_map):
-                    # add an empty entry
-                    bit_string_map[bit_string_prefix] = BitStringRow(
-                        bit_string=bit_string_prefix,
-                        certificate_hashes=set()
-                    )
-
-        if plot:
-            plt.show()
-            exit()
+                    # iterate over all prefixes of that bit string and add them to bit_string_map
+                    for i in range(1, len(bit_string)):
+                        bit_string_prefix = bit_string[:i]
+                        if not ((bit_string_prefix, '') in bit_string_map):
+                            # add an empty entry
+                            bit_string_map[(bit_string_prefix, '')] = BitStringRow(
+                                certificate_hashes=set()
+                            )
 
         # if row_i > 1:
         #     assert "1" in bit_string_map
@@ -478,68 +424,45 @@ def main(
     df = pd.DataFrame()
     gc.collect()
     # sort by length so that we can start computing the hashes from the bottom of the tree
-    bit_strings = sorted(bit_string_map.keys(), key=lambda x: (-len(x), x))
-    for bit_string in tqdm(
+    bit_strings = sorted(
+        bit_string_map.keys(),
+        key=lambda x: (-len(x[0] + x[1]), x[0], x[1])
+    )
+    for xy_bit_string, z_bit_string in tqdm(
         bit_strings,
         total=len(bit_strings),
         desc="compute hashes"
     ):
-        row = bit_string_map[bit_string]
 
-        bit_string_left_child = bit_string + "0"
-        bit_string_right_child = bit_string + "1"
+        row = bit_string_map[(xy_bit_string, z_bit_string)]
+
+        if mode == "bitstring-int-z-subtrees":
+            if len(z_bit_string) > 0:
+                # neighbor in z subtree
+                neighbor = xy_bit_string, z_bit_string[:-1] + \
+                    ("0" if z_bit_string[-1:] == "1" else "1")
+            else:
+                # neighbor not in z-subtree
+                neighbor = xy_bit_string[:-1] + \
+                    ("0" if xy_bit_string[-1:] == "1" else "1"), ''
+        else:
+            neighbor = xy_bit_string[:-1] + \
+                ("0" if xy_bit_string[-1:] == "1" else "1"), ''
+
+        xy_left_child = xy_bit_string + "0", ''
+        xy_right_child = xy_bit_string + "1", ''
+
+        z_left_child = xy_bit_string, z_bit_string + "0"
+        z_right_child = xy_bit_string, z_bit_string + "1"
 
         row.xy_left_child_hash = (
-            None if len(bit_string) == 66 else
-            (
-                bit_string_map[bit_string_left_child].hash if bit_string_left_child in bit_string_map
-                else hashlib.sha256(b"\x00").digest()
-            )
+            bit_string_map[xy_left_child].hash if xy_left_child in bit_string_map
+            else hashlib.sha256(b"\x00").digest()
         )
 
-        row.xy_right_child_hash = (
-            None if len(bit_string) == 66 else
-            (
-                bit_string_map[bit_string_right_child].hash if bit_string_right_child in bit_string_map
-                else hashlib.sha256(b"\x00").digest()
-            )
-        )
-
-        # compute this node's hash
-        if len(bit_string) == 66:
-            # for leaves the hash is H(0 || H(C_0) || H(C_1) | ...)
-            row.hash = hashlib.sha256(
-                b"\x00" +
-                row.get_certificate_hashes()
-            ).digest()
-        else:
-            # for intermediate nodes H(1 || h_1 || h_2) if there are no certificate hashes
-            # and H(1 || h_1 || h_2 || h_3) otherwise
-            if len(row.certificate_hashes) > 0:
-                row.hash = hashlib.sha256(
-                    b"\x01" +
-                    row.xy_left_child_hash +
-                    row.xy_right_child_hash +
-                    hashlib.sha256(row.get_certificate_hashes()).digest()
-                ).digest()
-            else:
-                row.hash = hashlib.sha256(
-                    b"\x01" +
-                    row.xy_left_child_hash +
-                    row.xy_right_child_hash
-                ).digest()
-
-        # flip last bit
-        bit_string_neighbor = bit_string[:-1] + \
-            ("0" if bit_string[-1:] == "1" else "1")
-
-        if bit_string_neighbor in bit_string_map:
-            # neighbor exists, set it's neighbor hash
-            # when iterating over the neighbor, this row's neighbor hash will be set
-            bit_string_map[bit_string_neighbor].neighbor_hash = row.hash
-        else:
-            # neighbor does not exist, own neighbor hash is set to the empty one
-            row.neighbor_hash = hashlib.sha256(b"\x00").digest()
+        row.xy_right_child_hash = hashlib.sha256(b"\x00").digest()
+        row.neighbor_hash = hashlib.sha256(b"\x00").digest()
+        row.hash = hashlib.sha256(b"\x00").digest()
 
     f = open(os.path.join(output_path_nodes, "part-0.sql"), "w")
     size = 0
@@ -547,23 +470,29 @@ def main(
     is_first_line = True
     i = 0
 
-    # sort in z-order for insertion to facilitate manual inspection of the output
-    bit_strings.sort(key=lambda x: int(x, 2))
-
-    for bit_string in tqdm(
+    for bit_string_tuple in tqdm(
         bit_strings,
         total=len(bit_strings),
         desc="write nodes"
     ):
-        row = bit_string_map[bit_string]
+        row = bit_string_map[bit_string_tuple]
 
         # string has to be of form POLYGON((lon lat, lon lat, ...))
-        polygon = voxel_bounds_to_2d_wkt_polygon(
-            ZOrderBitString.from_bit_string(bit_string).to_voxel_bounds()
-        )
+        if mode == "bitstring-int-z-subtrees":
+            polygon = voxel_bounds_to_2d_wkt_polygon(
+                DiscretizedVoxel.from_bit_string_tuple(
+                    bit_string_tuple[0], bit_string_tuple[1]
+                ).to_voxel_bounds()
+            )
+        else:
+            polygon = voxel_bounds_to_2d_wkt_polygon(
+                ZOrderBitString.from_bit_string(
+                    bit_string_tuple[0]
+                ).to_voxel_bounds()
+            )
 
         bit_string_51_int = int(
-            bit_string[:51].ljust(51, '0'),
+            bit_string_tuple[0][:51].ljust(51, '0'),
             2
         )
         neighbor_hash = "NULL" if row.neighbor_hash is None else f"E'\\\\x{row.neighbor_hash.hex()}'"
@@ -594,19 +523,19 @@ def main(
 
         if mode == "bitstring-int":
             size += f.write(
-                f"('{bit_string}', {bit_string_51_int}, {neighbor_hash}, {xy_left_child_hash}, {xy_right_child_hash}, {certificate_hash_array})"
+                f"('{bit_string_tuple[0]}', {bit_string_51_int}, {neighbor_hash}, {xy_left_child_hash}, {xy_right_child_hash}, {certificate_hash_array})"
             )
         elif mode == "bitstring-int-z-subtrees":
             size += f.write(
-                f"(b'{bit_string[:51]}', {bit_string_51_int}, b'{bit_string[51:]}', {neighbor_hash}, {xy_left_child_hash}, {xy_right_child_hash}, {z_left_child_hash}, {z_right_child_hash}, {certificate_hash_array})"
+                f"(b'{bit_string_tuple[0]}', {bit_string_51_int}, b'{bit_string_tuple[1]}', {neighbor_hash}, {xy_left_child_hash}, {xy_right_child_hash}, {z_left_child_hash}, {z_right_child_hash}, {certificate_hash_array})"
             )
         else:
             size += f.write(
-                f"(b'{bit_string}', {polygon}, {neighbor_hash}, {xy_left_child_hash}, {xy_right_child_hash}, {certificate_hash_array})"
+                f"(b'{bit_string_tuple[0]}', {polygon}, {neighbor_hash}, {xy_left_child_hash}, {xy_right_child_hash}, {certificate_hash_array})"
             )
 
         if size >= MAX_FILE_SIZE:
-            size += f.write("\nON CONFLICT (bit_string) DO NOTHING")
+            # size += f.write("\nON CONFLICT (bit_string) DO NOTHING")
             f.close()
             i += 1
 
@@ -616,7 +545,7 @@ def main(
             size = 0
             is_first_line = True
 
-    size += f.write("\nON CONFLICT (bit_string) DO NOTHING")
+    # size += f.write("\nON CONFLICT (bit_string) DO NOTHING")
     f.close()
 
     f = open(os.path.join(output_path_certificates, "part-0.sql"), "w")

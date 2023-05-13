@@ -40,6 +40,8 @@ SET bit_string_51_int =	rpad(
 		'0'
 	)::bit(51)::bigint
 
+UPDATE nodes SET bit_string_51 = SUBSTRING(bit_string FROM 1 FOR 51)::bit varying(51)
+
 CREATE UNIQUE INDEX IF NOT EXISTS bit_string_bit_idx
     ON nodes USING btree
     (bit_string ASC NULLS LAST);

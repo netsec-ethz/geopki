@@ -12,7 +12,7 @@ from geopy import distance
 import psycopg2
 
 sys.path.insert(1, os.path.join(sys.path[0], '..'))  # noqa - prevent auto formatting
-from coordinates import GeodeticCoordinate, sphere_to_coarse_2d_binary_strings
+from coordinates import GeodeticCoordinate, polygons_to_2d_bit_strings, sphere_to_polygon
 
 MAX_RADIUS_M = 10 * 1000
 MAX_CIRCUMFERENCE_M = 2 * MAX_RADIUS_M * math.pi
@@ -111,13 +111,15 @@ class ProcessArgs:
 def query_to_bitstring_integers(query: Tuple[float, float, int], query_radius: float):
     longitude, latitude, altitude = query
 
-    bit_strings = sphere_to_coarse_2d_binary_strings(
-        GeodeticCoordinate(
-            longitude=longitude,
-            latitude=latitude,
-            altitude=altitude
-        ),
-        radius_m=query_radius,
+    bit_strings = polygons_to_2d_bit_strings(
+        polygons=[sphere_to_polygon(
+            center=GeodeticCoordinate(
+                longitude=longitude,
+                latitude=latitude,
+                altitude=altitude
+            ),
+            radius_m=query_radius
+        )],
         f_grow=1,
         f_min=0
     )
@@ -191,21 +193,24 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                         ("SELECT COUNT(*) FROM (" if args.count_only else "") +
                         "UNION".join(
                             [
-                                f"(SELECT bit_string, certificate_hashes, neighbor_hash, left_child_hash, right_child_hash "
+                                f"(SELECT bit_string_51, bit_string_15, certificate_hashes, neighbor_hash, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash "
                                 f"FROM nodes "
-                                f"WHERE bit_string IN (" +
-                                ','.join(point_queries) + ") "
+                                f"WHERE bit_string_51 IN (" +
+                                ','.join(point_queries) + ") AND "
+                                f"min_altitude_of_bit_string(bit_string_15) <= {query_altitude - args.query_radius} AND "
+                                f"max_altitude_of_bit_string(bit_string_15) >= {query_altitude + args.query_radius}"
                                 "UNION ALL "
-                                "SELECT bit_string, certificate_hashes, neighbor_hash, left_child_hash, right_child_hash "
+                                "SELECT bit_string_51, bit_string_15, certificate_hashes, neighbor_hash, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash "
                                 "FROM nodes "
                                 f"WHERE "
-                                f"bit_string_51 >= {imin} AND "
-                                f"bit_string_51 <= {imax} AND "
+                                f"bit_string_51_int >= {imin} AND "
+                                f"bit_string_51_int <= {imax} AND "
                                 # fix altitude for now
-                                f"min_altitude_of_bit_string(bit_string) <= {22767 - args.query_radius} AND "
-                                f"max_altitude_of_bit_string(bit_string) >= {22767 + args.query_radius}"
+                                f"min_altitude_of_bit_string(bit_string_15) <= {query_altitude - args.query_radius} AND "
+                                f"max_altitude_of_bit_string(bit_string_15) >= {query_altitude + args.query_radius}"
                                 f")"
                                 for point_queries, imin, imax in bit_strings
+                                if (query_altitude := 22767)
                             ])
                         + (") as sq" if args.count_only else "")
                     )
@@ -215,7 +220,9 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
         )
 
         # simulate fetching all results
-        result_count_tmp = len(cursor.fetchall())
+        res = cursor.fetchall()
+        result_count_tmp = res[0][0] if args.count_only else len(res)
+        res = None
 
         # check whether we need to stop
         if args.stop_event.is_set():

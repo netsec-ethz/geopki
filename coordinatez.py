@@ -165,22 +165,22 @@ class DiscretizedVoxel:
     D = -10000
     "The minimum geodetic altitude in meters"
 
-    H = 20000
+    H = 22767
     "The maximum geodetic altitude in meters"
 
-    X_BITS = math.ceil(math.log2(2 * SEMI_MAJOR_AXIS_A_M * math.pi / U))
+    X_BITS = math.floor(math.log2(2 * SEMI_MAJOR_AXIS_A_M * math.pi / U)) + 1
     """
     The number of bits in used in the discretization of the `x` dimension.
     `X_BITS = 26` for `U = 1`
     """
 
-    Y_BITS = math.ceil(math.log2(SEMI_MINOR_AXIS_B_M * math.pi / U))
+    Y_BITS = math.floor(math.log2(SEMI_MINOR_AXIS_B_M * math.pi / U)) + 1
     """
     The number of bits in used in the discretization of the `y` dimension.
     `Y_BITS = 25` for `U = 1`
     """
 
-    Z_BITS = math.ceil(math.log2((H - D) / U))
+    Z_BITS = math.floor(math.log2((H - D) / U)) + 1
     """
     The number of bits in used in the discretization of the `z` dimension.
     `Z_BITS = 15` for `U = 1`
@@ -286,34 +286,34 @@ class DiscretizedVoxel:
         )[:self.z_precision]
 
     def get_x_max(self) -> int:
-        "The maximum discretized `x` coordinate that is within the voxel"
+        "The smallest discretized `x` coordinate that is no longer in the voxel"
         return DiscretizedVoxel.bit_string_to_max_int(
             self.get_x_bit_string(),
             DiscretizedVoxel.X_BITS
-        )
+        ) + 1
 
     def get_y_max(self) -> int:
-        "The maximum discretized `y` coordinate that is within the voxel"
+        "The smallest discretized `y` coordinate that is no longer in the voxel"
         return DiscretizedVoxel.bit_string_to_max_int(
             self.get_y_bit_string(),
             DiscretizedVoxel.Y_BITS
-        )
+        ) + 1
 
     def get_z_max(self) -> int:
-        "The maximum discretized `z` coordinate that is within the voxel"
+        "The smallest discretized `z` coordinate that is no longer in the voxel"
         return DiscretizedVoxel.bit_string_to_max_int(
             self.get_z_bit_string(),
             DiscretizedVoxel.Z_BITS
-        )
+        ) + 1
 
     def __str__(self) -> str:
         """
         Returns a string representation of the discretized coordinate
         """
         return (
-            f"X: [{self.x_min}, {self.get_x_max()})\n"
-            f"Y: [{self.y_min}, {self.get_y_max()})\n"
-            f"Z: [{self.z_min}, {self.get_z_max()})"
+            f"X: [{self.x_min}, {self.get_x_max() + 1})\n"
+            f"Y: [{self.y_min}, {self.get_y_max() + 1})\n"
+            f"Z: [{self.z_min}, {self.get_z_max() + 1})"
         )
 
     def to_bit_string_tuple(self) -> Tuple[str, str]:
@@ -344,7 +344,7 @@ class DiscretizedVoxel:
     def to_voxel_bounds(self) -> Tuple[GeodeticCoordinate, GeodeticCoordinate]:
         """
         Returns the geodetic coordinates, one corresponding to the points with the
-        smallest and largest longitude, latitude and altitude inside the voxel.
+        smallest and largest longitude, latitude and altitude defining the voxel.
         The first value in the tuple is the one with the smallest and the second
         the one with the largest geodetic coordinates.
         """
@@ -386,7 +386,7 @@ class DiscretizedVoxel:
             for z in [self.z_min, self.get_z_max()]
         ]
 
-    def grow_2d(self, steps=1):
+    def grow_2d(self, steps=1) -> DiscretizedVoxel:
         """
         Grows (*modifies*) the voxel by decreasing the `x` and `y` precision 'steps' times.
         If the precision of `x` and `y` is equal, the `y` precision is reduced,
@@ -442,6 +442,8 @@ class DiscretizedVoxel:
         # reduce the y precision
         self.y_precision -= y_bits_to_clear
 
+        return self
+
     def grow_z(self, steps=1):
         """
         Grows (*modifies*) the voxel by decreasing the `z` precision `steps` times.
@@ -470,10 +472,12 @@ class DiscretizedVoxel:
             # reduce the z precision
             self.z_precision -= steps
 
+            return self
+
     def grow_2d_to_area(
             self,
             max_area: float
-    ):
+    ) -> DiscretizedVoxel:
         """
         Grows (*modifies*) the voxel by removing bits from the 2d bit string until the voxel's
         shadow projected to the earth's surface (`.to_shapely_area()`) would be greater than
@@ -490,24 +494,28 @@ class DiscretizedVoxel:
         current_area = self.to_shapely_area().area
         grow_steps = math.floor(math.log2(max_area / current_area))
 
+        # no shrinking
+        if grow_steps < 0:
+            return self
+
         return self.grow_2d(grow_steps)
 
     def grow_z_to_length(
             self,
-            max_altitude_range: float
+            altitude_max_range: float
     ):
         """
         Grows (*modifies*) the voxel by removing bits from the z bit string until the voxel's
-        altitude would be greater than `max_max_altitude_rangelen` if another bit was removed.
+        altitude would be greater than `max_altitude_range` if another bit was removed.
 
         Parameters
         ----------
-        :param max_altitude_range: An upper bound for the altitude the voxel should cover after growing.
+        :param altitude_max_range: An upper bound for the altitude the voxel should cover after growing.
         """
 
         current_altitude_range = self.get_z_max() - self.z_min + 1
         grow_steps = math.floor(
-            math.log2(max_altitude_range / current_altitude_range)
+            math.log2(altitude_max_range / current_altitude_range)
         )
 
         return self.grow_z(grow_steps)
@@ -754,8 +762,8 @@ def polygons_to_2d_bit_strings(
         q.append(
             DiscretizedVoxel.from_coordinate(
                 GeodeticCoordinate(
-                    longitude=polygon[0]['lon'],
-                    latitude=polygon[0]['lat'],
+                    longitude=polygon.exterior.coords[0][0],
+                    latitude=polygon.exterior.coords[0][1],
                     altitude=0
                 )
             ).grow_2d_to_area(
@@ -765,7 +773,7 @@ def polygons_to_2d_bit_strings(
 
         while len(q) > 0:
             voxel: DiscretizedVoxel = q.popleft()
-            bit_string = voxel.to_bit_string()
+            bit_string = voxel.to_bit_string_tuple()[0]
 
             if bit_string in visited:
                 continue
@@ -954,12 +962,12 @@ def sphere_to_polygon(
 
 
 def smallest_enclosing_z_bit_string(
-        min_altitude: float,
-        max_altitude: float
+        altitude_min: float,
+        altitude_max: float
 ) -> str:
     """
     Returns the single longest / most precise bit string encompassing both,
-    `min_altitude` and `max_altitude`. In contrast to
+    `altitude_min` and `altitude_max`. In contrast to
     `polygons_to_2d_bit_strings`. Since it only returns
     a single bit string it is much more likely to use a shorter / less
     precise bit string than `polygons_to_2d_bit_strings` but
@@ -968,20 +976,20 @@ def smallest_enclosing_z_bit_string(
 
     Parameters
     ----------
-    :param min_altitude: The minimum altitude that should be covered
-    :param max_altitude: The maximum altitude that should be covered
+    :param altitude_min: The minimum altitude that should be covered, [D, altitude_max)
+    :param altitude_max: The maximum altitude that should be covered, (altitude_min, H]
     :returns: The most precise bit string encompassing the two altitude values
     """
 
     discretized_z_min = bin(
         math.floor(
-            (min_altitude - DiscretizedVoxel.D) / DiscretizedVoxel.U
+            (altitude_min - DiscretizedVoxel.D) / DiscretizedVoxel.U
         )
     )[2:].rjust(DiscretizedVoxel.Z_BITS, "0")
 
     discretized_z_max = bin(
         math.floor(
-            (max_altitude - DiscretizedVoxel.D) / DiscretizedVoxel.U
+            (altitude_max - DiscretizedVoxel.D) / DiscretizedVoxel.U
         )
     )[2:].rjust(DiscretizedVoxel.Z_BITS, "0")
 
@@ -998,8 +1006,8 @@ def smallest_enclosing_z_bit_string(
 
 def extruded_polygons_to_bit_string_tuples(
         polygons: List[Polygon],
-        min_altitude: float,
-        max_altitude: float,
+        altitude_min: float,
+        altitude_max: float,
         f_grow: float
 ) -> List[Tuple[str, str]]:
     """
@@ -1012,8 +1020,8 @@ def extruded_polygons_to_bit_string_tuples(
     Parameters
     ----------
     :param polygons: A list of polygons that should be mapped to voxels
-    :param min_altitude: The lower altitude bound for the extruded polygon
-    :param max_altitude: The upper altitude bound for the extruded polygon
+    :param altitude_min: The lower altitude bound for the extruded polygon, [D, altitude_max)
+    :param altitude_max: The upper altitude bound for the extruded polygon, (altitude_min, H]
     :param f_grow: The fraction of a polygons area which should be used for the voxel size
     :returns: A set of bit string tuples 
     """
@@ -1026,8 +1034,8 @@ def extruded_polygons_to_bit_string_tuples(
     )
 
     z_bit_string = smallest_enclosing_z_bit_string(
-        min_altitude=min_altitude,
-        max_altitude=max_altitude
+        altitude_min=altitude_min,
+        altitude_max=altitude_max
     )
 
     return [

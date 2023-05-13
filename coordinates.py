@@ -445,8 +445,8 @@ def polygons_to_2d_bit_strings(
         ZOrderBitString.from_bit_string(
             ZOrderBitString.from_coordinate(
                 GeodeticCoordinate(
-                    longitude=polygon[0]['lon'],
-                    latitude=polygon[0]['lat'],
+                    longitude=polygon.exterior.coords[0][0],
+                    latitude=polygon.exterior.coords[0][1],
                     altitude=0
                 )
             ).to_bit_string()
@@ -661,12 +661,12 @@ def sphere_to_polygon(
 
 
 def smallest_enclosing_z_bit_string(
-        min_altitude: float,
-        max_altitude: float
+        altitude_min: float,
+        altitude_max: float
 ) -> str:
     """
     Returns the single longest / most precise bit string encompassing both,
-    `min_altitude` and `max_altitude`. In contrast to
+    `altitude_min` and `altitude_max`. In contrast to
     `polygons_to_2d_bit_strings`. Since it only returns
     a single bit string it is much more likely to use a shorter / less
     precise bit string than `polygons_to_2d_bit_strings` but
@@ -675,20 +675,20 @@ def smallest_enclosing_z_bit_string(
 
     Parameters
     ----------
-    :param min_altitude: The minimum altitude that should be covered
-    :param max_altitude: The maximum altitude that should be covered
+    :param altitude_min: The minimum altitude that should be covered, [D, altitude_max)
+    :param altitude_max: The maximum altitude that should be covered, (altitude_min, H]
     :returns: The most precise bit string encompassing the two altitude values
     """
 
     discretized_z_min = bin(
         math.floor(
-            (min_altitude - ZOrderBitString.D) / ZOrderBitString.U
+            (altitude_min - ZOrderBitString.D) / ZOrderBitString.U
         )
     )[2:].rjust(ZOrderBitString.Z_BITS, "0")
 
     discretized_z_max = bin(
         math.floor(
-            (max_altitude - ZOrderBitString.D) / ZOrderBitString.U
+            (altitude_max - ZOrderBitString.D) / ZOrderBitString.U
         )
     )[2:].rjust(ZOrderBitString.Z_BITS, "0")
 
@@ -705,8 +705,8 @@ def smallest_enclosing_z_bit_string(
 
 def extruded_polygons_to_bit_strings(
         polygons: List[Polygon],
-        min_altitude: float,
-        max_altitude: float,
+        altitude_min: float,
+        altitude_max: float,
         f_grow: float
 ) -> List[str]:
     """
@@ -715,8 +715,8 @@ def extruded_polygons_to_bit_strings(
     Parameters
     ----------
     :param polygons: A list of polygons that should be mapped to voxels
-    :param min_altitude: The lower altitude bound for the extruded polygon
-    :param max_altitude: The upper altitude bound for the extruded polygon
+    :param altitude_min: The lower altitude bound for the extruded polygon, [D, altitude_max)
+    :param altitude_max: The upper altitude bound for the extruded polygon, (altitude_min, H]
     :param f_grow: The fraction of a polygons area which should be used for the voxel size
     :returns: A set of bit strings 
     """
@@ -731,8 +731,8 @@ def extruded_polygons_to_bit_strings(
     )
 
     z_bit_string = smallest_enclosing_z_bit_string(
-        min_altitude=min_altitude,
-        max_altitude=max_altitude
+        altitude_min=altitude_min,
+        altitude_max=altitude_max
     )
 
     # the full height has to be covered

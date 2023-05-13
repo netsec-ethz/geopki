@@ -11,10 +11,11 @@ DECLARE
   len_51 integer := LENGTH(input_bit_string_51);
   len_15 integer := LENGTH(input_bit_string_15);
 
-	bit_string_51 bit varying(51);
-	xy_left_child_hash bytea;
+  bit_string_51 bit varying(51);
+  bit_string_15 bit varying(15);
+  xy_left_child_hash bytea;
   xy_right_child_hash bytea;
-	z_left_child_hash bytea;
+  z_left_child_hash bytea;
   z_right_child_hash bytea;
   certificate_hashes bytea[];
 
