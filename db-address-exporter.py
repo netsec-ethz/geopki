@@ -439,7 +439,7 @@ def main(
     # sort by length so that we can start computing the hashes from the bottom of the tree
     bit_strings = sorted(
         bit_string_map.keys(),
-        key=lambda x: (-len(x[0] + x[1]), x[0], x[1])
+        key=lambda x: (-len(x[0]), -len(x[1]), int(x[0], 2), x[1])
     )
     for xy_bit_string, z_bit_string in tqdm(
         bit_strings,
@@ -478,12 +478,12 @@ def main(
             else DEFAULT_HASH
         )
 
-        row.z_right_child_hash = (
+        row.z_left_child_hash = (
             bit_string_map[z_left_child].hash if z_left_child in bit_string_map
             else DEFAULT_HASH
         )
 
-        row.z_left_child_hash = (
+        row.z_right_child_hash = (
             bit_string_map[z_right_child].hash if z_right_child in bit_string_map
             else DEFAULT_HASH
         )

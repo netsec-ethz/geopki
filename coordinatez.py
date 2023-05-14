@@ -86,8 +86,6 @@ class GeodeticCoordinate:
 
         assert longitude >= -180 and longitude <= 180
         assert latitude >= -90 and latitude <= 90
-        assert altitude >= DiscretizedVoxel.D and \
-            altitude <= DiscretizedVoxel.H
 
         self.longitude = longitude
         self.latitude = latitude
