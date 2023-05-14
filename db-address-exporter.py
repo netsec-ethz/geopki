@@ -402,29 +402,36 @@ def main(
                             )
             else:
 
-                for bit_string in extruded_polygons_to_bit_strings(
-                    polygons=shapely_polygons,
-                    altitude_min=altitude_min,
-                    altitude_max=altitude_max,
-                    f_grow=INITIAL_AREA_FRACTION
-                ):
-                    if (bit_string, '') in bit_string_map:
-                        bit_string_map[(bit_string, '')].certificate_hashes.add(
-                            geo_cert.hash()
-                        )
-                    else:
-                        bit_string_map[(bit_string, '')] = BitStringRow(
-                            certificate_hashes=set([geo_cert.hash()])
-                        )
+                try:
 
-                    # iterate over all prefixes of that bit string and add them to bit_string_map
-                    for i in range(1, len(bit_string)):
-                        bit_string_prefix = bit_string[:i]
-                        if not ((bit_string_prefix, '') in bit_string_map):
-                            # add an empty entry
-                            bit_string_map[(bit_string_prefix, '')] = BitStringRow(
-                                certificate_hashes=set()
+                    for bit_string in extruded_polygons_to_bit_strings(
+                        polygons=shapely_polygons,
+                        altitude_min=altitude_min,
+                        altitude_max=altitude_max,
+                        f_grow=INITIAL_AREA_FRACTION
+                    ):
+                        if (bit_string, '') in bit_string_map:
+                            bit_string_map[(bit_string, '')].certificate_hashes.add(
+                                geo_cert.hash()
                             )
+                        else:
+                            bit_string_map[(bit_string, '')] = BitStringRow(
+                                certificate_hashes=set([geo_cert.hash()])
+                            )
+
+                        # iterate over all prefixes of that bit string and add them to bit_string_map
+                        for i in range(1, len(bit_string)):
+                            bit_string_prefix = bit_string[:i]
+                            if not ((bit_string_prefix, '') in bit_string_map):
+                                # add an empty entry
+                                bit_string_map[(bit_string_prefix, '')] = BitStringRow(
+                                    certificate_hashes=set()
+                                )
+
+                except Exception:
+                    # print the row that is the culprit
+                    print(row)
+                    raise
 
         # if row_i > 1:
         #     assert "1" in bit_string_map

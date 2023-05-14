@@ -766,4 +766,11 @@ def extruded_polygons_to_bit_strings(
                 z_bit_string
             )
 
+    if len(results) > 1000* 1000:
+        print("xy bit strings (showing at most 10):")
+        for b in xy_bit_strings[:10]:
+            print(b)
+        
+        raise Exception(f"> 1M bit strings?!? {len(xy_bit_strings)} xy bit strings, z bit string: '{z_bit_string}'")
+
     return results
