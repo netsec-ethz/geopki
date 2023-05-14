@@ -244,7 +244,16 @@ def level_to_altitude(
 
             # for now just assume one level is three meters
             # bound check in case of weirdly formatted data
-            return max(min_level * 3, DiscretizedVoxel.D), min((max_level + 1) * 3, DiscretizedVoxel.H)
+            return (
+                min(
+                    max(min_level * 3, DiscretizedVoxel.D),
+                    DiscretizedVoxel.H
+                ),
+                min(
+                    max((max_level + 1) * 3, DiscretizedVoxel.D),
+                    DiscretizedVoxel.H
+                )
+            )
 
         except ValueError:
             print(level, min_level, max_level)
