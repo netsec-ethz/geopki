@@ -3,7 +3,7 @@ from typing import List, Tuple, Union, Dict, Set
 import math
 from collections import deque
 from geopy import distance
-from shapely import box, Point, Polygon
+from shapely import box, Point, Polygon, GEOSException
 
 SEMI_MAJOR_AXIS_A_M = 6378137.0
 SEMI_MINOR_AXIS_B_M = 6356752.3142
@@ -484,12 +484,22 @@ def polygons_to_2d_bit_strings(
             voxel_shadow = voxel.to_shapely_area()
 
             # check for intersection. always take the first area
-            if len(intersecting_areas) > 0 and not (
-                voxel_shadow.intersection(
-                    polygon).area > f_min * voxel_shadow.area
-            ):
+            try:
+                if len(intersecting_areas) > 0 and not (
+                    voxel_shadow.intersection(
+                        polygon
+                    ).area > f_min * voxel_shadow.area
+                ):
 
-                continue
+                    continue
+            except GEOSException:
+                if len(intersecting_areas) > 0 and not (
+                   voxel_shadow.intersection(
+                       polygon.buffer(0)
+                   ).area > f_min * voxel_shadow.area
+                   ):
+
+                    continue
 
             # add to intersection list
             intersecting_areas.add(bit_string)
@@ -708,7 +718,7 @@ def extruded_polygons_to_bit_strings(
         altitude_min: float,
         altitude_max: float,
         f_grow: float
-) -> List[str]:
+) -> Tuple[List[str], List[str], str]:
     """
     Returns all bit strings to cover the given extruded polygon.
 
@@ -723,6 +733,16 @@ def extruded_polygons_to_bit_strings(
 
     XY_BITS = ZOrderBitString.X_BITS + ZOrderBitString.Y_BITS
 
+    z_bit_string = smallest_enclosing_z_bit_string(
+        altitude_min=altitude_min,
+        altitude_max=altitude_max
+    )
+
+    # if z_bit_string != '':
+    #     # not full height, f_grow > 0 does not make sense since
+    #     # we need to go to the full depth anyway
+    #     f_grow = 0
+
     xy_bit_strings = polygons_to_2d_bit_strings(
         polygons=polygons,
         f_grow=f_grow,
@@ -730,14 +750,9 @@ def extruded_polygons_to_bit_strings(
         f_min=0
     )
 
-    z_bit_string = smallest_enclosing_z_bit_string(
-        altitude_min=altitude_min,
-        altitude_max=altitude_max
-    )
-
     # the full height has to be covered
     if z_bit_string == '':
-        return xy_bit_strings
+        return xy_bit_strings, xy_bit_strings, ''
 
     results: List[str] = []
 
@@ -766,11 +781,67 @@ def extruded_polygons_to_bit_strings(
                 z_bit_string
             )
 
-    if len(results) > 1000* 1000:
-        print("xy bit strings (showing at most 10):")
-        for b in xy_bit_strings[:10]:
-            print(b)
-        
-        raise Exception(f"> 1M bit strings?!? {len(xy_bit_strings)} xy bit strings, z bit string: '{z_bit_string}'")
+    return results, xy_bit_strings, z_bit_string
 
-    return results
+
+def extruded_polygons_to_bit_string_counts(
+        polygons: List[Polygon],
+        altitude_min: float,
+        altitude_max: float,
+        f_grow: float
+) -> Tuple[int, int]:
+    """
+    Returns all bit strings to cover the given extruded polygon.
+
+    Parameters
+    ----------
+    :param polygons: A list of polygons that should be mapped to voxels
+    :param altitude_min: The lower altitude bound for the extruded polygon, [D, altitude_max)
+    :param altitude_max: The upper altitude bound for the extruded polygon, (altitude_min, H]
+    :param f_grow: The fraction of a polygons area which should be used for the voxel size
+    """
+
+    XY_BITS = ZOrderBitString.X_BITS + ZOrderBitString.Y_BITS
+
+    z_bit_string = smallest_enclosing_z_bit_string(
+        altitude_min=altitude_min,
+        altitude_max=altitude_max
+    )
+
+    # if z_bit_string != '':
+    #     # not full height, f_grow > 0 does not make sense since
+    #     # we need to go to the full depth anyway
+    #     f_grow = 0
+
+    xy_bit_strings = polygons_to_2d_bit_strings(
+        polygons=polygons,
+        f_grow=f_grow,
+        # always over-approximate
+        f_min=0
+    )
+
+    # the full height has to be covered
+    if z_bit_string == '':
+        return len(xy_bit_strings), len(xy_bit_strings)
+
+    results = 0
+
+    # when we don't use tuples we have to compute all possible
+    # substrings up to a length of 51 for the xy_bit_strings
+    # and then append the z_bit_string
+    for xy_bit_string in xy_bit_strings:
+        fill_length = XY_BITS - len(xy_bit_string)
+
+        assert fill_length >= 0
+
+        # check if xy_bit_string already has the full length
+        if fill_length == 0:
+            results += 0
+            continue
+
+        # if not, several bit strings have to be generated
+        max_int = int(fill_length * "1", 2)
+
+        results += max_int + 1
+
+    return results, len(xy_bit_strings)

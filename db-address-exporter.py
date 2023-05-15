@@ -180,27 +180,6 @@ def voxel_bounds_to_2d_wkt_polygon(bounds: Tuple[GeodeticCoordinate, GeodeticCoo
         return f"ST_SetSRID(ST_MakeBox2D(ST_Point({voxel_min.longitude}, {voxel_min.latitude}),ST_Point({voxel_max.longitude}, {voxel_max.latitude})),4326)"
 
 
-def grow_initial_area(initial_area: ZOrderBitString, area: float, plot=False):
-    # while the area of the object is larger than a fraction of the grid's area
-    # decrease the grid's size
-    while (
-        initial_area.x_precision > 1 and
-        ZOrderBitString.from_bit_string(
-            initial_area.to_bit_string()[:-1]
-        ).to_shapely_area().area * INITIAL_AREA_FRACTION < area
-    ):
-        if plot:
-            x, y = initial_area.to_shapely_area().exterior.xy
-            plt.plot(x, y, color="orange")
-
-        # grow area by removing one bit
-        initial_area = ZOrderBitString.from_bit_string(
-            initial_area.to_bit_string()[:-1]
-        )
-
-    return initial_area
-
-
 def level_to_altitude(
     min_level: Optional[str],
     max_level: Optional[str],
@@ -246,11 +225,11 @@ def level_to_altitude(
             # bound check in case of weirdly formatted data
             return (
                 min(
-                    max(min_level * 3, DiscretizedVoxel.D),
+                    max(level * 3, DiscretizedVoxel.D),
                     DiscretizedVoxel.H
                 ),
                 min(
-                    max((max_level + 1) * 3, DiscretizedVoxel.D),
+                    max((level + 1) * 3, DiscretizedVoxel.D),
                     DiscretizedVoxel.H
                 )
             )
@@ -404,7 +383,7 @@ def main(
 
                 try:
 
-                    for bit_string in extruded_polygons_to_bit_strings(
+                    for bit_string, _, _ in extruded_polygons_to_bit_strings(
                         polygons=shapely_polygons,
                         altitude_min=altitude_min,
                         altitude_max=altitude_max,
