@@ -61,6 +61,7 @@ QUERY_RADIUS_VALUES = [10]
 @click.option('--postgres-spatial', 'mode', flag_value='postgres_spatial', default=None)
 @click.option('--postgres-baseline', 'mode', flag_value="postgres_baseline")
 @click.option('--neo4j', 'mode', flag_value='neo4j')
+@click.option('--z-queries', 'z_queries', flag_value=True, default=False)
 @click.option('--excluding-bit-string-computation', 'excluding_bit_string_computation', flag_value=True, default=False)
 @click.option('--count-only', 'count_only', flag_value=True, default=False)
 def main(
@@ -73,6 +74,7 @@ def main(
     repetitions: int,
     mode: Optional[str],
     excluding_bit_string_computation: bool,
+    z_queries: bool,
     count_only: bool,
 ):
 
@@ -140,6 +142,10 @@ def main(
             + (
                 [f"--count-only"]
                 if count_only else []
+            )
+            + (
+                [f"--z-queries"]
+                if z_queries else []
             ),
             stdout=subprocess.PIPE,
             cwd=os.path.dirname(FILE_PATH)

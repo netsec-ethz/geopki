@@ -24,6 +24,11 @@ SAMPLING_PRECISION_RADIUS = math.ceil(MAX_RADIUS_M)
 # with 10km radius, circumference is 2 * (10km) * π = 62.83kms
 SAMPLING_PRECISION_BEARING = math.ceil(MAX_CIRCUMFERENCE_M)
 
+QUERY_PLACES_Z: List[Tuple[float, float, int]] = [
+    # for z proof sizes
+    (-0.1295305, 51.5070465, 2000),  # london
+]
+
 QUERY_PLACES: List[Tuple[float, float, int]] = [
     # longitude, latitude, radius in meters
     (8.5389201, 47.3771551, 2000),  # zurich
@@ -55,13 +60,13 @@ def sample_circle(latitude: float, longitude: float, radius_m: float) -> Tuple[f
     return p.latitude, p.longitude
 
 
-def generate_queries(query_count: int):
+def generate_queries(query_count: int, z_queries=False):
     query_set: List[float, float, int] = []
 
     for _ in range(query_count):
         # randomly sample a city
         query_place_longitude, query_place_latitude, query_place_radius_m = random.choice(
-            QUERY_PLACES
+            QUERY_PLACES_Z if z_queries else QUERY_PLACES
         )
         latitude, longitude = sample_circle(
             longitude=query_place_longitude,
@@ -89,6 +94,7 @@ class ProcessArgs:
             count_only: bool,
             excluding_bit_string_computation: bool,
             query_set_size: int,
+            z_queries: bool,
             start_event: Event,
             ready_event: Event,
             stop_event: Event
@@ -103,6 +109,7 @@ class ProcessArgs:
         self.count_only = count_only
         self.excluding_bit_string_computation = excluding_bit_string_computation
         self.query_set_size = query_set_size
+        self.z_queries = z_queries
         self.start_event = start_event
         self.ready_event = ready_event
         self.stop_event = stop_event
@@ -156,7 +163,10 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
     cursor = conn.cursor()
 
     # pre-generate a query set
-    query_set = generate_queries(args.query_set_size)
+    query_set = generate_queries(
+        args.query_set_size,
+        args.z_queries,
+    )
 
     if args.excluding_bit_string_computation:
         query_set = [
@@ -193,14 +203,14 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                         ("SELECT COUNT(*) FROM (" if args.count_only else "") +
                         "UNION".join(
                             [
-                                f"(SELECT bit_string_51, bit_string_15, certificate_hashes, neighbor_hash, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash "
+                                f"(SELECT bit_string_51, bit_string_15, certificate_hashes, neighbor_hash, xy_left_child_hash, xy_right_child_hash "
                                 f"FROM nodes "
                                 f"WHERE bit_string_51 IN (" +
                                 ','.join(point_queries) + ") AND "
                                 f"min_altitude_of_bit_string(bit_string_15) <= {query_altitude - args.query_radius} AND "
                                 f"max_altitude_of_bit_string(bit_string_15) >= {query_altitude + args.query_radius}"
                                 "UNION ALL "
-                                "SELECT bit_string_51, bit_string_15, certificate_hashes, neighbor_hash, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash "
+                                "SELECT bit_string_51, bit_string_15, certificate_hashes, neighbor_hash, xy_left_child_hash, xy_right_child_hash "
                                 "FROM nodes "
                                 f"WHERE "
                                 f"bit_string_51_int >= {imin} AND "
@@ -303,6 +313,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
     type=int,
     default=1000
 )
+@click.option('--z-queries', 'z_queries', flag_value=True, default=False)
 @click.option('--excluding-bit-string-computation', 'excluding_bit_string_computation', flag_value=True, default=False)
 @click.option('--count-only', 'count_only', flag_value=True, default=False)
 @click.option(
@@ -322,6 +333,7 @@ def main(
     time_s: int,
     query_radius: int,
     qps_set_size: int,
+    z_queries: bool,
     excluding_bit_string_computation: bool,
     count_only: bool,
     batch_size: bool
@@ -364,6 +376,7 @@ def main(
                     count_only=count_only,
                     excluding_bit_string_computation=excluding_bit_string_computation,
                     query_set_size=qps_set_size,
+                    z_queries=z_queries,
                     start_event=start_event,
                     ready_event=ready_event,
                     stop_event=stop_event,
