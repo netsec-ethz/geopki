@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS nodes
     bit_string_51 bit varying(51) NOT NULL,
     bit_string_51_int bigint NOT NULL,
     bit_string_15 bit varying(15) NOT NULL,
+    altitude_min smallint NOT NULL,
+    altitude_max smallint NOT NULL,
     neighbor_hash bytea,
     xy_left_child_hash bytea,
     xy_right_child_hash bytea,
@@ -18,7 +20,8 @@ CREATE TABLE IF NOT EXISTS nodes
 
 CREATE UNIQUE INDEX IF NOT EXISTS bit_string_bit_idx
     ON nodes USING btree
-    (bit_string ASC NULLS LAST);
+    (bit_string_51 ASC NULLS LAST, bit_string_15 ASC NULLS LAST)
+;
 
 CREATE INDEX IF NOT EXISTS bit_string_integer_idx
     ON nodes USING btree
@@ -41,10 +44,12 @@ SET bit_string_51_int =	rpad(
 	)::bit(51)::bigint
 
 UPDATE nodes SET bit_string_51 = SUBSTRING(bit_string FROM 1 FOR 51)::bit varying(51)
+UPDATE nodes SET altitude_min = min_altitude_of_bit_string(bit_string_15), altitude_max = max_altitude_of_bit_string(bit_string_15)
 
 CREATE UNIQUE INDEX IF NOT EXISTS bit_string_bit_idx
     ON nodes USING btree
-    (bit_string ASC NULLS LAST);
+    (bit_string_51 ASC NULLS LAST, bit_string_15 ASC NULLS LAST)
+;
 
 CREATE INDEX IF NOT EXISTS bit_string_integer_idx
     ON nodes USING btree
