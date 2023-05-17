@@ -171,7 +171,7 @@ The $Z$-order curve is obtained by simply interleaving the binary encoding of th
 
 \subsection{Mapping a Spatial Point to a Bit String Pair}
 \label{sec:data-structure:mapping-spatial-point}
-A point tuple $p := (x,y,z)$ at longitude $x$, latitude $y$ and altitude $z$ with
+A point tuple $(x,y,z)$ at longitude $x$, latitude $y$ and altitude $z$ with
 \begin{align*}
 	(x, y, z) &\in [-180, 180] \times [-90, 90] \times [D, H]
 \end{align*}
@@ -273,7 +273,7 @@ Then the corresponding point is given by
 \begin{align}
 \begin{split}
 \label{eq:intermediate-geometric-point-partial-height}
-\left(
+n_p :=\left(
 n_{\hat{x}} \cdot \frac{360}{C_x} - 180,
 n_{\hat{y}} \cdot \frac{180}{C_y} - 90,
 D + n_{\hat{z}} \cdot u
@@ -284,7 +284,7 @@ and the covered volume by
 \begin{align}
 \begin{split}
 \label{eq:intermediate-geometric-volume-full-height}
-\left[
+n_V :=\left[
 n_{\hat{x}} \cdot \frac{360}{C_x} - 180,
 (n_{\hat{x}} + 2^{B_{x} - l_{\tilde{x}}}) \cdot \frac{360}{C_x} - 180
 \right) &\times\\
@@ -333,6 +333,7 @@ The hash of a leaf is defined as follows:
 
 $\forall l \in \{v \in \mathcal{N} \: | \: \mathcal{L}(v) \neq 0 \land \mathcal{C}(l) = \emptyset \}$
 \begin{align}
+\label{eq:hash-leaf}
 \begin{split}
 	\mathcal{H}(l) &:= H\left(\mathbbzero \: || \: \concat_{i \in \mathcal{L}(l)} H\left(\mathcal{D}(l)_i\right) \right)\\
 	\\% 
@@ -461,19 +462,24 @@ In terms of response size it is always best to retrieve all individual leaves as
 \subsection{Proofs of Presence and Absence}
 \label{sec:data-structure:precense-absence}
 Given a query for a volume, the map server should prove that the returned data is in fact in the SMT and that no certificate was omitted.
-Let $V$ be the set of non-empty voxel that intersect with the query volume and for each $v \in V$ let $\mathcal{C}_v$ be the set of all certificates associated with $v$.
-For each such $v \in V$, the server has to send the set $\{H(x) \: | \: \forall x \in \mathcal{C}_v \}$ to the client as it is required to compute the node's hash (see Equations \ref{eq:hash-leaf} and \ref{eq:hash-certs-intermediate-node}).
-Due to the fact that parent voxels always cover a super-volume of their children, $V$ includes the transitive closure of the parent relation.
-For nodes where a child is not in $V$, this child's hash has to be included in the server's response as it is necessary to compute the node's hash as shown in see Equation \ref{eq:hash-intermediate-node}.
+Let $N \subset \mathcal{N}$ be the set of non-empty nodes whose corresponding volume intersect the query volume.
+For each such $n \in N$, the server has to send the set $\{H(c) \: | \: \forall c \in \mathcal{D}(n) \}$ to the client as it is required to compute the node's hash (see Equations \ref{eq:hash-leaf} and \ref{eq:hash-certs-intermediate-node}).
+Because parent voxels always cover a super-volume of their children, $N$ includes the transitive closure of the parent relation.
+Moreover each parent can have a separate altitude subtree whose intersecting nodes also have to be returned.
+For nodes where a child is not in $N$, this child's hash has to be included in the server's response as it is necessary to compute the node's hash as shown in see Equation \ref{eq:hash-intermediate-node}.
+The same applies to neighbors, i.e. if the neighbor of some node in $N$ is not also in $N$, its hash has to be included in the server's response since it is required to compute the parent's hash (see \Cref{eq:hash-intermediate-node}).
 
 In a sparse SMT, proving the absence of any certificate in a volume is the same as providing the data  within that volume along with a proof which then allows a client to verify its absence.
 Similarly, the presence of an empty node proofs the absence of any certificates in that subtree.
 
-Given the binary SMT has $2^{B}$ leaves (see \Cref{sec:data-structure}), it's depth is $B$.
-A proof of presence for a node $v$ at depth $d \in \{0, ..., B-1\}$ (zero is the root itself) then consists of the $d$ complementary node's hash along the path to the root.
-The size of these hashes is $256$ bits or $32$ bytes due to the use of SHA-256.
-Thus in the worst case a proof for a single leaf consists $\left(B-1\right) \cdot 32$~B $= 66 \cdot 32$~B $= 2'112$~B $\approx 2$~KiB and is thus in the same order as an average X.509 certificate.
-The size of such a proof is smaller the sparser the tree is and is always smaller if an intermediate node, i.e., not a leaf, is queried.
+In the worst case there are $B_z \cdot (B_x + B_y)$ nodes intersecting a single point in space, one full altitude subtree path ($B_z$) at each depth of the 2D tree ($B_x + B_y$).
+The proof within each altitude subtree requires $B_z - 1$ complementary hashes along the path to the root of the subtree.
+In the 2D tree, at most one path of $B_x + B_y$ non-empty nodes will intersect the point resulting in $B_x + B_y - 1$ additional complementary hashes.
+Therefore in the worst case a proof will require $(B_x + B_y) \cdot (B_z - 1) + B_x + B_y - 1$ hashes in addition to the retrieved data nodes.
+With a hash digest size of $256$ bits or $32$ bytes (SHA-256), the number of hashes alone have a size of $\approx$ 13.5~KiB.
+The existence of altitude subtrees at all levels of the 2D tree is very unlikely and in reality the effective proof sizes should be significantly smaller.
+% 26 + 25 * (15 - 1) + 26 + 25 - 1 = 426, 426 * 32 = 13'632
+Moreover the size of a proof is smaller the sparser the tree is and is always smaller if an intermediate node, i.e., not a leaf, is queried.
 
 \subsection{Proof of Consistency}
 \label{sec:data-structure:consistency}
@@ -600,7 +606,7 @@ Given the small numbers and the fact that an over-approximation of the result do
 It is probably advisable to account for this on the client's side to facilitate auditing.
 Otherwise a server might claim to not be malicious but return wrong results due to wrong approximations.
 
-A query on the server side
+A query in the database can then be expressed as
 
 \begin{lstlisting}[language=SQL]
 SELECT * FROM nodes
