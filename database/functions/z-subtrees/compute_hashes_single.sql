@@ -112,7 +112,7 @@ FOR z_bit_string_depth IN REVERSE len15..1 LOOP
 END LOOP;
 
 -- now also up the 2D tree
-FOR xy_bit_string_depth IN REVERSE len51..1 LOOP
+FOR xy_bit_string_depth IN REVERSE len51..0 LOOP
 
   update_bit_string_51 := SUBSTRING(input_bit_string_51 FROM 1 FOR xy_bit_string_depth)::bit varying(51)
   

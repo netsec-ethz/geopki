@@ -6,7 +6,7 @@ CREATE OR REPLACE FUNCTION public.compute_hashes()
 AS $BODY$
 BEGIN
 -- iterate over the full 2D tree depth in reverse
-FOR xy_bit_string_depth IN REVERSE 51..1 LOOP
+FOR xy_bit_string_depth IN REVERSE 51..0 LOOP
   -- iterate over the full Z subtree in reverse
   FOR z_bit_string_depth IN REVERSE 15..0 LOOP
     IF z_bit_string_depth = 0 THEN

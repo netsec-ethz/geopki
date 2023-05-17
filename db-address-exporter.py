@@ -372,7 +372,7 @@ def main(
                             )
 
                     # next iterate over prefixes of xy_bit_string
-                    for i in range(1, len(xy_bit_string)):
+                    for i in range(0, len(xy_bit_string)):
                         xy_bit_string_prefix = xy_bit_string[:i]
                         if not ((xy_bit_string_prefix, '') in bit_string_map):
                             # add an empty entry
@@ -399,7 +399,7 @@ def main(
                             )
 
                         # iterate over all prefixes of that bit string and add them to bit_string_map
-                        for i in range(1, len(bit_string)):
+                        for i in range(0, len(bit_string)):
                             bit_string_prefix = bit_string[:i]
                             if not ((bit_string_prefix, '') in bit_string_map):
                                 # add an empty entry
@@ -425,7 +425,7 @@ def main(
     # sort by length so that we can start computing the hashes from the bottom of the tree
     bit_strings = sorted(
         bit_string_map.keys(),
-        key=lambda x: (-len(x[0]), -len(x[1]), int(x[0], 2), x[1])
+        key=lambda x: (-len(x[0]), -len(x[1]), x[0], x[1])
     )
     for xy_bit_string, z_bit_string in tqdm(
         bit_strings,
@@ -435,18 +435,22 @@ def main(
 
         row = bit_string_map[(xy_bit_string, z_bit_string)]
 
-        if mode == "bitstring-int-z-subtrees":
-            if len(z_bit_string) > 0:
-                # neighbor in z subtree
-                neighbor = xy_bit_string, z_bit_string[:-1] + \
-                    ("0" if z_bit_string[-1:] == "1" else "1")
+        if len(xy_bit_string) == 0:
+            # the root node does not have a neighbor
+            neighbor = None
+        else:
+            if mode == "bitstring-int-z-subtrees":
+                if len(z_bit_string) > 0:
+                    # neighbor in z subtree
+                    neighbor = xy_bit_string, z_bit_string[:-1] + \
+                        ("0" if z_bit_string[-1:] == "1" else "1")
+                else:
+                    # neighbor not in z-subtree
+                    neighbor = xy_bit_string[:-1] + \
+                        ("0" if xy_bit_string[-1:] == "1" else "1"), ''
             else:
-                # neighbor not in z-subtree
                 neighbor = xy_bit_string[:-1] + \
                     ("0" if xy_bit_string[-1:] == "1" else "1"), ''
-        else:
-            neighbor = xy_bit_string[:-1] + \
-                ("0" if xy_bit_string[-1:] == "1" else "1"), ''
 
         xy_left_child = xy_bit_string + "0", ''
         xy_right_child = xy_bit_string + "1", ''
@@ -474,13 +478,16 @@ def main(
             else DEFAULT_HASH
         )
 
-        if neighbor in bit_string_map:
-            # neighbor exists, set it's neighbor hash
-            # when iterating over the neighbor, this row's neighbor hash will be set
-            bit_string_map[neighbor].neighbor_hash = row.hash
-        else:
-            # neighbor does not exist, own neighbor hash is set to the empty one
-            row.neighbor_hash = DEFAULT_HASH
+        if not neighbor is None:
+            # only set the neighbor hash if it is not the root
+
+            if neighbor in bit_string_map:
+                # neighbor exists, set it's neighbor hash
+                # when iterating over the neighbor, this row's neighbor hash will be set
+                bit_string_map[neighbor].neighbor_hash = row.hash
+            else:
+                # neighbor does not exist, own neighbor hash is set to the empty one
+                row.neighbor_hash = DEFAULT_HASH
 
          # compute this node's hash
         if len(xy_bit_string) == 51 and len(z_bit_string) == 15:

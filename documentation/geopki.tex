@@ -12,6 +12,9 @@
 \usepackage{cite}
 \usepackage[utf8]{inputenc}
 
+\DeclareMathAlphabet{\mymathbb}{U}{BOONDOX-ds}{m}{n} % mathbb 0 and one
+\newcommand{\mathbbzero}{\mymathbb{0}}
+\newcommand{\mathbbone}{\mymathbb{1}}
 
 \IEEEaftertitletext{\vspace{-1\baselineskip}}
 
@@ -81,16 +84,16 @@
 \label{sec:model}
 
 The earth ellipsoid model of the existing world geodetic system 84 (WGS84) \cite{noauthor_nga_nodate} is used.
-WGS84 defines the \emph{semi-major axis} (half of the largest diameter of an ellipsoid, at the equator) $a$ to be $6'378'137.0$~meters \cite{noauthor_nga_nodate}. The \emph{semi-minor axis} (the polar radius) $b$ is defined as $6'356'752.3142~$meters \cite{noauthor_nga_nodate}.
+WGS84 defines the \emph{semi-major axis} (half of the largest diameter of an ellipsoid, at the equator) $r_a$ to be $6'378'137.0$~meters \cite{noauthor_nga_nodate}. The \emph{semi-minor axis} (the polar radius) $r_b$ is defined as $6'356'752.3142~$meters \cite{noauthor_nga_nodate}.
 Standard polar coordinates (longitude, latitude) are used for referencing points on the planet's two-dimensional surface and a third coordinate, altitude, extends this to three dimensions.
 Longitude, latitude and altitude together refer to a unique point in three-dimensions.
 
 Each of the three coordinates is discretized in a way that preserves $u := 1$ meter-precision in the worst case.
-With the semi-major axis $a$, the maximum circumference of the ellipsoid equals $=2 a \pi$~meters.
-Using base two, $B_{x}:= \left\lfloor \log_2(\frac{2 a \pi}{u}) \right\rfloor + 1 = 26$ bits for the longitude thus suffice to represent each possible meter value in the worst case.
+With the semi-major axis $r_a$, the maximum circumference of the ellipsoid equals $=2 \cdot r_a \cdot \pi$~meters.
+Using base two, $B_{x}:= \left\lfloor \log_2(\frac{2 \cdot r_a \cdot \pi}{u}) \right\rfloor + 1 = 26$ bits for the longitude thus suffice to represent each possible meter value in the worst case.
 Let $C_{x} := 2^{B_{x}} - 1$ denote the maximum discretized value for the longitude.
-For the latitude the circumference is $2 b \pi$~meters but we only need to be able to represent half of it, so $b \pi$.
-Thus $\left\lfloor\log_2(\frac{b \pi}{u})\right\rfloor + 1 = 25 =: B_{y}$ bits suffice.
+For the latitude the circumference is $2 b \pi$~meters but we only need to be able to represent half of it, so $r_b \cdot \pi$.
+Thus $\left\lfloor\log_2(\frac{r_b \cdot \pi}{u})\right\rfloor + 1 = 25 =: B_{y}$ bits suffice.
 Analogously to $C_{x}$, let $C_y := 2^{B_{y}} - 1$ the maximum discretized value for the latitude.
 For altitude there is no natural bound so one has to be fixed.
 At the time of writing, the highest point on earth is below $10'000$~meters above sea level \cite{us_department_of_commerce_what_nodate} and the lowest layer of earth's atmosphere, the troposphere, extends to about $18$~km \cite{dhaka_chapter_2023}.
@@ -109,17 +112,65 @@ While it does not exactly cover the range described range with respect to local 
 \label{sec:data-structure}
 
 Inspired by F-PKI~\cite{chuat_f-pki_2022}, a sparse merkle hash tree (SMT) is used.
-Each leaf represents a full discretized coordinate using $B := \cdot B_{x} + B_{y} + B_{z} = 66$ bits resulting in a total of $2^{B}$ leaves.
-To have spatially close points somewhat close together in the SMT, the space-filling $Z$-order curve is used to sort the three dimensional locations in one dimension \cite{morton_computer_1966}.
-An example with $B_{x} = B{y} = B_{z} = 2$ is shown in \Cref{fig:z-curve-example:two-bits}.
-GeoPKI uses a slightly modified 3D Z-order curve:
-Rather than using the full 3D Z-order curve, a 2D Z-order curve over the longitude and latitude is used and points with the same longitude and latitude but different altitude are put in sequence.
-While this leads to spatially close points being further apart in the 1-dimensional sorting, this modification allows for shorter proofs under some assumptions (will be discussed in \Cref{sec:optimizations}).
-\Cref{fig:z-curve-example:two-bits-optim} contrasts this modification with the standard 3D Z-order curve shown in \Cref{fig:z-curve-example:two-bits}.
+Each node is encoded using a bit string pair from the set $\mathcal{N}$ defined as follows:
+\begin{equation}
+	\mathcal{N} := \bigcup_{\substack{i \in \{0, 1, ..., B_x + B_y]\\j \in \{0, 1, ..., B_z\}}} \{0, 1\}^{i} \times \{0, 1\}^{j}
+\end{equation}
 
-\subsection{Leaf Binary Format}
-\label{sec:data-structure:leaf-binary}
-Each leaf of the SMT corresponds to a point and the tree leaves are sorted lexicographically by their binary representation in ascending order.
+where $\mathcal{N}_r := \left(\epsilon, \epsilon \right)$ is the root of the tree with $\epsilon$ representing the empty bit string.
+Let $\mathcal{C}: \mathcal{N} \mapsto \mathcal{P}\left(\mathcal{N}\right)$ be the function mapping each node to its children in the SMT where $\mathcal{P}$ denotes the power set.
+Moreover let $||$ denote the concatenation operator.
+Formally $\mathcal{C}(n)$ for some node $n = (n_{0}, n_1)$ is then defined as follows:
+%\begin{equation}
+%	C(b_0, b_1) = \left\{
+%	\begin{array}{ll}
+%	\{(b'_0, b'_1) \in \mathcal{N} \: | \: \} & \text{if $b_z = \epsilon$}\\
+%	\{(b'_0, b'_1) \in \mathcal{N} \: | \: & \text{if $b_z \neq \epsilon$}\\
+%	\left(b'_1 = b_1 || 0 \right) \lor \left(b'_1 = b_1 || 1 \right) \} &
+%	\end{array}
+%	\right.
+%\end{equation}
+
+%For $b_1 = \epsilon$ :
+%\begin{align*}
+%	\mathcal{C}\left(\left(b_0, b_1\right)\right) :=\:& \{(b'_0, b_1) \in \mathcal{N} \: | \: b'_0 \in \left\{b_0 || 0, \: b_0 || 1\right\} \\\
+%	\cup \: & \{(b_0, b'_1) \in \mathcal{N} \: | \: b'_1 \in \left\{b_1 || 0,\: b_1 || 1\right\}
+%\end{align*}
+%
+%For $b_1 \in \bigcup_{j \in \{1,2,...,B_z-1\}} \{0,1\}^{j}$ :
+%\begin{align*}
+%	\mathcal{C}\left(\left(b_0, b_1\right)\right) := \{(b_0, b'_1) \in \mathcal{N} \: | \left(b'_1 = b_1 || 0 \right) \lor \left(b'_1 = b_1 || 1 \right) \}
+%\end{align*}
+
+For $n_1 = \epsilon$ :
+\begin{align*}
+	\mathcal{C}\left(\left(b_0, b_1\right)\right) :=\:& \left\{(b_0 || 0, n_1), (n_0 || 1, n_1)\right\}\\
+	\cup & \left\{(n_0, b_1 || 0), (n_0, b_1 || 1) \right\}
+\end{align*}
+
+For $n_1 \in \bigcup_{j \in \{1,2,...,B_z-1\}} \{0,1\}^{j}$ :
+\begin{align*}
+	\mathcal{C}\left(\left(n_0, n_1\right)\right) :=\:& \left\{(n_0, n_1 || 0), (n_0, n_1 || 1) \right\}
+\end{align*}
+
+And for leafs ($n_1 \in \{0,1\}^{B_z}$)
+\begin{align*}
+	C\left(\left(n_0, n_1\right)\right) := \{ \}
+\end{align*}
+
+In words the first entry in the pair encodes the $x$ (longitude) and $y$ (latitude) coordinates and the second one the $z$ (altitude).
+Let \emph{2D bit string} denote the first entry of a pair and \emph{$z$ bit string} the second one.
+% Moreover let \emph{left child} denote the bit string obtained by appending a zero and \emph{right child} the one obtained by appending a one.
+Each node with an empty $z$ bit string has exactly four children:
+Two with an the empty string as their $z$ bit string where the 2D bit strings are obtained by appending a zero and a one to the parent's.
+And another two children with the same 2D bit strings as the parent's but a zero and a one as their $z$ bit string.
+Each node with a non-empty $z$ bit string has exactly two children that have are obtained by appending a zero and a one to the parent's $z$ bit string. The 2D bit string is equal to the parent's for both children.
+
+To have spatially close points somewhat close together in the SMT, the space-filling $Z$-order curve is used to sort the two dimensional locations in one dimension \cite{morton_computer_1966} for the 2D bit strings.
+The $Z$-order curve is obtained by simply interleaving the binary encoding of the two coordinates.
+
+\subsection{Mapping a Spatial Point to a Bit String Pair}
+\label{sec:data-structure:mapping-spatial-point}
 A point tuple $p := (x,y,z)$ at longitude $x$, latitude $y$ and altitude $z$ with
 \begin{align*}
 	(x, y, z) &\in [-180, 180] \times [-90, 90] \times [D, H]
@@ -130,10 +181,7 @@ is first discretized to integer coordinates as follows:
 \begin{align}
 \begin{split}
 \label{eq:discretization}
-p' :&=
-(x_d,y_d, z_d)
-\\
-& =
+(\hat{x},\hat{y}, \hat{z}) := &
 \left(
 %
 \left\lfloor
@@ -149,77 +197,31 @@ p' :&=
 \right\rfloor
 %
 \right)
+\\
+\in &\left\{0, 1, ..., 2^{B_x} - 1\right\} \times\\
+& \left\{0, 1, ..., 2^{B_y} - 1\right\} \times \\
+& \left\{0, 1, ..., 2^{B_z} - 1\right\}
 \end{split}
 \end{align}
 
-After this transformation the following folds:
 
+The first term in the longitude and latitude values can be at most $1$ and since $C_x$ and $C_y$ are the maximum values that can be represented using $B_x$ and $B_y$ bits, respectively, the second statement holds for the longitude and latitude.
+The statement also holds for the altitude because the subtracting $D$ changes the range to $[0, H - D]$ that after rounding down can by definition be represented using $B_z$ bits.
+Let $(\tilde{x}, \tilde{y}, \tilde{z})$ be their big-endian integer binary encoding with
 \begin{align*}
-	p' &\in [0, 2^{B_x}) \times [0, 2^{B_y}) \times [0, 2^{B_z})
+	(\tilde{x}, \tilde{y}, \tilde{z}) &\in \{0,1\}^{B_{x}} \times \{0,1\}^{B_{y}} \times \{0,1\}^{B_z}
 \end{align*}
 
-This formula holds since the first term in the longitude and latitude tuples can be at most $1$ and since $C_x$ and $C_y$ are the maximum values that can be represented using $B_x$ and $B_y$ bits, respectively.
-Moreover $H - D = 2^{B_z} - 1$ holds meaning the altitude can be represented using $B_z$ bits.
-The three resulting integer numbers can now be represented using $B_{x}$, $B_{y}$ and $B_z$ bits, respectively. Let $p'' := (x_b, y_b, z_b)$ be their big-endian integer binary encoding with
-\begin{align*}
-	p'' &\in \{0,1\}^{B_{x}} \times \{0,1\}^{B_{y}} \times \{0,1\}^{B_z}
-\end{align*}
-
-For $c \in \{x, y, z\}$ and for any integer $i \in \{0, ..., B_c-1\}$, let $c_{b,i}$ denote the $i$-th bit of $c_{b}$. Moreover let $||$ denote the concatenation operator.
-The binary representation $p_b$ of the point $p$ is then defined as
-\begin{align*}
-	p_b = \left(\concat_{i=0}^{B_{y} - 1} x_{b,i} || y_{b,i} \right) || x_{b,B_{x}-1} || \left(\concat_{i=0}^{B_{z}-1} z_{b,i} \right)
-\end{align*}
-
-In words, the binary representation of $p$ is the interleaving of the binary representation for the longitude and latitude concatenated to the binary representation of the altitude.
-
-\Cref{fig:leaf-representation:binary} shows an example of this binary encoding.
-
-% ($47.37643$, $8.54828$, $0$)
-
-%Storing a dense SMT with $2^{B} \leq (2^{10})^7 \approx (10^3)^7 = 10^{21}$ leaves is certainly infeasible but under the assumption that most leaves are empty it seems reasonable.
-
-\begin{figure}
-    \centering
-    \begin{subfigure}[t]{0.24\textwidth}
-        \includegraphics[width=\textwidth]{./resources/z-example/two-bits-z.png}
-        \caption{3D Z-Order Curve}
-        \label{fig:z-curve-example:two-bits}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[t]{0.24\textwidth}
-        \includegraphics[width=\textwidth]{./resources/z-example/two-bits.png}
-        \caption{2D Z-Order Curve with altitude in sequence}
-        \label{fig:z-curve-example:two-bits-optim}
-    \end{subfigure}
-    \caption{
-    	Difference between a standard 3D Z-order curve and the one used by GeoPKI when using two bits for all coordinates.
-    }
-    \label{fig:z-curve-example}
-\end{figure}
-
-\subsection{Leaf Geometric Representation}
-\label{sec:data-structure:leaf-geometry}
-Due to the floor functions in \Cref{eq:discretization}, the point $p''$ represents the volume where $p''$ is in the corner with the smallest coordinates in all three dimensions.
-By replacing the floor functions by mathematically rounding or the ceil function the volumetric representation changes.
-In case of the floor functions shown in \Cref{eq:discretization}, the point corresponding to $p''$ is
+For any integer $i \in \{0, ..., B_c-1\}$, let $\tilde{x}_{i}, \tilde{y}_{i}$ and $\tilde{z}_{i}$ denote the $i$-th bit of $\tilde{x}$, $\tilde{y}$ and $\tilde{z}$, respectively, with the first bit being the most significant one.
+The bit string pair corresponding of the point $p$ is then defined as
 \begin{align}
-\begin{split}
-\label{eq:leaf-geometric-point}
-\left(x_d \cdot \frac{360}{C_x} - 180,x_d \cdot \frac{180}{C_y} - 90, z_d \cdot u + D\right)
-\end{split}
-\end{align}
-and the volume represented by point $p''$ is given by
-\begin{align}
-\begin{split}
-\label{eq:leaf-geometric-volume}
-\left[x_d \cdot \frac{360}{C_x} - 180, (x_d + 1) \cdot \frac{360}{C_x} - 180\right) &\times\\
-\left[y_d \cdot \frac{180}{C_y} - 90, (y_d + 1) \cdot \frac{180}{C_y} - 90\right) &\times\\
-\left[D + z_d \cdot u, D + z_d \cdot u + 1 \right)&
-\end{split}
+	\label{eq:definition-bit-string-tuple}
+	\left(\left(\concat_{i=0}^{B_{y} - 1} \tilde{x}_{i} || \tilde{y}_{i} \right) || \tilde{x}_{B_{x}-1}, \concat_{i=0}^{B_{z}-1} \tilde{z}_{i}\right)
 \end{align}
 
-\Cref{fig:leaf-representation:geometric} shows the points and the corresponding volumes in the same color.
+In words, the bit string pair corresponding to $p$ is a pair of the interleaving of the binary representation for the longitude and latitude coordinates and the binary representation of the altitude.
+
+\Cref{fig:leaf-representation:binary} shows an example of this encoding.
 
 \begin{figure}
     \centering
@@ -240,93 +242,144 @@ and the volume represented by point $p''$ is given by
     \label{fig:leaf-representation}
 \end{figure}
 
-\subsection{Intermediate Nodes}
+\subsection{Geometric Interpretation of Nodes}
 \label{sec:data-structure:intermediate}
-Intermediate nodes in the SMT also correspond to a point and a volume following the same pattern as for the leaf nodes.
-The bit string corresponding to an intermediate node is simply the longest common prefix of it's two children and covers the whole volume of its two children.
-The left child is the node with the binary representation equal to the intermediate node one's concatenated with a zero and the right child concatenated with a one.
-The formula for computing the volume becomes more complex for intermediate nodes as it requires a case distinction:
-Let $s$ be the bit string of an intermediate node.
+All nodes in the SMT correspond to a point and a volume.
+The point interpretation directly follows from the discretization procedure described in \Cref{sec:data-structure:mapping-spatial-point}, the first entry in the bit string tuple encodes the longitude and latitude and the second entry encodes the altitude.
+The volume interpretation is based on this point interpretation.
+The volume of maximum length bit string tuples corresponds is the set of all points that would be mapped to it using the discretization procedure.
+Due to the floor functions in \Cref{eq:discretization}, the point whose coordinates are encoded by a bit string tuple, is in the corner with the smallest coordinates in all three dimensions inside that volume.
+\Cref{fig:leaf-representation:geometric} shows the points and the corresponding volumes in the same color.
+For non-maximum length bit string tuples, their volume interpretation is the union of the volumes of all children.
 
-Let $l$ be the length of $s$.
-Let $s_x$, $s_y$, $s_z$ be the bit prefixes encoded in $s$ corresponding to the longitude, latitude and altitude, respectively.
-Moreover let $l_x$, $l_y$ and $l_z$ be the lengths of $s_x$, $s_y$ and $s_z$, respectively, and let $s_{c,i}$ for $i \in \{0, ..., l_c-1\}$ and $c \in \{x, y, z\}$ correspond to the $i$-th bit of $s_c$.
-It holds that $l = l_x + l_y + l_z$ and it is possible that $l_x$ is by exactly one larger than $l_y$, otherwise $l_x = l_y$.
-This directly follows from the interleaved binary encoding described in \Cref{sec:data-structure:leaf-binary}.
-Let $x'_d$, $y'_d$, $z'_d$ be the most-precise integers that can be re-constructed with the given bits:
+This is now defined explicitly in a formal way by describing how any bit string tuple in $\mathcal{N}$ is interpreted as a point and as a volume.
+For any node $n \in \mathcal{N}$, let $(n_0, n_1)$ be the corresponding bit string pair and let $n_{\tilde{x}}, n_{\tilde{y}}$ and $n_{\tilde{z}}$ be the big endian binary encoding of the three coordinates embedded in $n_0$ and $n_1$ corresponding to the longitude, latitude and altitude, respectively.
+The values $\tilde{x}$ and $\tilde{y}$ obtained by de-interleaving $n_0$ which starts with an $x$ bit.
+The value $\tilde{z}$ is equal to $n_1$.
+This is a generalization of \Cref{eq:definition-bit-string-tuple} which defined the format for tree leaves.
+Next let $l_{\tilde{x}}$, $l_{\tilde{y}}$ and $l_{\tilde{z}}$ be the lengths of $n_{\tilde{x}}$, $n_{\tilde{y}}$ and $n_{\tilde{z}}$, respectively.
+Moreover let $n_{\tilde{x},i}$, $n_{\tilde{y},j}$ and $n_{\tilde{z},k}$ for any $i \in \{0, ..., l_{\tilde{x}}-1\}, j \in \{0, ..., l_{\tilde{y}}-1\}, k \in \{0, ..., l_{\tilde{z}}-1\}$ denote the $i$-th, $j$-th and $k$-th bit of $n_{\tilde{x}}, n_{\tilde{y}}$ and $n_{\tilde{z}}$, respectively.
+Then $n_{\hat{x}}$, $n_{\hat{y}}$, $n_{\hat{z}}$ are the most-precise integers that can be re-constructed with the given bit string prefixes:
 \begin{align}
 	\label{eq:intermediate-geometric-point-partial-height:x}
-	x'_d :&= \sum_{i=0}^{l_x - 1} 2^{B_{x,y} - 1 - i} \cdot s_{x,i}\\
+	n_{\hat{x}} :&= \sum_{i=0}^{l_{\tilde{x}} - 1} 2^{B_{x} - 1 - i} \cdot n_{\tilde{x}, i}\\
 	\label{eq:intermediate-geometric-point-partial-height:y}
-	y'_d :&= \sum_{i=0}^{l_y - 1} 2^{B_{x,y} - 1 - i} \cdot s_{y,i}\\
+	n_{\hat{y}} :&= \sum_{i=0}^{l_{\tilde{y}} - 1} 2^{B_{y} - 1 - i} \cdot n_{\tilde{y}, i}\\
 	\label{eq:intermediate-geometric-point-partial-height:z}
-	z'_d :&= \sum_{i=0}^{l_z - 1} 2^{B_{z} - 1 - i} \cdot s_{z,i}
+	n_{\hat{z}} :&= \sum_{i=0}^{l_{\tilde{z}} - 1} 2^{B_{z} - 1 - i} \cdot n_{\tilde{z}, i}
 \end{align}
 
 Then the corresponding point is given by
 \begin{align}
 \begin{split}
 \label{eq:intermediate-geometric-point-partial-height}
-\left(x'_d \cdot \frac{360}{C_x} - 180,y_d \cdot \frac{180}{C_y} - 90, D + z'_d \cdot u\right)
+\left(
+n_{\hat{x}} \cdot \frac{360}{C_x} - 180,
+n_{\hat{y}} \cdot \frac{180}{C_y} - 90,
+D + n_{\hat{z}} \cdot u
+\right)
 \end{split}
 \end{align}
 and the covered volume by
 \begin{align}
 \begin{split}
 \label{eq:intermediate-geometric-volume-full-height}
-\left[x'_d \cdot \frac{360}{C_x} - 180, (x_d + 2^{B_{x,y} - l_x}) \cdot \frac{360}{C_x} - 180\right) &\times\\
-\left[y'_d \cdot \frac{180}{C_y} - 90, (y_d + 2^{B_{x,y} - l_y}) \cdot \frac{180}{C_y} - 90\right) &\times\\
-\left[D + z'_d \cdot u, D + \left(z'_d + 2^{B_z - l_z}\right) \cdot u\right)&
+\left[
+n_{\hat{x}} \cdot \frac{360}{C_x} - 180,
+(n_{\hat{x}} + 2^{B_{x} - l_{\tilde{x}}}) \cdot \frac{360}{C_x} - 180
+\right) &\times\\
+\left[
+n_{\hat{y}} \cdot \frac{180}{C_y} - 90,
+(n_{\hat{y}} + 2^{B_{y} - l_{\tilde{y}}}) \cdot \frac{180}{C_y} - 90
+\right) &\times\\
+\left[
+D + n_{\hat{z}} \cdot u,
+D + \left(n_{\hat{z}} + 2^{B_z - l_{\tilde{z}}}
+\right) \cdot u\right)&
 \end{split}
 \end{align}
 
-This is the more general form of \Cref{eq:leaf-geometric-volume} and for $l_x = l_y = B_{x,y}$ and $l_z = B_z$ the two are equivalent.
+The $x'_d, y'_d, z'_d$ can also be computed by right padding the bit string to $B_x, B_y$ and $B_z$ bits with zeros and then interpreting the value as an integer.
+Similarly the upper bounds for the volume can also be computed by right padding them with ones, interpreting the result as an integer and increasing the value by one.
 
-It is worth nothing is that in GeoPKI, intermediate nodes also store a set of certificates.
-When using a tree representing the geography (which can reduce proof sizes as described in \Cref{sec:alternative-designs}), this is almost a requirement.
-Without this optimization, almost no leaf would be empty as almost all pieces of land on earth are claimed by at least one country.
-This would require enormous storage costs and result in less efficient queries.
+It is worth nothing is that in GeoPKI, all nodes can store a set of certificates.
+When using a tree representing the geography, this is almost a requirement as it allows the placement of certificates covering a large area higher up in the tree.
+Otherwise almost no leaf would be empty as most pieces of land on earth are claimed by at least one country.
+The resulting tree would certainly not be sparse and likely of infeasible size.
 
 \subsection{Sparse Merkle Hash Tree (SMT)}
 \label{sec:data-structure:SMT}
 
-The just described tree is combined with a SMT.
-As in F-PKI \cite{chuat_f-pki_2022}, each leaf stores a set of certificates.
-Let $C_0, C_1, ..., C_{n-1}$ be the sequence of certificates located in a leaf, sorted lexicographically by their SHA-256 hashes in ascending order.
-The hashes are computed on the PEM encoding of the X.509 certificates.
-The leaf's hash value is then defined as
+The just described tree is turned into a full SMT by defining the function $\mathcal{H}: \{0,1\}^{*} \times \{0,1\}^{*} \mapsto \{0,1\}^{256}$ mapping each possible bit string pair to a hash value.
+For bit string pairs not corresponding to a node in the tree, $\mathcal{H}$ is defined to return a default value, i.e.
 \begin{align}
-	\label{eq:hash-leaf}
-	H(0 || H(C_0) || H(C_1) || ... || H(C_n))
+	\forall n \in \left(\{0,1\}^{*} \times \{0,1\}^{*} \right) \backslash \: \mathcal{N}. \: \mathcal{H}(n) := H(\mathbbzero)
 \end{align}
-where $H$ is SHA-256.
-The hash value of an empty / non-existent leaf or intermediate node in the SMT is $H(0)$.
-An intermediate node in the tree has two children (two intermediate nodes or two leaves) and in GeoPKI also stores a set of certificates.
-As before, let $C_0, C_1, ..., C_{n-1}$ be the sequence of certificates located in an intermediate node, sorted lexicographically by the SHA-256 hashes of the PEM encoding in ascending order.
-Hash $h_3$ over the list of certificates is defined as
+where $\mathbbzero$ denotes the zero byte and $H: \{0,1\}^{*} \mapsto \{0,1\}^{256}$ is the SHA-256 hashing function.
+
+The data stored at nodes is a sequence of certificates denoted by $\mathcal{D}: \mathcal{N} \mapsto \left(c_i\right)_{i \in \mathbb{N}}$ where $\mathcal{L}: \mathcal{N} \mapsto \mathbb{N}$ for each nodes denotes the number of certificates in this sequence.
+The sequence of certificates is sorted lexicographically by their SHA-256 hashes in ascending order.
+The hashes are computed on the PEM encoding of the X.509 certificates.
+In contrast to other PKI systems such as F-PKI \cite{chuat_f-pki_2022}, in GeoPKI each node has an associated (possibly empty) sequence of certificates.
+
+If the sequence is indeed empty, the hash value corresponding to that node is also defined to be the same default value, i.e.
+\begin{align}
+	\forall n \in \{v \in \mathcal{N} \:|\: \mathcal{L}(v) = 0\}. \: \mathcal{H}(n) := H(\mathbbzero)
+\end{align}
+Hence the hash value of an empty or non-existent node in the SMT is always $H(\mathbbzero)$.
+
+A node $l$ is called a leaf if it does not have any children in the SMT, i.e. is a node whose $z$ bit string is of length $B_z$ (see \Cref{sec:data-structure}).
+The hash of a leaf is defined as follows:
+
+$\forall l \in \{v \in \mathcal{N} \: | \: \mathcal{L}(v) \neq 0 \land \mathcal{C}(l) = \emptyset \}$
+\begin{align}
+\begin{split}
+	\mathcal{H}(l) &:= H\left(\mathbbzero \: || \: \concat_{i \in \mathcal{L}(l)} H\left(\mathcal{D}(l)_i\right) \right)\\
+	\\% 
+	&= H\left(\mathbbzero \:||\: H(c_0) \:||\: H(c_1) \:||\: ... \:||\: H(c_{\mathcal{L}(n)-1}) \right)
+\end{split}
+\end{align}
+
+As usual in a merkle hash tree, for any intermediate node $n := (n_0, n_1)$, the hash function $\mathcal{H}(n)$ takes into account the hashes of $n$'s children.
+Let $h_{n,1}, h_{n,2}, h_{n,3}$ and $h_{n,4}$ be the hash values of $n$'s children.
+More specifically,
+
+$\forall l \in \{v \in \mathcal{N} \: | \: \mathcal{L}(v) \neq 0 \land \mathcal{C}(l) = \emptyset \}$
+\begin{align}
+\begin{split}
+	h_{n,1} &:= \mathcal{H}\left(\left(n_0 \:||\: 0, n_1\right)\right)
+	\\
+	h_{n,2} &:= \mathcal{H}\left(\left(n_0 \:||\: 1, n_1\right)\right)
+	\\
+	h_{n,3} &:= \mathcal{H}\left(\left(n_0, b_1 \:||\: 0\right)\right)
+	\\
+	h_{n,4} &:= \mathcal{H}\left(\left(n_0, n_1 \:||\: 1\right)\right)
+\end{split}
+\end{align}
+
+Finally to incorporate the certificate data stored at $l$, hash $h_{n,5}$ is defined as
 \begin{align}
 	\label{eq:hash-certs-intermediate-node}
-	h_3 := H(H(C_0) || H(C_1) || ... || H(C_n))
+	h_{n,5} := H\left(\concat_{i \in \mathcal{L}(n)} H\left(\mathcal{D}(n)_i\right)\right)
 \end{align}
-
-Then let $h_1$ and $h_2$ be the hash values of the left and right child of the intermediate node, respectively.
+Note that $h_{n,5}$ is only well-defined if $\mathcal{L}(n) \neq 0$.
 The hash value of the intermediate node is then defined as
-
 \begin{align}
 	\label{eq:hash-intermediate-node}
-	\left\{
+	\mathcal{H}(n) := \left\{
 	\begin{array}{lr}
-		H(1 || h_1 || h_2) & \text{if $n = 0$}\\
-		H(1 || h_1 || h_2 || h_3) & \text{if $n > 0$}
+		H(\mathbbone || h_{n,1} || h_{n,2} || h_{n,3} || h_{n,4}) & \text{if $\mathcal{L}(n) = 0$}\\
+		H(\mathbbone || h_{n,1} || h_{n,2} || h_{n,3} || h_{n,4} || h_{n,5}) & \text{if $\mathcal{L}(n) \neq 0$}
 	\end{array}\right.
 \end{align}
+where $\mathbbone$ is the byte encoding the integer one, i.e. the byte where only the least significant bit set.
 
-The constants $0$ and $1$ are prefixed in the hash computation to prevent collisions where a given hash $H(a || b)$ for some $a$ and $b$ could simultaneously refer to a leaf with content $a || b$ or a intermediate node with children hash values $a$ and $b$.
+The constants $\mathbbzero$ and $\mathbbone$ are prefixed in the hash computation to prevent collisions where a given hash $H(a || b)$ for some $a$ and $b$ could simultaneously refer to a leaf with content $a || b$ or a intermediate node with children hash values $a$ and $b$.
 
 %\subsection{Querying the SMT}
 %\label{sec:data-structure:query}
 %
-%Since many sizes of volumes can be represented by the binary format described in Sections \ref{sec:data-structure:leaf-binary} and \ref{sec:data-structure:intermediate}, it is for now assumed that the only type of query a GeoPKI map server supports is such a bit string.
+%Since many sizes of volumes can be represented by the binary format described in Sections \ref{sec:data-structure:mapping-spatial-point} and \ref{sec:data-structure:intermediate}, it is for now assumed that the only type of query a GeoPKI map server supports is such a bit string.
 %Such a bit string has a unique corresponding node in the tree (that might not exist as the tree is sparse).
 %The result then is the set of all certificates stored at intermediate nodes above the specified node (as these represent larger areas covering the queries point) and the set of all certificates stored in the subtree rooted at the specified node as these are within the queried area.
 %The former set corresponds to the set of nodes whose corresponding binary representation are a prefix for the given query.
@@ -673,7 +726,7 @@ The table \texttt{nodes} has the following columns:
 \begin{itemize}
 	\item \texttt{bit\_string} of type \texttt{bit varying (66)}
 	
-	Stores the bit strings described in Sections \ref{sec:data-structure:leaf-binary} and \ref{sec:data-structure:intermediate}.
+	Stores the bit strings described in Sections \ref{sec:data-structure:mapping-spatial-point} and \ref{sec:data-structure:intermediate}.
 	There is a non-clustered index on this column enabling fast point queries.
 	\item \texttt{bit\_string\_51} of type \texttt{bigint} (64 bit integer)
 	
