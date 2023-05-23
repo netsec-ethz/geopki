@@ -183,8 +183,13 @@ def voxel_bounds_to_2d_wkt_polygon(bounds: Tuple[GeodeticCoordinate, GeodeticCoo
 def level_to_altitude(
     min_level: Optional[str],
     max_level: Optional[str],
-    level: str
+    level: str,
+    surface_geodetic_altitude: Optional[float]
 ) -> Tuple[float, float]:
+
+    # if surface_geodetic_altitude is None -> 0
+    surface_geodetic_altitude = 0 if surface_geodetic_altitude is None else surface_geodetic_altitude
+
     if level == "@":
         # is a node
         # no floors in this building, just use the full height
@@ -202,7 +207,7 @@ def level_to_altitude(
             # --> don't have any reference points
             return DiscretizedVoxel.D, DiscretizedVoxel.H
         elif min_level == '' and max_level == '':
-            # some building without any areas / nodes within in
+            # some building / area without any areas / nodes within in
             return DiscretizedVoxel.D, DiscretizedVoxel.H
         else:
             # span the full height given by min_level and max_level
@@ -211,7 +216,19 @@ def level_to_altitude(
 
             # for now just assume one level is three meters
             # bound check in case of weirdly formatted data
-            return max(min_level * 3, DiscretizedVoxel.D), min((max_level + 1) * 3, DiscretizedVoxel.H)
+            return min(
+                max(
+                    surface_geodetic_altitude + min_level * 3,
+                    DiscretizedVoxel.D
+                ),
+                DiscretizedVoxel.H
+            ), min(
+                max(
+                    surface_geodetic_altitude + (max_level + 1) * 3,
+                    DiscretizedVoxel.D
+                ),
+                DiscretizedVoxel.H
+            )
     else:
         # use float(), apparently there is floor -0.5 in the dataset
         try:
@@ -225,11 +242,17 @@ def level_to_altitude(
             # bound check in case of weirdly formatted data
             return (
                 min(
-                    max(level * 3, DiscretizedVoxel.D),
+                    max(
+                        surface_geodetic_altitude + level * 3,
+                        DiscretizedVoxel.D
+                    ),
                     DiscretizedVoxel.H
                 ),
                 min(
-                    max((level + 1) * 3, DiscretizedVoxel.D),
+                    max(
+                        surface_geodetic_altitude + (level + 1) * 3,
+                        DiscretizedVoxel.D
+                    ),
                     DiscretizedVoxel.H
                 )
             )
@@ -310,6 +333,7 @@ def main(
         children = row['children']
         min_level = row['min_building_level']
         max_level = row['max_building_level']
+        surface_geodetic_altitude = row['surface_geodetic_altitude_aster_30'] if 'surface_geodetic_altitude_aster_30' in df.columns else None
 
         assert len(list_of_multipolygons) == len(list_of_levels)
 
@@ -332,7 +356,8 @@ def main(
                 altitude_min, altitude_max = level_to_altitude(
                     min_level,
                     max_level,
-                    level
+                    level,
+                    surface_geodetic_altitude=surface_geodetic_altitude
                 )
             except (ValueError, AssertionError):
                 print(row)
