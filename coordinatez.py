@@ -184,7 +184,6 @@ class DiscretizedVoxel:
     `Z_BITS = 15` for `U = 1`
     """
 
-    # the maximum discretized longitude, latitude and altitude values
     C_X = (1 << X_BITS) - 1
     """
     The maximum value of the discretized `x` coordinate.
@@ -263,7 +262,7 @@ class DiscretizedVoxel:
         "The number of bits used to encode `z_min`. Determines the size of the voxel."
 
     def get_x_bit_string(self) -> str:
-        "The bit string encoding the `x_min` value, i.e. the `y_precision` MSBs"
+        "The bit string encoding the `x_min` value, i.e. the `x_precision` MSBs"
         return bin(self.x_min)[2:].rjust(
             DiscretizedVoxel.X_BITS,
             '0'
@@ -306,12 +305,12 @@ class DiscretizedVoxel:
 
     def __str__(self) -> str:
         """
-        Returns a string representation of the discretized coordinate
+        Returns a string representation of the discretized coordinates
         """
         return (
-            f"X: [{self.x_min}, {self.get_x_max() + 1})\n"
-            f"Y: [{self.y_min}, {self.get_y_max() + 1})\n"
-            f"Z: [{self.z_min}, {self.get_z_max() + 1})"
+            f"X: [{self.x_min}, {self.get_x_max()})\n"
+            f"Y: [{self.y_min}, {self.get_y_max()})\n"
+            f"Z: [{self.z_min}, {self.get_z_max()})"
         )
 
     def to_bit_string_tuple(self) -> Tuple[str, str]:

@@ -485,22 +485,22 @@ def main(
 
         row.xy_left_child_hash = (
             bit_string_map[xy_left_child].hash if xy_left_child in bit_string_map
-            else DEFAULT_HASH
+            else None
         )
 
         row.xy_right_child_hash = (
             bit_string_map[xy_right_child].hash if xy_right_child in bit_string_map
-            else DEFAULT_HASH
+            else None
         )
 
         row.z_left_child_hash = (
             bit_string_map[z_left_child].hash if z_left_child in bit_string_map
-            else DEFAULT_HASH
+            else None
         )
 
         row.z_right_child_hash = (
             bit_string_map[z_right_child].hash if z_right_child in bit_string_map
-            else DEFAULT_HASH
+            else None
         )
 
         if not neighbor is None:
@@ -512,7 +512,7 @@ def main(
                 bit_string_map[neighbor].neighbor_hash = row.hash
             else:
                 # neighbor does not exist, own neighbor hash is set to the empty one
-                row.neighbor_hash = DEFAULT_HASH
+                row.neighbor_hash = None
 
          # compute this node's hash
         if len(xy_bit_string) == 51 and len(z_bit_string) == 15:

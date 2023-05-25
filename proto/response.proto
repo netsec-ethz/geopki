@@ -1,0 +1,29 @@
+syntax = "proto3";
+package geopki;
+
+option go_package = "pkg/comm";
+
+// a node corresponds to a database row
+message Node {
+  // the 52 bits of the xy bit string
+  uint64 XYBitString = 1;
+  uint32 XYBitStringLen = 2;
+
+  // the 15 bits of the z bit string
+  uint32 ZBitString = 3;
+  uint32 ZBitStringLen = 4;
+
+  // optional hash values for the neighbor and all children
+  optional bytes NeighborHash = 5;
+  optional bytes XYLeftChildHash = 6;
+  optional bytes XYRightChildHash = 7;
+  optional bytes ZLeftChildHash = 8;
+  optional bytes ZRightChildHash = 9;
+
+  // (optional) a list of certificate hashes
+  repeated bytes Certificate_hashes = 10;
+  // (optional) a list of certificates
+  repeated bytes Certificates = 11;
+}
+
+message Response { repeated Node Nodes = 1; }

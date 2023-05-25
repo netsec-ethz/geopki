@@ -1,0 +1,16 @@
+syntax = "proto3";
+package geopki;
+
+option go_package = "pkg/comm";
+
+message XYBitStringPair {
+  // the 52 bits of the xy bit string
+  uint64 XYBitString = 1;
+  uint32 XYBitStringLen = 2;
+}
+
+message Request {
+  repeated XYBitStringPair XYBitStringPairs = 1;
+  uint32 min_altitude = 2;
+  uint32 max_altitude = 3;
+}
