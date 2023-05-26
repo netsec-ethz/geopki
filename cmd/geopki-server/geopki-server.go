@@ -125,7 +125,7 @@ func (env *EndpointHandlerEnv) getBitStrings(c *gin.Context) {
 		return
 	}
 
-	requestBitStringPairs := request.GetXYBitStringPairs()
+	requestBitStringPairs := request.GetXYBitStrings()
 
 	if len(requestBitStringPairs) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -191,14 +191,14 @@ func (env *EndpointHandlerEnv) getBitStrings(c *gin.Context) {
 
 		// clear all unused bits, i.e. extend the bit string to 64 bits with zeros
 		// then shift it to the right to only take into account the 51 bits we're interested in
-		bitStringMinInt := bitStringPair.XYBitString & (math.MaxUint64 << (64 - bitStringPair.XYBitStringLen))
+		bitStringMinInt := bitStringPair.XYBitString & (uint64(math.MaxUint64) << (64 - bitStringPair.XYBitStringLen))
 		// to interpret is as a (big-endian) integer, we shift it to the right by 64 - 51 bits
 		// previously the relevant 51 bits were at the beginning of the 64 bits, afterwards the
 		// are at the end
 		bitStringMinInt = bitStringMinInt >> (64 - 51)
 
 		// same as before but now we set all unused bits, i.e. extend the bit string to 64 bits with ones
-		bitStringMaxInt := bitStringPair.XYBitString | (math.MaxUint64 >> (64 - bitStringPair.XYBitStringLen))
+		bitStringMaxInt := bitStringPair.XYBitString | (uint64(math.MaxUint64) >> (64 - bitStringPair.XYBitStringLen))
 		bitStringMaxInt = bitStringMaxInt >> (64 - 51)
 
 		// in general fmt.Sprintf is not prone to SQL injections but since the user input is
@@ -291,10 +291,14 @@ func (env *EndpointHandlerEnv) getBitStrings(c *gin.Context) {
 		// create new node instance from loaded data
 		node := database.Node{
 			RawBitStringPair: bitstring.RawBitStringPair{
-				XYBitString:    binary.BigEndian.Uint64(XYBitString),
-				XYBitStringLen: uint8(dbXYBitString.Len),
-				ZBitString:     binary.BigEndian.Uint16(ZBitString),
-				ZBitStringLen:  uint8(dbZBitString.Len),
+				RawXYBitString: bitstring.RawXYBitString{
+					XYBitString:    binary.BigEndian.Uint64(XYBitString),
+					XYBitStringLen: uint8(dbXYBitString.Len),
+				},
+				RawZBitString: bitstring.RawZBitString{
+					ZBitString:    binary.BigEndian.Uint16(ZBitString),
+					ZBitStringLen: uint8(dbZBitString.Len),
+				},
 			},
 
 			XYLeftChildHash:  dbXYLeftChildHash,

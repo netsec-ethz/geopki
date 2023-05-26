@@ -17,6 +17,6 @@ type Node struct {
 }
 
 // returns XYBitString and ZBitString as a pair struct
-func (node Node) Pair() bitstring.RawBitStringPair {
+func (node *Node) Pair() bitstring.RawBitStringPair {
 	return node.RawBitStringPair
 }

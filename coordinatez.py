@@ -818,7 +818,7 @@ def polygons_to_2d_bit_strings(
 
                     if y_next < 0:
                         # the y-coordinate 'flips', we can account for this
-                        # by only rotating around x and set y to 0
+                        # by only rotating around x and set y to 0 (smallest coordinate of voxel)
                         y_next = 0
                         # if we overflow, the x coordinate wraps around
                         x_next = (

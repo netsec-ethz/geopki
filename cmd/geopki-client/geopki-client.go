@@ -13,12 +13,17 @@ import (
 	"geopki/pkg/bitstring"
 	"geopki/pkg/comm"
 
+	"github.com/golang/geo/s2"
 	"google.golang.org/protobuf/proto"
 )
 
 type ErrorResponse struct {
 	Error string
 }
+
+const (
+	F_GROW = 1
+)
 
 func main() {
 	var address string
@@ -52,41 +57,45 @@ func main() {
 		)
 	}
 
-	if radius > math.MaxInt16 {
-		log.Fatal("Invalid radius value, must be in the range [-90, 90]")
+	if radius > math.MaxUint8 {
+		log.Fatal("Invalid radius value, must be smaller than 255")
 	}
 
-	pair, err := bitstring.BitStringPairFromGeodeticCoordinates(
+	sphere := bitstring.ApproximateSphere(
 		longitude,
 		latitude,
-		altitude,
+		uint8(radius),
+		16,
 	)
 
+	bitStrings, err := bitstring.PolygonsTo2DBitStrings(
+		[]*s2.Loop{sphere},
+		F_GROW,
+	)
 	if err != nil {
 		log.Fatalf(
-			"Failed parsing bit string pair: %v\n",
+			"Failed approximating the sphere: %v\n",
 			err,
 		)
 	}
-
-	rawPair := pair.RawBitStringPair()
 
 	altitudeInt := int16(altitude)
 
 	minAltitude := altitudeInt - bitstring.D - int16(radius)
 	maxAltitude := altitudeInt - bitstring.D + int16(radius)
 
-	pairs := make([]*comm.XYBitStringPair, 0)
-
-	pairs = append(pairs, &comm.XYBitStringPair{
-		XYBitString:    rawPair.XYBitString,
-		XYBitStringLen: uint32(rawPair.XYBitStringLen),
-	})
+	queries := make([]*comm.XYBitString, len(bitStrings))
+	for i, bitString := range bitStrings {
+		queries[i] = &comm.XYBitString{
+			XYBitString:    bitString.XYBitString,
+			XYBitStringLen: uint32(bitString.XYBitStringLen),
+		}
+	}
 
 	request, err := proto.Marshal(&comm.Request{
-		XYBitStringPairs: pairs,
-		MinAltitude:      uint32(minAltitude),
-		MaxAltitude:      uint32(maxAltitude),
+		XYBitStrings: queries,
+		MinAltitude:  uint32(minAltitude),
+		MaxAltitude:  uint32(maxAltitude),
 	})
 
 	if err != nil {
@@ -95,6 +104,8 @@ func main() {
 			err,
 		)
 	}
+
+	log.Fatalf("success, computed %d bit strings", len(bitStrings))
 
 	plainResponse, err := http.Post(
 		"http://localhost:1234/v1/get-bit-strings",
