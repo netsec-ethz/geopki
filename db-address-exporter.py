@@ -4,7 +4,7 @@ import numpy as np
 from tqdm import tqdm
 from typing import Dict, List, Tuple, Optional, Set
 from shapely import Polygon, MultiPolygon, box, to_geojson
-from coordinates import ZOrderBitString, GeodeticCoordinate, extruded_polygons_to_bit_strings
+from coordinates import ZOrderBitString, GeodeticCoordinate, extruded_polygons_to_bit_strings, polygons_to_2d_bit_strings
 from coordinatez import DiscretizedVoxel, extruded_polygons_to_bit_string_tuples
 import matplotlib.pyplot as plt
 import json
@@ -268,16 +268,16 @@ def level_to_altitude(
 # The place to store the output
 @click.argument('output_path_nodes', type=click.Path(exists=False))
 @click.argument('output_path_certificates', type=click.Path(exists=False))
-@click.option('--plot', 'plot', flag_value=True, default=False)
 @click.option('--bitstring-zsub', 'mode', flag_value='bitstring-int-z-subtrees', default='bitstring-int-z-subtrees')
 @click.option('--bitstring', 'mode', flag_value='bitstring-int')
 @click.option('--spatial', 'mode', flag_value='spatial')
+@click.option('--full', 'full', flag_value=True, default=False)
 def main(
     input_path: str,
     output_path_nodes: str,
     output_path_certificates: str,
-    plot: bool,
     mode: str,
+    full: bool,
 ):
 
     if not mode in ["bitstring-int-z-subtrees", "bitstring-int", "spatial"]:
@@ -408,12 +408,22 @@ def main(
 
                 try:
 
-                    for bit_string, _, _ in extruded_polygons_to_bit_strings(
-                        polygons=shapely_polygons,
-                        altitude_min=altitude_min,
-                        altitude_max=altitude_max,
-                        f_grow=INITIAL_AREA_FRACTION
-                    ):
+                    if full:
+                        bit_strings, _, _ in extruded_polygons_to_bit_strings(
+                            polygons=shapely_polygons,
+                            altitude_min=altitude_min,
+                            altitude_max=altitude_max,
+                            f_grow=INITIAL_AREA_FRACTION
+                        )
+                    else:
+                        bit_strings = polygons_to_2d_bit_strings(
+                            polygons=shapely_polygons,
+                            f_grow=INITIAL_AREA_FRACTION,
+                            # always over-approximate
+                            f_min=0
+                        )
+
+                    for bit_string in bit_strings:
                         if (bit_string, '') in bit_string_map:
                             bit_string_map[(bit_string, '')].certificate_hashes.add(
                                 geo_cert.hash()
@@ -485,22 +495,22 @@ def main(
 
         row.xy_left_child_hash = (
             bit_string_map[xy_left_child].hash if xy_left_child in bit_string_map
-            else None
+            else DEFAULT_HASH
         )
 
         row.xy_right_child_hash = (
             bit_string_map[xy_right_child].hash if xy_right_child in bit_string_map
-            else None
+            else DEFAULT_HASH
         )
 
         row.z_left_child_hash = (
             bit_string_map[z_left_child].hash if z_left_child in bit_string_map
-            else None
+            else DEFAULT_HASH
         )
 
         row.z_right_child_hash = (
             bit_string_map[z_right_child].hash if z_right_child in bit_string_map
-            else None
+            else DEFAULT_HASH
         )
 
         if not neighbor is None:
@@ -574,10 +584,14 @@ def main(
             2
         )
         neighbor_hash = "NULL" if row.neighbor_hash is None else f"E'\\\\x{row.neighbor_hash.hex()}'"
-        xy_left_child_hash = "NULL" if row.xy_left_child_hash is None else f"E'\\\\x{row.xy_left_child_hash.hex()}'"
-        xy_right_child_hash = "NULL" if row.xy_right_child_hash is None else f"E'\\\\x{row.xy_right_child_hash.hex()}'"
-        z_left_child_hash = "NULL" if row.z_left_child_hash is None else f"E'\\\\x{row.z_left_child_hash.hex()}'"
-        z_right_child_hash = "NULL" if row.z_right_child_hash is None else f"E'\\\\x{row.z_right_child_hash.hex()}'"
+        xy_left_child_hash = "NULL" if (row.xy_left_child_hash is None or row.xy_left_child_hash ==
+                                        DEFAULT_HASH) else f"E'\\\\x{row.xy_left_child_hash.hex()}'"
+        xy_right_child_hash = "NULL" if (row.xy_right_child_hash is None or row.xy_right_child_hash ==
+                                         DEFAULT_HASH) else f"E'\\\\x{row.xy_right_child_hash.hex()}'"
+        z_left_child_hash = "NULL" if (row.z_left_child_hash is None or row.z_left_child_hash ==
+                                       DEFAULT_HASH) else f"E'\\\\x{row.z_left_child_hash.hex()}'"
+        z_right_child_hash = "NULL" if (row.z_right_child_hash is None or row.z_right_child_hash ==
+                                        DEFAULT_HASH) else f"E'\\\\x{row.z_right_child_hash.hex()}'"
         certificate_hashes = f",".join(
             [
                 f"E'\\\\x{h.hex()}'::bytea"
