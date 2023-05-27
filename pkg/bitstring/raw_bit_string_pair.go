@@ -1,7 +1,7 @@
 package bitstring
 
 import (
-	"log"
+	"fmt"
 	"math"
 )
 
@@ -36,6 +36,16 @@ func min(a, b uint8) uint8 {
 		return a
 	}
 	return b
+}
+
+// checks if the node is the root node
+func (pair RawBitStringPair) IsRoot() bool {
+	return pair.XYBitStringLen == 0 && pair.ZBitStringLen == 0
+}
+
+// checks for equality
+func (pair RawBitStringPair) Equals(other RawBitStringPair) bool {
+	return pair.XYBitStringLen == other.XYBitStringLen && pair.ZBitStringLen == other.ZBitStringLen && pair.XYBitString == other.XYBitString && pair.ZBitString == other.ZBitString
 }
 
 // returns an ancestor
@@ -143,15 +153,15 @@ func (pair *RawXYBitString) LeftChild() RawXYBitString {
 }
 
 // returns XYBitString and ZBitString of the xyLeftChild as a pair struct
-func (pair *RawBitStringPair) XYLeftChildPair() RawBitStringPair {
+func (pair *RawBitStringPair) XYLeftChildPair() (RawBitStringPair, error) {
 	if pair.ZBitStringLen > 0 {
-		log.Fatal("Cannot call .XYLeftChildPair() on non 2D bit string")
+		return RawBitStringPair{}, fmt.Errorf("cannot call .XYLeftChildPair() on non 2D bit string")
 	}
 
 	return RawBitStringPair{
 		RawXYBitString: pair.RawXYBitString.LeftChild(),
 		RawZBitString:  pair.RawZBitString,
-	}
+	}, nil
 }
 
 // returns the right child
@@ -165,15 +175,15 @@ func (pair *RawXYBitString) RightChild() RawXYBitString {
 }
 
 // returns XYBitString and ZBitString of the xyRightChild as a pair struct
-func (pair *RawBitStringPair) XYRightChildPair() RawBitStringPair {
+func (pair *RawBitStringPair) XYRightChildPair() (RawBitStringPair, error) {
 	if pair.ZBitStringLen > 0 {
-		log.Fatal("Cannot call .XYRightChildPair() on non 2D bit string")
+		return RawBitStringPair{}, fmt.Errorf("cannot call .XYRightChildPair() on non 2D bit string")
 	}
 
 	return RawBitStringPair{
 		RawXYBitString: pair.RawXYBitString.RightChild(),
 		RawZBitString:  pair.RawZBitString,
-	}
+	}, nil
 }
 
 // returns the left child
