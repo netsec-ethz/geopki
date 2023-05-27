@@ -34,10 +34,22 @@ func VerifyResponse(response *comm.Response, expectedRootHash []byte) ([][]byte,
 			return nil, fmt.Errorf("received zBitStringLen is greater than Z_BITS")
 		}
 
+		// check if bit strings are properly formatted
+		// by ANDing with mask to filter out only the bits that should be cleared
+		if (n.XYBitString & (uint64(math.MaxUint64) >> n.XYBitStringLen)) != 0 {
+			return nil, fmt.Errorf("received invalid xy bit string, the lower bits are not all cleared")
+		}
+
+		// unfortunately protobufs do not support uint16 directly, two MSBs are unused
+		zBitString := uint16(n.ZBitString)
+		if (zBitString & (uint16(math.MaxUint16) >> n.ZBitStringLen)) != 0 {
+			return nil, fmt.Errorf("received invalid z bit string, the lower bits are not all cleared")
+		}
+
 		node := NewTreeNode(
 			n.XYBitString,
 			uint8(n.XYBitStringLen),
-			uint16(n.ZBitString),
+			zBitString,
 			uint8(n.ZBitStringLen),
 			n.CertificateHashes,
 		)
