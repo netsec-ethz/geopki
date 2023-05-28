@@ -350,7 +350,6 @@ l = sphere_to_coarse_2d_binary_strings(
     ),
     radius_m=10,
     f_grow=1,
-    f_min=0.2,
     plot=True
 )
 
