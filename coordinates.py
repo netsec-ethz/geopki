@@ -854,4 +854,4 @@ def sphere_to_coarse_2d_binary_strings(
 ):
     polygon = sphere_to_polygon(center, radius_m=radius_m)
 
-    return extruded_polygons_to_bit_strings([polygon], ZOrderBitString.D, ZOrderBitString.H, f_grow)[0]
+    return extruded_polygons_to_bit_strings([polygon], ZOrderBitString.D, ZOrderBitString.C_Z - ZOrderBitString.D, f_grow)[0]
