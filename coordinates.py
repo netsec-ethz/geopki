@@ -845,3 +845,13 @@ def extruded_polygons_to_bit_string_counts(
         results += max_int + 1
 
     return results, len(xy_bit_strings)
+
+
+def sphere_to_coarse_2d_binary_strings(
+        center: GeodeticCoordinate,
+        radius_m: float,
+        f_grow: float
+):
+    polygon = sphere_to_polygon(center, radius_m=radius_m)
+
+    return extruded_polygons_to_bit_strings([polygon], ZOrderBitString.D, ZOrderBitString.H, f_grow)[0]
