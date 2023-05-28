@@ -9,7 +9,7 @@ from tqdm import tqdm
 FILE_PATH = os.path.realpath(__file__)
 
 THREAD_VALUES = [1, 2, 4, 8, 16, 32, 64, 128]
-TIME_VALUES = [8]
+TIME_VALUES = [32]
 QUERY_RADIUS_VALUES = [10]
 
 
@@ -134,7 +134,6 @@ def main(
                 f"--time={time_s}",
                 f"--query-radius={query_radius_m}",
             ]
-            + ([] if mode is None else [f"--mode={mode}"])
             + (
                 [f"--excluding-bit-string-computation"]
                 if excluding_bit_string_computation else []
