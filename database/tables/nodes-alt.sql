@@ -4,12 +4,13 @@
 
 CREATE TABLE IF NOT EXISTS nodes
 (
-    bit_string character varying(66) COLLATE "C" NOT NULL,
+    bit_string bit varying(66) NOT NULL,
+    bit_string _txt character varying(66) COLLATE "C" NOT NULL,
     neighbor_hash bytea,
     left_child_hash bytea,
     right_child_hash bytea,
     certificate_hashes bytea[] NOT NULL DEFAULT '{}'::bytea[],
-    CONSTRAINT nodes_pkey PRIMARY KEY (bit_string)
+    CONSTRAINT nodes_pkey PRIMARY KEY (bit_string_txt)
 )
 
 TABLESPACE pg_default;
@@ -19,7 +20,7 @@ ALTER TABLE IF EXISTS public.nodes
 
 -- create index for more efficient pattern matching
 -- https://dba.stackexchange.com/a/291250
-CREATE INDEX nodes_bit_string_text_pattern_ops_idx ON nodes(bit_string COLLATE "C");
+CREATE INDEX nodes_bit_string_text_pattern_ops_idx ON nodes(bit_string_txt COLLATE "C");
 
 -- Cluster the rows based on the index
 ALTER TABLE IF EXISTS nodes CLUSTER ON nodes_bit_string_text_pattern_ops_idx;

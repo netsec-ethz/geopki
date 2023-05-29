@@ -175,17 +175,18 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                         ("SELECT COUNT(*) FROM (" if args.count_only else "") +
                         "UNION".join(
                             [
-                                f"(SELECT bit_string, certificate_hashes, neighbor_hash, left_child_hash, right_child_hash "
+                                f"((SELECT bit_string, certificate_hashes, neighbor_hash, left_child_hash, right_child_hash "
                                 f"FROM nodes "
                                 f"WHERE bit_string_txt IN (" +
-                                ','.join(["'" + bit_string[:i] + "'" for i in range(1, len(bit_string))]) +
-                                ") OR "
+                                ','.join(["'" + bit_string[:i] + "'" for i in range(0, len(bit_string))]) +
+                                ")) UNION ALL "
+                                f"(SELECT bit_string, certificate_hashes, neighbor_hash, left_child_hash, right_child_hash "
                                 f"("
                                 f"bit_string_txt LIKE '{bit_string}%' AND "
                                 # fix altitude for now
                                 f"min_altitude_of_bit_string(bit_string) <= {22767 - args.query_radius} AND "
                                 f"max_altitude_of_bit_string(bit_string) >= {22767 + args.query_radius}"
-                                f"))"
+                                f")))"
                                 for bit_string in bit_strings
                             ])
                         + (") as sq" if args.count_only else "")
