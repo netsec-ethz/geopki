@@ -38,11 +38,11 @@ CLUSTER nodes USING nodes_bit_string_text_pattern_ops_idx;
 
 -- Conversion from nodes-alt to nodes
 DROP INDEX nodes_bit_string_text_pattern_ops_idx;
-ALTER TABLE nodes ADD bit_string_bits character varying(66);
-UPDATE nodes SET bit_string_bits = bit_string::bit(66);
+-- ALTER TABLE nodes ADD bit_string_bits character varying(66);
+-- UPDATE nodes SET bit_string_bits = bit_string::bit(66);
 ALTER TABLE nodes DROP CONSTRAINT nodes_pkey;
-ALTER TABLE nodes RENAME COLUMN bit_string TO bit_string_txt;
-ALTER TABLE nodes RENAME COLUMN bit_string_bits TO bit_string;
+-- ALTER TABLE nodes RENAME COLUMN bit_string TO bit_string_txt;
+-- ALTER TABLE nodes RENAME COLUMN bit_string_bits TO bit_string;
 ALTER TABLE nodes ADD CONSTRAINT nodes_pkey PRIMARY KEY (bit_string);
 CREATE INDEX IF NOT EXISTS nodes_area_geom_idx ON public.nodes USING gist(area) TABLESPACE pg_default;
 ALTER TABLE IF EXISTS nodes CLUSTER ON nodes_area_geom_idx;
