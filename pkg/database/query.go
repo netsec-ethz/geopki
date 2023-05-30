@@ -2,6 +2,7 @@ package database
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"strconv"
@@ -16,7 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func BuildQueries(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uint16) []string {
+func BuildNodeQueries(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uint16) []string {
 	// generate a query for each requested bit string pair
 	// and put them in an slice
 	queries := make([]string, len(bitStrings))
@@ -79,18 +80,21 @@ func BuildQueries(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uint1
 	return queries
 }
 
-func BuildQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uint16) string {
-	return strings.Join(BuildQueries(bitStrings, minAltitude, maxAltitude), "UNION")
+func BuildNodeQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uint16) string {
+	return strings.Join(BuildNodeQueries(bitStrings, minAltitude, maxAltitude), "UNION")
 }
 
-func RowsToNodes(
+func RowsToNodesAndRootHash(
 	rows pgx.Rows,
 	expectedResults int,
-) ([]*comm.Node, error) {
+) ([]*comm.Node, crypto.SHA256Hash, []crypto.SHA256Hash, error) {
 	nodes := make([]*crypto.Node, 0, expectedResults)
 
 	// create a set of bit string pairs
 	bitStringSet := mapset.NewSet[bitstring.RawBitStringPair]()
+
+	var rootHash crypto.SHA256Hash
+	certificateHashes := make([][]byte, 0)
 
 	// these two byte arrays are re-used multiple times in the following
 	// allows for instance conversion between integers and byte arrays as well
@@ -117,7 +121,7 @@ func RowsToNodes(
 		)
 
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 
 		// grow bit strings to 8 and 2 byte arrays respectively
@@ -147,6 +151,24 @@ func RowsToNodes(
 
 		// add bit string pair to the set
 		bitStringSet.Add(node.Pair())
+
+		println(node.BitStringPair().BitStringPair())
+		println(hex.EncodeToString(dbNeighborHash), hex.EncodeToString(dbXYLeftChildHash), hex.EncodeToString(dbXYRightChildHash), hex.EncodeToString(dbZLeftChildHash), hex.EncodeToString(dbZRightChildHash))
+		println("")
+
+		// if it is the root, remember it
+		if node.IsRoot() {
+			rootHash = node.Hash()
+		}
+
+		// collect certificate hashes
+		certificateHashes = append(certificateHashes, dbCertificateHashes.Elements...)
+	}
+
+	// Any errors encountered by rows.Next or rows.Scan will be returned here
+	err := rows.Err()
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
 	responseNodes := make([]*comm.Node, len(nodes))
@@ -191,10 +213,48 @@ func RowsToNodes(
 			ZLeftChildHash:    node.ZLeftChildHash(false),
 			ZRightChildHash:   node.ZRightChildHash(false),
 			CertificateHashes: node.CertificateHashes,
-			Certificates:      [][]byte{},
 		}
 
 		responseNodes[i] = responseNode
+	}
+
+	return responseNodes, rootHash, certificateHashes, nil
+}
+
+func BuildCertificateQuery(certificateHashes []crypto.SHA256Hash) string {
+	encodedHashes := make([]string, len(certificateHashes))
+
+	for i, certificateHash := range certificateHashes {
+		encodedHashes[i] = fmt.Sprintf("E'\\x%s'", hex.EncodeToString(certificateHash))
+	}
+
+	return fmt.Sprintf(
+		"SELECT certificate "+
+			"FROM certificates "+
+			"WHERE certificate_hash IN (%s)",
+		strings.Join(encodedHashes, ","),
+	)
+}
+
+func RowsToCertificates(
+	rows pgx.Rows,
+	expectedResults int,
+) ([][]byte, error) {
+	certificates := make([][]byte, 0, expectedResults)
+
+	// Iterate through the result set
+	for rows.Next() {
+		var dbCertificate []byte
+
+		err := rows.Scan(
+			&dbCertificate,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		certificates = append(certificates, dbCertificate)
 	}
 
 	// Any errors encountered by rows.Next or rows.Scan will be returned here
@@ -203,5 +263,5 @@ func RowsToNodes(
 		return nil, err
 	}
 
-	return responseNodes, nil
+	return certificates, nil
 }

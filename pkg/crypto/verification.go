@@ -2,6 +2,8 @@ package crypto
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"encoding/hex"
 	"fmt"
 	"math"
 
@@ -9,41 +11,44 @@ import (
 	"geopki/pkg/comm"
 )
 
-var DEFAULT_HASH = []byte("\x6e\x34\x0b\x9c\xff\xb3\x7a\x98\x9c\xa5\x44\xe6\xbb\x78\x0a\x2c\x78\x90\x1d\x3f\xb3\x37\x38\x76\x85\x11\xa3\x06\x17\xaf\xa0\x1d")
+func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) error {
+	smh := NewSMHFromCommSMH(response.GetSignedMapHead())
 
-func VerifyResponse(response *comm.Response, expectedRootHash []byte) ([][]byte, error) {
+	if !smh.Verify(publicKey) {
+		return fmt.Errorf("signature on the SMH is invalid")
+	}
+
 	ns := response.GetNodes()
 	nodes := make([]*Node, len(ns))
 
 	bitStringMap := make(map[bitstring.RawBitStringPair]*Node)
 
 	var rootNode *Node
-	certificates := make([][]byte, 0)
 
 	for i, n := range ns {
 
 		if n.XYBitStringLen > uint32(bitstring.XY_BITS) {
-			return nil, fmt.Errorf("received xyBitStringLen is greater than XY_BITS")
+			return fmt.Errorf("received xyBitStringLen is greater than XY_BITS")
 		}
 
 		if n.ZBitString > math.MaxUint16 {
-			return nil, fmt.Errorf("received invalid ZBitString")
+			return fmt.Errorf("received invalid ZBitString")
 		}
 
 		if n.ZBitStringLen > uint32(bitstring.Z_BITS) {
-			return nil, fmt.Errorf("received zBitStringLen is greater than Z_BITS")
+			return fmt.Errorf("received zBitStringLen is greater than Z_BITS")
 		}
 
 		// check if bit strings are properly formatted
 		// by ANDing with mask to filter out only the bits that should be cleared
 		if (n.XYBitString & (uint64(math.MaxUint64) >> n.XYBitStringLen)) != 0 {
-			return nil, fmt.Errorf("received invalid xy bit string, the lower bits are not all cleared")
+			return fmt.Errorf("received invalid xy bit string, the lower bits are not all cleared")
 		}
 
 		// unfortunately protobufs do not support uint16 directly, two MSBs are unused
 		zBitString := uint16(n.ZBitString)
 		if (zBitString & (uint16(math.MaxUint16) >> n.ZBitStringLen)) != 0 {
-			return nil, fmt.Errorf("received invalid z bit string, the lower bits are not all cleared")
+			return fmt.Errorf("received invalid z bit string, the lower bits are not all cleared")
 		}
 
 		node := NewTreeNode(
@@ -54,9 +59,12 @@ func VerifyResponse(response *comm.Response, expectedRootHash []byte) ([][]byte,
 			n.CertificateHashes,
 		)
 
+		// print("received ")
+		// println(node.RawBitStringPair.BitStringPair().BitStringPair())
+
 		_, ok := bitStringMap[node.RawBitStringPair]
 		if ok {
-			return nil, fmt.Errorf("received two nodes with the same bit string")
+			return fmt.Errorf("received two nodes with the same bit string")
 		}
 
 		bitStringMap[node.RawBitStringPair] = node
@@ -65,12 +73,10 @@ func VerifyResponse(response *comm.Response, expectedRootHash []byte) ([][]byte,
 		if node.IsRoot() {
 			rootNode = node
 		}
-
-		certificates = append(certificates, n.Certificates...)
 	}
 
 	if rootNode == nil {
-		return nil, fmt.Errorf("response did not contain the root node")
+		return fmt.Errorf("response did not contain the root node")
 	}
 
 	// build the tree
@@ -80,7 +86,7 @@ func VerifyResponse(response *comm.Response, expectedRootHash []byte) ([][]byte,
 		if n.neighborHash == nil {
 			neighbor, ok := bitStringMap[node.NeighborPair()]
 
-			if !ok {
+			if ok {
 				node.SetNeighbor(neighbor)
 			}
 
@@ -95,7 +101,7 @@ func VerifyResponse(response *comm.Response, expectedRootHash []byte) ([][]byte,
 			childBitString, err := node.XYLeftChildPair()
 			// if err == nil child does not exist -> default hash -> do nothing
 
-			if err != nil {
+			if err == nil {
 				child, ok := bitStringMap[childBitString]
 
 				if ok {
@@ -114,7 +120,7 @@ func VerifyResponse(response *comm.Response, expectedRootHash []byte) ([][]byte,
 			childBitString, err := node.XYRightChildPair()
 			// if err == nil child does not exist -> default hash -> do nothing
 
-			if err != nil {
+			if err == nil {
 				child, ok := bitStringMap[childBitString]
 
 				if ok {
@@ -160,18 +166,19 @@ func VerifyResponse(response *comm.Response, expectedRootHash []byte) ([][]byte,
 
 	// ensure all nodes are in the tree now
 	if len(ns) != rootNode.CountNodes() {
-		return nil, fmt.Errorf("received invalid tree, cannot use all nodes in tree")
+		return fmt.Errorf("received invalid tree, cannot use all nodes in tree. built tree has a height of %d, received %d nodes", rootNode.CountNodes(), len(ns))
 	}
 
 	// compute the root hash
 	rootHash := rootNode.Hash()
 
 	// verify root hash against SMH
-	println(rootHash)
-	if !bytes.Equal(rootHash, expectedRootHash) {
-		return nil, fmt.Errorf("computed root hash does not match the expected one")
+	println(hex.EncodeToString(rootHash))
+	println(hex.EncodeToString(response.SignedMapHead.RootHash))
+	if !bytes.Equal(rootHash, response.SignedMapHead.RootHash) {
+		return fmt.Errorf("computed root hash does not match the SMH")
 	}
 
 	// verification succeeded, return certificates
-	return certificates, nil
+	return nil
 }

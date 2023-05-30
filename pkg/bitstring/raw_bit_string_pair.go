@@ -38,6 +38,55 @@ func min(a, b uint8) uint8 {
 	return b
 }
 
+func deInterleaveOddBits(word uint64) uint32 {
+	// 0xAA = 10101010, alternating ones and zeros; starting with one
+	// 0x55 = 01010101, alternating ones and zeros; starting with zero
+
+	// zero all even bits
+	word = (word & 0x5555555555555555)
+	// after this we only want to move the bits closer together
+	// 0x33 = 00110011, alternating pairs of zeros and ones; starting with zeros
+	// copies odd bits to (cleared) even position to the right, leaves odd bits
+	// then masks out every other odd bit, they bits already moved closer together
+	// in groups of two
+	word = (word | (word >> 1)) & 0x3333333333333333
+	// 0x0F = 00001111, similar process to before but now groups of four
+	word = (word | (word >> 2)) & 0x0f0f0f0f0f0f0f0f
+	// 0x0F = 00001111, similar process to before but now groups of four
+	word = (word | (word >> 2)) & 0x0F0F0F0F0F0F0F0F
+	// similar process to before but now groups of 8
+	word = (word | (word >> 4)) & 0x00ff00ff00ff00ff
+	// similar process to before but now groups of 16
+	word = (word | (word >> 8)) & 0x0000ffff0000ffff
+	// similar process to before but now groups of 32
+	word = (word | (word >> 16)) & 0x00000000ffffffff
+
+	return uint32(word)
+}
+
+// de-interleaves the bits, returns the a pair of (even, odd) bits
+func deInterleaveUint64(input uint64) (uint32, uint32) {
+	return deInterleaveOddBits(input >> 1), deInterleaveOddBits(input)
+}
+
+// returns the bit string pair as strings
+func (pair RawBitStringPair) BitStringPair() *BitStringPair {
+	xMin, yMin := deInterleaveUint64(pair.XYBitString)
+
+	return &BitStringPair{
+		XYBitString: XYBitString{
+			xMin:       xMin,
+			xPrecision: (pair.XYBitStringLen + 1) / 2,
+			yMin:       yMin,
+			yPrecision: pair.XYBitStringLen / 2,
+		},
+		ZBitString: ZBitString{
+			zMin:       pair.ZBitString,
+			zPrecision: pair.ZBitStringLen,
+		},
+	}
+}
+
 // checks if the node is the root node
 func (pair RawBitStringPair) IsRoot() bool {
 	return pair.XYBitStringLen == 0 && pair.ZBitStringLen == 0

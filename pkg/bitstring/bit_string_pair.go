@@ -428,7 +428,7 @@ func (pair *BitStringPair) BitStringPair() (string, string) {
 }
 
 // https://lemire.me/blog/2018/01/08/how-fast-can-you-bit-interleave-32-bit-integers/
-// (GitHub says the code is public domain)
+// (REAME on Github says the code is public domain)
 func interleaveUint32WithZeros(input uint32) uint64 {
 	var word uint64 = uint64(input)
 

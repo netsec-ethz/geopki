@@ -3,6 +3,13 @@ package geopki;
 
 option go_package = "pkg/comm";
 
+message SignedMapHead {
+  bytes RootHash = 1;
+  uint64 Timestamp = 2;
+
+  bytes Signature = 3;
+}
+
 // a node corresponds to a database row
 message Node {
   // the 52 bits of the xy bit string
@@ -21,9 +28,12 @@ message Node {
   optional bytes ZRightChildHash = 9;
 
   // (optional) a list of certificate hashes
-  repeated bytes Certificate_hashes = 10;
-  // (optional) a list of certificates
-  repeated bytes Certificates = 11;
+  repeated bytes CertificateHashes = 10;
 }
 
-message Response { repeated Node Nodes = 1; }
+message Response {
+  SignedMapHead SignedMapHead = 1;
+  repeated Node Nodes = 2;
+
+  repeated bytes Certificates = 3;
+}

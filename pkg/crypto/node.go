@@ -8,8 +8,6 @@ import (
 	"geopki/pkg/bitstring"
 )
 
-type SHA256Hash = []byte
-
 type Node struct {
 	// the raw bit string associated with this node
 	bitstring.RawBitStringPair
@@ -389,7 +387,7 @@ func (node *Node) CountNodes() int {
 	}
 
 	if node.xyRightChild != nil {
-		c += node.xyLeftChild.CountNodes()
+		c += node.xyRightChild.CountNodes()
 	}
 
 	if node.zLeftChild != nil {

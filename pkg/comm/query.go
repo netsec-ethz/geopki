@@ -94,7 +94,7 @@ func Query(
 	// log.Fatalf("success, computed %d bit strings", len(bitStrings))
 
 	plainResponse, err := http.Post(
-		"http://localhost:1234/v1/get-bit-strings",
+		fmt.Sprintf("%s/v1/query", address),
 		"application/octet-stream",
 		bytes.NewBuffer(request),
 	)
@@ -132,8 +132,8 @@ func Query(
 		return nil, fmt.Errorf("received error message: %s", errorResponse.Error)
 	}
 
-	print("received response:")
-	fmt.Printf("%x", responseBody)
+	// println("received response:")
+	// fmt.Printf("%x\n", responseBody)
 
 	return response, nil
 }
