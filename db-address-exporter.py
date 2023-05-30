@@ -470,7 +470,7 @@ def main(
 
         row = bit_string_map[(xy_bit_string, z_bit_string)]
 
-        if len(xy_bit_string) == 0:
+        if len(xy_bit_string) == 0 and len(z_bit_string) == 0:
             # the root node does not have a neighbor
             neighbor = None
         else:
@@ -513,18 +513,7 @@ def main(
             else DEFAULT_HASH
         )
 
-        if not neighbor is None:
-            # only set the neighbor hash if it is not the root
-
-            if neighbor in bit_string_map:
-                # neighbor exists, set it's neighbor hash
-                # when iterating over the neighbor, this row's neighbor hash will be set
-                bit_string_map[neighbor].neighbor_hash = row.hash
-            else:
-                # neighbor does not exist, own neighbor hash is set to the empty one
-                row.neighbor_hash = None
-
-         # compute this node's hash
+        # compute this node's hash
         if len(xy_bit_string) == 51 and len(z_bit_string) == 15:
             # for leaves the hash is H(0 || H(C_0) || H(C_1) | ...)
             row.hash = hashlib.sha256(
@@ -551,6 +540,18 @@ def main(
                     row.z_left_child_hash +
                     row.z_right_child_hash
                 ).digest()
+
+        if not neighbor is None:
+            # only set the neighbor hash if it is not the root
+            # has to be done after the computation of the node's hash
+
+            if neighbor in bit_string_map:
+                # neighbor exists, set its neighbor's hash
+                # when iterating over the neighbor, this row's neighbor hash will be set
+                bit_string_map[neighbor].neighbor_hash = row.hash
+            else:
+                # neighbor does not exist, own neighbor hash is set to the empty one
+                row.neighbor_hash = None
 
     f = open(os.path.join(output_path_nodes, "part-0.sql"), "w")
     size = 0
