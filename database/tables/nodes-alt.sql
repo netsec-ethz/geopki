@@ -33,7 +33,7 @@ ALTER TABLE nodes DROP CONSTRAINT nodes_pkey;
 -- ALTER TABLE nodes RENAME COLUMN bit_string TO bit_string_bits;
 -- ALTER TABLE nodes RENAME COLUMN bit_string_txt TO bit_string;
 ALTER TABLE nodes ADD CONSTRAINT nodes_pkey PRIMARY KEY (bit_string_txt);
-CREATE INDEX nodes_bit_string_text_pattern_ops_idx ON nodes(bit_string_txt COLLATE "C");
+CREATE INDEX IF NOT EXISTS nodes_bit_string_text_pattern_ops_idx ON nodes(bit_string_txt COLLATE "C");
 ALTER TABLE IF EXISTS nodes CLUSTER ON nodes_bit_string_text_pattern_ops_idx;
 CLUSTER nodes USING nodes_bit_string_text_pattern_ops_idx;
 
