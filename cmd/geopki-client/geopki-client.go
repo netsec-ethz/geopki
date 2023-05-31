@@ -4,7 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/base64"
-	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"geopki/pkg/comm"
@@ -13,8 +13,6 @@ import (
 	"log"
 	"math"
 	"net/http"
-
-	mapset "github.com/deckarep/golang-set/v2"
 )
 
 const (
@@ -25,6 +23,7 @@ func main() {
 	var address string
 	var longitude, latitude, altitude float64
 	var radius uint64
+	var includeCertificates bool
 
 	var publicKeyBase64 string
 
@@ -33,6 +32,7 @@ func main() {
 	flag.Float64Var(&latitude, "latitude", 100, "The latitude to query for")
 	flag.Float64Var(&altitude, "altitude", math.Inf(0), "The altitude to query for")
 	flag.Uint64Var(&radius, "radius", 10, "The radius for the query in meters")
+	flag.BoolVar(&includeCertificates, "include-certificates", false, "Whether to include the certificates")
 	flag.StringVar(&publicKeyBase64, "public-key", "", "The public key used to verify the signatures.")
 	flag.Parse()
 
@@ -100,31 +100,30 @@ func main() {
 		latitude,
 		altitude,
 		radius,
+		includeCertificates,
 		F_GROW,
 	)
 	if err != nil {
 		log.Fatalf("request failed: %v\n", err)
 	}
 
-	err = crypto.VerifyResponse(response, publicKey)
+	certificateHashes, err := crypto.VerifyResponse(response, publicKey)
 	if err != nil {
 		log.Fatalf("response verification failed: %v\n", err)
 	}
 
 	fmt.Printf("✅ Cryptographic verification of response succeeded!\n")
 
-	// filter out duplicate hashes, a single certificate can be stored
-	// at multiple nodes
-	certificateHashes := mapset.NewSet[string]()
-	for _, node := range response.Nodes {
-		for _, certificateHash := range node.CertificateHashes {
-			certificateHashes.Add(hex.EncodeToString(certificateHash))
-		}
-	}
-
-	fmt.Printf("🚀 Received %d certificate hashes:\n", certificateHashes.Cardinality())
+	fmt.Printf("📡 Received %d certificate hashes:\n", certificateHashes.Cardinality())
 	for _, certificateHash := range certificateHashes.ToSlice() {
 		fmt.Printf("    %s\n", certificateHash)
 	}
-	fmt.Printf("🚀 Received %d certificates\n", len(response.Certificates))
+	fmt.Printf("📡 Received %d certificates\n", len(response.GetCertificates()))
+	for _, rawCertificate := range response.GetCertificates() {
+		// TODO: later this will probably parse a x509 certificate
+		certificate := new(crypto.GeoCertificate)
+		json.Unmarshal(rawCertificate, certificate)
+
+		fmt.Printf("    %s, %s\n", certificate.Domain, certificate.Certificate_id)
+	}
 }

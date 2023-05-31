@@ -3,18 +3,24 @@ package crypto
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"math"
 
 	"geopki/pkg/bitstring"
 	"geopki/pkg/comm"
+
+	mapset "github.com/deckarep/golang-set/v2"
 )
 
-func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) error {
+// verifies a recieved response based on a public key
+// and returns the set of all certificate hashes as hex strings
+func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) (mapset.Set[string], error) {
 	smh := NewSMHFromCommSMH(response.GetSignedMapHead())
 
 	if !smh.Verify(publicKey) {
-		return fmt.Errorf("signature on the SMH is invalid")
+		return nil, fmt.Errorf("signature on the SMH is invalid")
 	}
 
 	ns := response.GetNodes()
@@ -27,27 +33,27 @@ func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) error {
 	for i, n := range ns {
 
 		if n.XYBitStringLen > uint32(bitstring.XY_BITS) {
-			return fmt.Errorf("received xyBitStringLen is greater than XY_BITS")
+			return nil, fmt.Errorf("received xyBitStringLen is greater than XY_BITS")
 		}
 
 		if n.ZBitString > math.MaxUint16 {
-			return fmt.Errorf("received invalid ZBitString")
+			return nil, fmt.Errorf("received invalid ZBitString")
 		}
 
 		if n.ZBitStringLen > uint32(bitstring.Z_BITS) {
-			return fmt.Errorf("received zBitStringLen is greater than Z_BITS")
+			return nil, fmt.Errorf("received zBitStringLen is greater than Z_BITS")
 		}
 
 		// check if bit strings are properly formatted
 		// by ANDing with mask to filter out only the bits that should be cleared
 		if (n.XYBitString & (uint64(math.MaxUint64) >> n.XYBitStringLen)) != 0 {
-			return fmt.Errorf("received invalid xy bit string, the lower bits are not all cleared")
+			return nil, fmt.Errorf("received invalid xy bit string, the lower bits are not all cleared for ")
 		}
 
 		// unfortunately protobufs do not support uint16 directly, two MSBs are unused
 		zBitString := uint16(n.ZBitString)
 		if (zBitString & (uint16(math.MaxUint16) >> n.ZBitStringLen)) != 0 {
-			return fmt.Errorf("received invalid z bit string, the lower bits are not all cleared")
+			return nil, fmt.Errorf("received invalid z bit string, the lower bits are not all cleared")
 		}
 
 		node := NewTreeNode(
@@ -62,12 +68,9 @@ func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) error {
 			n.GetCertificateHashes(),
 		)
 
-		// print("received ")
-		// println(node.RawBitStringPair.BitStringPair().BitStringPair())
-
 		_, ok := bitStringMap[node.RawBitStringPair]
 		if ok {
-			return fmt.Errorf("received two nodes with the same bit string")
+			return nil, fmt.Errorf("received two nodes with the same bit string")
 		}
 
 		bitStringMap[node.RawBitStringPair] = node
@@ -79,7 +82,7 @@ func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) error {
 	}
 
 	if rootNode == nil {
-		return fmt.Errorf("response did not contain the root node")
+		return nil, fmt.Errorf("response did not contain the root node")
 	}
 
 	// build the tree
@@ -158,7 +161,7 @@ func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) error {
 
 	// ensure all nodes are in the tree now
 	if len(ns) != rootNode.CountNodes() {
-		return fmt.Errorf("received invalid tree, cannot use all nodes in tree. built tree has a height of %d, received %d nodes", rootNode.CountNodes(), len(ns))
+		return nil, fmt.Errorf("received invalid tree, cannot use all nodes in tree. built tree has a height of %d, received %d nodes", rootNode.CountNodes(), len(ns))
 	}
 
 	// compute the root hash
@@ -166,9 +169,29 @@ func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) error {
 
 	// verify root hash against SMH
 	if !bytes.Equal(rootHash, response.SignedMapHead.RootHash) {
-		return fmt.Errorf("computed root hash does not match the SMH")
+		return nil, fmt.Errorf("computed root hash does not match the SMH")
+	}
+
+	// verify that all received certificate's hash is in one of the nodes
+
+	// first compute the set of all certificate hashes
+	// unfortunately in string form since []byte is not comparable
+	certificateStringHashes := mapset.NewSet[string]()
+	for _, node := range response.Nodes {
+		for _, certificateHash := range node.CertificateHashes {
+			certificateStringHashes.Add(hex.EncodeToString(certificateHash))
+		}
+	}
+
+	for _, certificate := range response.GetCertificates() {
+		hash := sha256.Sum256(certificate)
+		hashString := hex.EncodeToString(hash[:])
+
+		if !certificateStringHashes.Contains(hashString) {
+			return nil, fmt.Errorf("certificate with hash '%s' is part of the response but is not contained in any node", hashString)
+		}
 	}
 
 	// verification succeeded, return certificates
-	return nil
+	return certificateStringHashes, nil
 }

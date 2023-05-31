@@ -70,16 +70,23 @@ func deInterleaveUint64(input uint64) (uint32, uint32) {
 }
 
 // returns the bit string pair as strings
-func (pair RawBitStringPair) BitStringPair() *BitStringPair {
-	xMin, yMin := deInterleaveUint64(pair.XYBitString)
+func (b RawXYBitString) BitString() *XYBitString {
+	xMin, yMin := deInterleaveUint64(b.XYBitString)
 
+	println(b.XYBitString, xMin, yMin)
+
+	return &XYBitString{
+		xMin:       xMin,
+		xPrecision: (b.XYBitStringLen + 1) / 2,
+		yMin:       yMin,
+		yPrecision: b.XYBitStringLen / 2,
+	}
+}
+
+// returns the bit string pair as strings
+func (pair RawBitStringPair) BitStringPair() *BitStringPair {
 	return &BitStringPair{
-		XYBitString: XYBitString{
-			xMin:       xMin,
-			xPrecision: (pair.XYBitStringLen + 1) / 2,
-			yMin:       yMin,
-			yPrecision: pair.XYBitStringLen / 2,
-		},
+		XYBitString: *pair.RawXYBitString.BitString(),
 		ZBitString: ZBitString{
 			zMin:       pair.ZBitString,
 			zPrecision: pair.ZBitStringLen,

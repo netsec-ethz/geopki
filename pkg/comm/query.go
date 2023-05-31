@@ -21,6 +21,7 @@ func Query(
 	address string,
 	longitude, latitude, altitude float64,
 	radius uint64,
+	includeCertificates bool,
 	fGrow float64,
 ) (*Response, error) {
 	if address == "" {
@@ -93,8 +94,13 @@ func Query(
 
 	// log.Fatalf("success, computed %d bit strings", len(bitStrings))
 
+	getParameters := ""
+	if includeCertificates {
+		getParameters = "?include-certificates"
+	}
+
 	plainResponse, err := http.Post(
-		fmt.Sprintf("%s/v1/query", address),
+		fmt.Sprintf("%s/v1/query%s", address, getParameters),
 		"application/octet-stream",
 		bytes.NewBuffer(request),
 	)

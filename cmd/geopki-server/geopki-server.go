@@ -180,7 +180,7 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 
 	// at least allocate a capacity of 'len(bit_strings)', then let
 	// the go standard libary handle growth
-	nodes, rootHash, certificateHashes, err := database.RowsToNodesAndRootHash(rows, len(requestBitStringPairs))
+	nodes, rootHash, certificateStringHashes, err := database.RowsToNodesAndRootHash(rows, len(requestBitStringPairs))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "scanning node rows failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -208,7 +208,7 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 
 	var certificates [][]byte
 	if includeCertificates {
-		sqlQuery := database.BuildCertificateQuery(certificateHashes)
+		sqlQuery := database.BuildCertificateQuery(certificateStringHashes.ToSlice())
 
 		rows, err := env.dbPool.Query(
 			context.Background(),
@@ -226,19 +226,11 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 
 		// at least allocate a capacity of 'len(bit_strings)', then let
 		// the go standard libary handle growth
-		certificates, err = database.RowsToCertificates(rows, len(certificateHashes))
+		certificates, err = database.RowsToCertificates(rows, certificateStringHashes.Cardinality())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "scanning certificate rows failed: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": "scanning rows failed, check the server logs",
-			})
-			return
-		}
-
-		if rootHash == nil {
-			fmt.Fprintf(os.Stderr, "integrity check failed, root node was not returned by the query")
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "integrity check failed, root node was not returned by the query",
 			})
 			return
 		}

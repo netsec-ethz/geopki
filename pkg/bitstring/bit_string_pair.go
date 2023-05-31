@@ -406,12 +406,9 @@ func (pair *BitStringPair) String() string {
 		fmt.Sprintf("Z: [%d, %d)", pair.zMin, pair.ZMax())
 }
 
-// Returns the bit string representation of the `x` and `y` coordinate and the
-// bit representation of the `z` coordinate.
-func (pair *BitStringPair) BitStringPair() (string, string) {
-	xBitString := pair.XBitString()
-	yBitString := pair.YBitString()
-	zBitString := pair.ZBitString.BitString()
+func (b *XYBitString) String() string {
+	xBitString := b.XBitString()
+	yBitString := b.YBitString()
 
 	// interleave XBitString and YBitString
 	var xyBitString = make([]rune, len(xBitString)+len(yBitString))
@@ -424,7 +421,13 @@ func (pair *BitStringPair) BitStringPair() (string, string) {
 		xyBitString[2*i+1] = c
 	}
 
-	return string(xyBitString), zBitString
+	return string(xyBitString)
+}
+
+// Returns the bit string representation of the `x` and `y` coordinate and the
+// bit representation of the `z` coordinate.
+func (pair *BitStringPair) BitStringPair() (string, string) {
+	return pair.XYBitString.String(), pair.ZBitString.BitString()
 }
 
 // https://lemire.me/blog/2018/01/08/how-fast-can-you-bit-interleave-32-bit-integers/

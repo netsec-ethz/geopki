@@ -87,19 +87,14 @@ func BuildNodeQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uin
 func RowsToNodesAndRootHash(
 	rows pgx.Rows,
 	expectedResults int,
-) ([]*comm.Node, crypto.SHA256Hash, []crypto.SHA256Hash, error) {
+) ([]*comm.Node, crypto.SHA256Hash, mapset.Set[string], error) {
 	nodes := make([]*crypto.Node, 0, expectedResults)
 
 	// create a set of bit string pairs
 	bitStringSet := mapset.NewSet[bitstring.RawBitStringPair]()
 
 	var rootHash crypto.SHA256Hash
-	certificateHashes := make([][]byte, 0)
-
-	// these two byte arrays are re-used multiple times in the following
-	// allows for instance conversion between integers and byte arrays as well
-	XYBitString := make([]byte, 8)
-	ZBitString := make([]byte, 2)
+	certificateStringHashes := mapset.NewSet[string]()
 
 	// Iterate through the result set
 	for rows.Next() {
@@ -126,7 +121,10 @@ func RowsToNodesAndRootHash(
 
 		// grow bit strings to 8 and 2 byte arrays respectively
 		// by allocating a 8 and a 2 byte array and copy the contents
+		XYBitString := make([]byte, 8)
 		copy(XYBitString, dbXYBitString.Bytes)
+
+		ZBitString := make([]byte, 2)
 		copy(ZBitString, dbZBitString.Bytes)
 
 		// create new node instance from loaded data
@@ -158,7 +156,9 @@ func RowsToNodesAndRootHash(
 		}
 
 		// collect certificate hashes
-		certificateHashes = append(certificateHashes, dbCertificateHashes.Elements...)
+		for _, certificateHash := range dbCertificateHashes.Elements {
+			certificateStringHashes.Add(hex.EncodeToString(certificateHash))
+		}
 	}
 
 	// Any errors encountered by rows.Next or rows.Scan will be returned here
@@ -214,14 +214,14 @@ func RowsToNodesAndRootHash(
 		responseNodes[i] = responseNode
 	}
 
-	return responseNodes, rootHash, certificateHashes, nil
+	return responseNodes, rootHash, certificateStringHashes, nil
 }
 
-func BuildCertificateQuery(certificateHashes []crypto.SHA256Hash) string {
-	encodedHashes := make([]string, len(certificateHashes))
+func BuildCertificateQuery(certificateStringHashes []string) string {
+	encodedHashes := make([]string, len(certificateStringHashes))
 
-	for i, certificateHash := range certificateHashes {
-		encodedHashes[i] = fmt.Sprintf("E'\\x%s'", hex.EncodeToString(certificateHash))
+	for i, certificateStringHash := range certificateStringHashes {
+		encodedHashes[i] = fmt.Sprintf("E'\\\\x%s'", certificateStringHash)
 	}
 
 	return fmt.Sprintf(
