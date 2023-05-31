@@ -11,6 +11,7 @@ import (
 	"github.com/golang/geo/s1"
 	"github.com/golang/geo/s2"
 	geo "github.com/kellydunn/golang-geo"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -285,8 +286,10 @@ func XYBitStringFromGeodeticCoordinates(longitude, latitude float64) (*XYBitStri
 
 	// create an instance with the full precision
 	return &XYBitString{
-		xMin: x,
-		yMin: y,
+		// 0x3ffffff = uint32(math.MaxUint32) >> (32 - X_BITS), go complains if written out..
+		xMin: (x) & 0x3ffffff,
+		// 0x1ffffff = (uint32(math.MaxUint32) >> (32 - Y_BITS)), go complains if written out..
+		yMin: (y) & 0x1ffffff,
 
 		xPrecision: X_BITS,
 		yPrecision: Y_BITS,
@@ -432,6 +435,7 @@ func (pair *BitStringPair) BitStringPair() (string, string) {
 
 // https://lemire.me/blog/2018/01/08/how-fast-can-you-bit-interleave-32-bit-integers/
 // (REAME on Github says the code is public domain)
+// starts with zero
 func interleaveUint32WithZeros(input uint32) uint64 {
 	var word uint64 = uint64(input)
 
@@ -445,8 +449,15 @@ func interleaveUint32WithZeros(input uint32) uint64 {
 }
 
 func (bitString *XYBitString) RawXYBitStringPair() RawXYBitString {
+	// first shift numbers to move the used bits from the end to the start
+	xBitString := bitString.xMin << (32 - X_BITS)
+	yBitString := bitString.yMin << (32 - Y_BITS)
+
 	// https://lemire.me/blog/2018/01/08/how-fast-can-you-bit-interleave-32-bit-integers/
-	XYBitString := interleaveUint32WithZeros(bitString.xMin) | (interleaveUint32WithZeros(bitString.yMin) << 1)
+	xZeroInterleaved := (interleaveUint32WithZeros(xBitString) << 1)
+	yZeroInterleaved := interleaveUint32WithZeros(yBitString)
+
+	XYBitString := xZeroInterleaved | yZeroInterleaved
 
 	return RawXYBitString{
 		XYBitString:    XYBitString,
@@ -456,7 +467,8 @@ func (bitString *XYBitString) RawXYBitStringPair() RawXYBitString {
 
 func (bitString *ZBitString) RawZBitStringPair() RawZBitString {
 	return RawZBitString{
-		ZBitString:    bitString.zMin,
+		// move the used bits from the end to the start
+		ZBitString:    bitString.zMin << (16 - Z_BITS),
 		ZBitStringLen: bitString.zPrecision,
 	}
 }
@@ -573,15 +585,13 @@ func (bitString *XYBitString) Grow2D(steps uint8) error {
 		return fmt.Errorf("(xPrecision == yPrecision) or (xPrecision == yPrecision + 1) invariant violated")
 	}
 
-	// clear all bits starting from xPrecision to xPrecision + xBitsToClear
-	xBitMask := uint32(math.MaxUint32) << (X_BITS - (bitString.xPrecision - xBitsToClear))
-	bitString.xMin &= xBitMask
+	// clear all bits outside the new precision, used bits are at the end
 	bitString.xPrecision -= xBitsToClear
+	bitString.xMin = bitString.xMin & (uint32(math.MaxUint32) << (X_BITS - bitString.xPrecision))
 
-	// clear all bits starting from yPrecision to yPrecision + yBitsToClear
-	yBitMask := uint32(math.MaxUint32) << (Y_BITS - (bitString.yPrecision - yBitsToClear))
-	bitString.yMin &= yBitMask
+	// clear all bits outside the new precision
 	bitString.yPrecision -= yBitsToClear
+	bitString.yMin = bitString.yMin & (uint32(math.MaxUint32) << (Y_BITS - bitString.yPrecision))
 
 	return nil
 }
@@ -661,6 +671,7 @@ func PolygonsTo2DBitStrings(polygons []*s2.Loop, fGrow float64) ([]RawXYBitStrin
 	intersectingAreasAllPolygons := mapset.NewSet[RawXYBitString]()
 
 	for _, polygon := range polygons {
+
 		// this will be the list of bitstrings of the chosen size for 'polygon'
 		intersectingAreas := mapset.NewSet[RawXYBitString]()
 
@@ -698,13 +709,11 @@ func PolygonsTo2DBitStrings(polygons []*s2.Loop, fGrow float64) ([]RawXYBitStrin
 			if visited.Contains(xyBitStringPair) {
 				continue
 			}
-
 			// mark as visited
 			visited.Add(xyBitStringPair)
 
 			// check for intersection. always take the first area
-			// println(LoopToGeoJson(voxel.Loop()))
-			if intersectingAreas.Cardinality() > 0 && !(voxel.Loop().Intersects(polygon)) {
+			if !(voxel.Loop().Intersects(polygon)) {
 				continue
 			}
 
@@ -774,9 +783,9 @@ func PolygonsTo2DBitStrings(polygons []*s2.Loop, fGrow float64) ([]RawXYBitStrin
 		// part of the set
 		skip := false
 		// iterate over all prefixes of that bitstring from largest/shortest to smallest/longest
-		for i := uint8(0); i <= bitString.XYBitStringLen; i++ {
+		for i := uint8(1); i <= bitString.XYBitStringLen; i++ {
 			// check if any of its prefixes (larger areas) is also part of intersectingAreasAllPolygonsList
-			if intersectingAreasAllPolygons.Contains(bitString.Ancestor(i)) {
+			if slices.Contains(intersectingAreasAllPolygonsList, bitString.Ancestor(i)) {
 				// if it is, ignore this one as the certificate will be included in the larger/shorter
 				// prefix
 				skip = true
@@ -797,6 +806,7 @@ func PolygonsTo2DBitStrings(polygons []*s2.Loop, fGrow float64) ([]RawXYBitStrin
 
 			// add parent at the end of the list to make sure duplicate test is performed with parent again
 			intersectingAreasAllPolygonsList = append(intersectingAreasAllPolygonsList, bitString.Parent())
+			continue
 		}
 
 		// from this point on bit_string is sucessfully taken

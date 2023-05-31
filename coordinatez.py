@@ -897,6 +897,7 @@ def polygons_to_2d_bit_strings(
 
             # add parent at the end of the list to make sure duplicate test is performed with parent again
             intersecting_areas_all_polygons_list.append(bit_string[:-1])
+            continue
 
         # from this point on bit_string is sucessfully taken
         results.append(bit_string)

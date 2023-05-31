@@ -8,6 +8,7 @@ require (
 	github.com/golang/geo v0.0.0-20230421003525-6adc56603217
 	github.com/jackc/pgx/v5 v5.3.1
 	github.com/kellydunn/golang-geo v0.7.0
+	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	google.golang.org/protobuf v1.28.1
 )
 

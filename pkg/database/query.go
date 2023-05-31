@@ -45,7 +45,7 @@ func BuildNodeQueries(bitStrings []*comm.XYBitString, minAltitude, maxAltitude u
 		bitStringMinInt = bitStringMinInt >> (64 - 51)
 
 		// same as before but now we set all unused bits, i.e. extend the bit string to 64 bits with ones
-		bitStringMaxInt := bitStringPair.XYBitString | (uint64(math.MaxUint64) >> (64 - bitStringPair.XYBitStringLen))
+		bitStringMaxInt := bitStringPair.XYBitString | (uint64(math.MaxUint64) >> bitStringPair.XYBitStringLen)
 		bitStringMaxInt = bitStringMaxInt >> (64 - 51)
 
 		// in general fmt.Sprintf is not prone to SQL injections but since the user input is

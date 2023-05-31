@@ -161,7 +161,7 @@ func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) (mapset
 
 	// ensure all nodes are in the tree now
 	if len(ns) != rootNode.CountNodes() {
-		return nil, fmt.Errorf("received invalid tree, cannot use all nodes in tree. built tree has a height of %d, received %d nodes", rootNode.CountNodes(), len(ns))
+		return nil, fmt.Errorf("received invalid tree, cannot use all nodes in tree. built tree contains %d nodes but received %d nodes", rootNode.CountNodes(), len(ns))
 	}
 
 	// compute the root hash

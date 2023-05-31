@@ -207,7 +207,7 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 	smh.Sign(env.privateKey)
 
 	var certificates [][]byte
-	if includeCertificates {
+	if includeCertificates && certificateStringHashes.Cardinality() > 0 {
 		sqlQuery := database.BuildCertificateQuery(certificateStringHashes.ToSlice())
 
 		rows, err := env.dbPool.Query(

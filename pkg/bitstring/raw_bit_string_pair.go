@@ -52,8 +52,6 @@ func deInterleaveOddBits(word uint64) uint32 {
 	word = (word | (word >> 1)) & 0x3333333333333333
 	// 0x0F = 00001111, similar process to before but now groups of four
 	word = (word | (word >> 2)) & 0x0f0f0f0f0f0f0f0f
-	// 0x0F = 00001111, similar process to before but now groups of four
-	word = (word | (word >> 2)) & 0x0F0F0F0F0F0F0F0F
 	// similar process to before but now groups of 8
 	word = (word | (word >> 4)) & 0x00ff00ff00ff00ff
 	// similar process to before but now groups of 16
@@ -66,6 +64,8 @@ func deInterleaveOddBits(word uint64) uint32 {
 
 // de-interleaves the bits, returns the a pair of (even, odd) bits
 func deInterleaveUint64(input uint64) (uint32, uint32) {
+	// shift input by one bit to the right (make even bits odd and vice versa)
+	// last bit (51th) is an odd one, will become even but is then masked away
 	return deInterleaveOddBits(input >> 1), deInterleaveOddBits(input)
 }
 
@@ -74,9 +74,11 @@ func (b RawXYBitString) BitString() *XYBitString {
 	xMin, yMin := deInterleaveUint64(b.XYBitString)
 
 	return &XYBitString{
-		xMin:       xMin,
+		// move the relevant bits to the end
+		xMin:       xMin >> (32 - X_BITS),
 		xPrecision: (b.XYBitStringLen + 1) / 2,
-		yMin:       yMin,
+		// move the relevant bits to the end
+		yMin:       yMin >> (32 - Y_BITS),
 		yPrecision: b.XYBitStringLen / 2,
 	}
 }
