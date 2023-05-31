@@ -39,7 +39,7 @@ func main() {
 	var publicKey *ecdsa.PublicKey
 
 	if len(publicKeyBase64) == 0 {
-		fmt.Println("⚠️ No public key passed as an argument, fetch it from the server.")
+		fmt.Println("🚨 No public key passed as an argument, fetching it from the server.")
 
 		plainResponse, err := http.Get(
 			fmt.Sprintf("%s/v1/public-key", address),
@@ -122,9 +122,9 @@ func main() {
 		}
 	}
 
-	fmt.Printf("Received %d certificate hashes:\n", certificateHashes.Cardinality())
+	fmt.Printf("🚀 Received %d certificate hashes:\n", certificateHashes.Cardinality())
 	for _, certificateHash := range certificateHashes.ToSlice() {
 		fmt.Printf("    %s\n", certificateHash)
 	}
-	fmt.Printf("Received %d certificates\n", len(response.Certificates))
+	fmt.Printf("🚀 Received %d certificates\n", len(response.Certificates))
 }
