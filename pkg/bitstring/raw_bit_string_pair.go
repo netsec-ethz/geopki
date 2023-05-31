@@ -73,8 +73,6 @@ func deInterleaveUint64(input uint64) (uint32, uint32) {
 func (b RawXYBitString) BitString() *XYBitString {
 	xMin, yMin := deInterleaveUint64(b.XYBitString)
 
-	println(b.XYBitString, xMin, yMin)
-
 	return &XYBitString{
 		xMin:       xMin,
 		xPrecision: (b.XYBitStringLen + 1) / 2,
