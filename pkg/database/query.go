@@ -152,10 +152,6 @@ func RowsToNodesAndRootHash(
 		// add bit string pair to the set
 		bitStringSet.Add(node.Pair())
 
-		println(node.BitStringPair().BitStringPair())
-		println(hex.EncodeToString(dbNeighborHash), hex.EncodeToString(dbXYLeftChildHash), hex.EncodeToString(dbXYRightChildHash), hex.EncodeToString(dbZLeftChildHash), hex.EncodeToString(dbZRightChildHash))
-		println("")
-
 		// if it is the root, remember it
 		if node.IsRoot() {
 			rootHash = node.Hash()
@@ -185,12 +181,12 @@ func RowsToNodesAndRootHash(
 		}
 
 		child, err := node.XYLeftChildPair()
-		if err == nil || bitStringSet.Contains(child) {
+		if err != nil || bitStringSet.Contains(child) {
 			node.ClearXYLeftChild()
 		}
 
 		child, err = node.XYRightChildPair()
-		if err == nil || bitStringSet.Contains(child) {
+		if err != nil || bitStringSet.Contains(child) {
 			node.ClearXYRightChild()
 		}
 

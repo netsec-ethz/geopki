@@ -55,27 +55,32 @@ func NewDBNode(
 }
 
 func NewTreeNode(
-	XYBitString uint64,
-	XYBitStringLen uint8,
+	xyBitString uint64,
+	xyBitStringLen uint8,
 
-	ZBitString uint16,
-	ZBitStringLen uint8,
+	zBitString uint16,
+	zBitStringLen uint8,
 
+	xyLeftChildHash, xyRightChildHash, zLeftChildHash, zRightChildHash []byte,
 	certificateHashes []SHA256Hash,
 ) *Node {
 
 	return &Node{
 		RawBitStringPair: bitstring.RawBitStringPair{
 			RawXYBitString: bitstring.RawXYBitString{
-				XYBitString:    XYBitString,
-				XYBitStringLen: XYBitStringLen,
+				XYBitString:    xyBitString,
+				XYBitStringLen: xyBitStringLen,
 			},
 			RawZBitString: bitstring.RawZBitString{
-				ZBitString:    ZBitString,
-				ZBitStringLen: ZBitStringLen,
+				ZBitString:    zBitString,
+				ZBitStringLen: zBitStringLen,
 			},
 		},
 
+		xyLeftChildHash:   xyLeftChildHash,
+		xyRightChildHash:  xyRightChildHash,
+		zLeftChildHash:    zLeftChildHash,
+		zRightChildHash:   zRightChildHash,
 		CertificateHashes: certificateHashes,
 	}
 }

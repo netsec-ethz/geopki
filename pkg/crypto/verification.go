@@ -3,7 +3,6 @@ package crypto
 import (
 	"bytes"
 	"crypto/ecdsa"
-	"encoding/hex"
 	"fmt"
 	"math"
 
@@ -56,7 +55,11 @@ func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) error {
 			uint8(n.XYBitStringLen),
 			zBitString,
 			uint8(n.ZBitStringLen),
-			n.CertificateHashes,
+			n.GetXYLeftChildHash(),
+			n.GetXYRightChildHash(),
+			n.GetZLeftChildHash(),
+			n.GetZRightChildHash(),
+			n.GetCertificateHashes(),
 		)
 
 		// print("received ")
@@ -80,10 +83,9 @@ func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) error {
 	}
 
 	// build the tree
-	for i, n := range nodes {
-		node := nodes[i]
+	for _, node := range nodes {
 
-		if n.neighborHash == nil {
+		if node.neighborHash == nil {
 			neighbor, ok := bitStringMap[node.NeighborPair()]
 
 			if ok {
@@ -93,11 +95,9 @@ func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) error {
 			// else: response did not contain neighbor nor neighbor hash
 			// -> must be default hash -> set nothing
 
-		} else {
-			node.SetNeighborHash(n.neighborHash)
 		}
 
-		if n.xyLeftChildHash == nil {
+		if node.xyLeftChildHash == nil {
 			childBitString, err := node.XYLeftChildPair()
 			// if err == nil child does not exist -> default hash -> do nothing
 
@@ -112,11 +112,9 @@ func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) error {
 				// -> must be default hash -> set nothing
 			}
 
-		} else {
-			node.SetXYLeftChildHash(n.xyLeftChildHash)
 		}
 
-		if n.xyRightChildHash == nil {
+		if node.xyRightChildHash == nil {
 			childBitString, err := node.XYRightChildPair()
 			// if err == nil child does not exist -> default hash -> do nothing
 
@@ -131,11 +129,9 @@ func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) error {
 				// -> must be default hash -> set nothing
 			}
 
-		} else {
-			node.SetXYRightChildHash(n.xyRightChildHash)
 		}
 
-		if n.zLeftChildHash == nil {
+		if node.zLeftChildHash == nil {
 			child, ok := bitStringMap[node.ZLeftChildPair()]
 
 			if ok {
@@ -145,11 +141,9 @@ func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) error {
 			// else: response did not contain child nor child hash
 			// -> must be default hash -> set nothing
 
-		} else {
-			node.SetZLeftChildHash(n.zLeftChildHash)
 		}
 
-		if n.zRightChildHash == nil {
+		if node.zRightChildHash == nil {
 			child, ok := bitStringMap[node.ZRightChildPair()]
 
 			if ok {
@@ -159,8 +153,6 @@ func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) error {
 			// else: response did not contain child nor child hash
 			// -> must be default hash -> set nothing
 
-		} else {
-			node.SetZRightChildHash(n.zRightChildHash)
 		}
 	}
 
@@ -173,8 +165,6 @@ func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) error {
 	rootHash := rootNode.Hash()
 
 	// verify root hash against SMH
-	println(hex.EncodeToString(rootHash))
-	println(hex.EncodeToString(response.SignedMapHead.RootHash))
 	if !bytes.Equal(rootHash, response.SignedMapHead.RootHash) {
 		return fmt.Errorf("computed root hash does not match the SMH")
 	}

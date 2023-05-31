@@ -80,7 +80,7 @@ func NewBitStringPair(
 ) (*BitStringPair, error) {
 
 	// ensure xMin, yMin and zMin are in their respective ranges
-	if xMin >= C_X {
+	if xMin > C_X {
 		return nil, fmt.Errorf(
 			"xMin (%d) is greater than C_X (%d)",
 			xMin,
@@ -88,7 +88,7 @@ func NewBitStringPair(
 		)
 	}
 
-	if yMin >= C_Y {
+	if yMin > C_Y {
 		return nil, fmt.Errorf(
 			"yMin (%d) is greater than C_Y (%d)",
 			yMin,
@@ -96,7 +96,7 @@ func NewBitStringPair(
 		)
 	}
 
-	if zMin >= C_Z {
+	if zMin > C_Z {
 		return nil, fmt.Errorf(
 			"zMin (%d) is greater than C_Z (%d)",
 			zMin,
@@ -105,7 +105,7 @@ func NewBitStringPair(
 	}
 
 	// ensure xPrecision, yPrecision and zPrecision are in their respective ranges
-	if xPrecision >= X_BITS {
+	if xPrecision > X_BITS {
 		return nil, fmt.Errorf(
 			"xPrecision (%d) is greater than X_BITS (%d)",
 			xPrecision,
@@ -113,7 +113,7 @@ func NewBitStringPair(
 		)
 	}
 
-	if yPrecision >= Y_BITS {
+	if yPrecision > Y_BITS {
 		return nil, fmt.Errorf(
 			"yPrecision (%d) is greater than Y_BITS (%d)",
 			yPrecision,
@@ -121,7 +121,7 @@ func NewBitStringPair(
 		)
 	}
 
-	if zPrecision >= Z_BITS {
+	if zPrecision > Z_BITS {
 		return nil, fmt.Errorf(
 			"zPrecision (%d) is greater than Z_BITS (%d)",
 			zPrecision,
@@ -218,8 +218,8 @@ func BitStringPairFromStringPair(
 	var yPrecision uint8 = uint8(len(xyBitString) / 2)
 
 	// de-interleave the xy bit string
-	var xBitString = make([]rune, xPrecision)
-	var yBitString = make([]rune, yPrecision)
+	var xBitString = []rune(strings.Repeat("0", int(X_BITS)))
+	var yBitString = []rune(strings.Repeat("0", int(Y_BITS)))
 
 	for i, c := range xyBitString {
 		if i%2 == 0 {
@@ -230,17 +230,17 @@ func BitStringPairFromStringPair(
 	}
 
 	// interpret the bit strings as integers
-	x, err := strconv.ParseUint(string(xBitString), 2, int(xPrecision))
+	x, err := strconv.ParseUint(string(xBitString), 2, int(X_BITS))
 	if err != nil {
 		return nil, err
 	}
 
-	y, err := strconv.ParseUint(string(yBitString), 2, int(yPrecision))
+	y, err := strconv.ParseUint(string(yBitString), 2, int(Y_BITS))
 	if err != nil {
 		return nil, err
 	}
 
-	z, err := strconv.ParseUint(zBitString, 2, int(Z_BITS))
+	z, err := strconv.ParseUint(zBitString+strings.Repeat("0", int(Z_BITS)-len(zBitString)), 2, int(Z_BITS))
 	if err != nil {
 		return nil, err
 	}
