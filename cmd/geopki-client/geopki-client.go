@@ -46,7 +46,7 @@ func main() {
 		)
 		if err != nil {
 			log.Fatalf(
-				"failed sending HTTP GET request to %s: %v",
+				"❌ failed sending HTTP GET request to %s: %v",
 				address,
 				err,
 			)
@@ -57,7 +57,7 @@ func main() {
 		responseBody, err := io.ReadAll(plainResponse.Body)
 		if err != nil {
 			log.Fatalf(
-				"failed reading response: %v",
+				"❌ failed reading response: %v",
 				err,
 			)
 		}
@@ -65,7 +65,7 @@ func main() {
 		decodedPublicKey, err := x509.ParsePKIXPublicKey(responseBody)
 		if err != nil {
 			log.Fatalf(
-				"failed parsing public key: %v",
+				"❌ failed parsing public key: %v",
 				err,
 			)
 		}
@@ -76,7 +76,7 @@ func main() {
 		derPublicKey, err := base64.StdEncoding.DecodeString(publicKeyBase64)
 		if err != nil {
 			log.Fatalf(
-				"failed parsing base64 of public key flag: %v",
+				"❌ failed parsing base64 of public key flag: %v",
 				err,
 			)
 		}
@@ -85,7 +85,7 @@ func main() {
 
 		if err != nil {
 			log.Fatalf(
-				"failed parsing public key: %v",
+				"❌ failed parsing public key: %v",
 				err,
 			)
 		}
@@ -104,12 +104,12 @@ func main() {
 		F_GROW,
 	)
 	if err != nil {
-		log.Fatalf("request failed: %v\n", err)
+		log.Fatalf("❌ request failed: %v\n", err)
 	}
 
 	certificateHashes, err := crypto.VerifyResponse(response, publicKey)
 	if err != nil {
-		log.Fatalf("response verification failed: %v\n", err)
+		log.Fatalf("❌ response verification failed: %v\n", err)
 	}
 
 	fmt.Printf("✅ Cryptographic verification of response succeeded!\n")
