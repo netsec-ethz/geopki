@@ -1,9 +1,11 @@
 package crypto
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"log"
+	"sort"
 
 	"geopki/pkg/bitstring"
 )
@@ -284,12 +286,18 @@ func (node *Node) ClearZRightChild() {
 }
 
 func (node *Node) ConcatenatedCertificateHashes() []byte {
-	bytes := []byte{}
-	for _, certificateHash := range node.CertificateHashes {
-		bytes = append(bytes, certificateHash...)
+	hashes := node.CertificateHashes
+
+	sort.Slice(hashes, func(i, j int) bool {
+		return bytes.Compare(hashes[i], hashes[j]) <= 0
+	})
+
+	concatenatedBytes := []byte{}
+	for _, certificateHash := range hashes {
+		concatenatedBytes = append(concatenatedBytes, certificateHash...)
 	}
 
-	return bytes
+	return concatenatedBytes
 }
 
 // computes the hash of the node
