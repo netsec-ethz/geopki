@@ -142,6 +142,12 @@ func main() {
 
 	fmt.Printf("✅ Cryptographic verification of response succeeded!\n")
 
+	fmt.Printf("⌛️ Timing\n")
+	fmt.Printf("    Fetch & Parse Public Key: %fs\n", fetchingDecodingPublicKey.Seconds())
+	fmt.Printf("    Build Query: %fs\n", buildingQuery.Seconds())
+	fmt.Printf("    Send Request & Receive Response: %fs\n", request.Seconds())
+	fmt.Printf("    Verify Response: %fs\n", verification.Seconds())
+
 	fmt.Printf("📡 Received %d certificate hashes:\n", certificateHashes.Cardinality())
 	for _, certificateHash := range certificateHashes.ToSlice() {
 		fmt.Printf("    %s\n", certificateHash)
@@ -155,10 +161,4 @@ func main() {
 
 		fmt.Printf("    %s, %s\n", certificate.Domain, certificate.Certificate_id)
 	}
-
-	fmt.Printf("⌛️ Timing\n")
-	fmt.Printf("    Fetch & Parse Public Key: %fs\n", fetchingDecodingPublicKey.Seconds())
-	fmt.Printf("    Build Query: %fs\n", buildingQuery.Seconds())
-	fmt.Printf("    Send Request & Receive Response: %fs\n", request.Seconds())
-	fmt.Printf("    Verify Response: %fs\n", verification.Seconds())
 }
