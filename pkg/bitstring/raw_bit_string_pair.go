@@ -88,7 +88,7 @@ func (pair RawBitStringPair) BitStringPair() *BitStringPair {
 	return &BitStringPair{
 		XYBitString: *pair.RawXYBitString.BitString(),
 		ZBitString: ZBitString{
-			zMin:       pair.ZBitString,
+			zMin:       pair.ZBitString >> (16 - Z_BITS),
 			zPrecision: pair.ZBitStringLen,
 		},
 	}

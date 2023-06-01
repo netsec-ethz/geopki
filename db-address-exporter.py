@@ -466,8 +466,10 @@ def main(
 
         row = bit_string_map[(xy_bit_string, z_bit_string)]
 
-        xy_left_child = xy_bit_string + "0", ''
-        xy_right_child = xy_bit_string + "1", ''
+        xy_left_child = (xy_bit_string + "0",
+                         '') if len(z_bit_string) == 0 else "a", ""
+        xy_right_child = xy_bit_string + \
+            "1", '' if len(z_bit_string) == 0 else "a", ""
 
         z_left_child = xy_bit_string, z_bit_string + "0"
         z_right_child = xy_bit_string, z_bit_string + "1"

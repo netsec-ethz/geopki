@@ -366,15 +366,15 @@ func (bitString *XYBitString) YBitString() string {
 }
 
 // The bit string encoding the `zMin` value, i.e. the `zPrecision` MSBs
-func (bitSring *ZBitString) BitString() string {
+func (bitString *ZBitString) BitString() string {
 	return fmt.Sprintf(
 		// left-pad with 0s to Z_BITS
 		"%0*s",
 		Z_BITS,
 		// convert integer to bit string
-		strconv.FormatInt(int64(bitSring.zMin), 2),
+		strconv.FormatInt(int64(bitString.zMin), 2),
 		// only use the first zPrecision (most significant) bits
-	)[:bitSring.zPrecision]
+	)[:bitString.zPrecision]
 }
 
 // The smallest discretized `x` coordinate that is no longer in the voxel
