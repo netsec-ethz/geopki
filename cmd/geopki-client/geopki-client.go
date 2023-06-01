@@ -13,6 +13,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"time"
 )
 
 const (
@@ -37,6 +38,21 @@ func main() {
 	flag.Parse()
 
 	var publicKey *ecdsa.PublicKey
+
+	// set up timing variables
+	var fetchingDecodingPublicKeyStart time.Time
+	var fetchingDecodingPublicKey time.Duration
+
+	var buildingQueryStart time.Time
+	var buildingQuery time.Duration
+
+	var requestStart time.Time
+	var request time.Duration
+
+	var verificationStart time.Time
+	var verification time.Duration
+
+	fetchingDecodingPublicKeyStart = time.Now()
 
 	if len(publicKeyBase64) == 0 {
 		fmt.Println("🚨 No public key passed as an argument, fetching it from the server.")
@@ -94,10 +110,16 @@ func main() {
 		publicKey = decodedPublicKey.(*ecdsa.PublicKey)
 	}
 
+	fetchingDecodingPublicKey = time.Since(fetchingDecodingPublicKeyStart)
+	buildingQueryStart = time.Now()
+
 	query, err := comm.NewQuery(longitude, latitude, altitude, radius, F_GROW)
 	if err != nil {
 		log.Fatalf("❌ building fquery: %v\n", err)
 	}
+
+	buildingQuery = time.Since(buildingQueryStart)
+	requestStart = time.Now()
 
 	response, err := comm.QueryMapServer(
 		address,
@@ -108,10 +130,15 @@ func main() {
 		log.Fatalf("❌ request failed: %v\n", err)
 	}
 
+	request = time.Since(requestStart)
+	verificationStart = time.Now()
+
 	certificateHashes, err := crypto.VerifyResponse(response, query, publicKey)
 	if err != nil {
 		log.Fatalf("❌ response verification failed: %v\n", err)
 	}
+
+	verification = time.Since(verificationStart)
 
 	fmt.Printf("✅ Cryptographic verification of response succeeded!\n")
 
@@ -119,6 +146,7 @@ func main() {
 	for _, certificateHash := range certificateHashes.ToSlice() {
 		fmt.Printf("    %s\n", certificateHash)
 	}
+
 	fmt.Printf("📡 Received %d certificates\n", len(response.GetCertificates()))
 	for _, rawCertificate := range response.GetCertificates() {
 		// TODO: later this will probably parse a x509 certificate
@@ -127,4 +155,10 @@ func main() {
 
 		fmt.Printf("    %s, %s\n", certificate.Domain, certificate.Certificate_id)
 	}
+
+	fmt.Printf("⌛️ Timing\n")
+	fmt.Printf("    Fetch & Parse Public Key: %fs\n", fetchingDecodingPublicKey.Seconds())
+	fmt.Printf("    Build Query: %fs\n", buildingQuery.Seconds())
+	fmt.Printf("    Send Request & Receive Response: %fs\n", request.Seconds())
+	fmt.Printf("    Verify Response: %fs\n", verification.Seconds())
 }
