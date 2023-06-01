@@ -138,9 +138,6 @@ func Query(
 		return nil, fmt.Errorf("received error message: %s", errorResponse.Error)
 	}
 
-	// println("received response:")
-	// fmt.Printf("%x\n", responseBody)
-
 	return response, nil
 }
 

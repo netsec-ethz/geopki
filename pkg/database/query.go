@@ -1,7 +1,6 @@
 package database
 
 import (
-	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -143,15 +142,6 @@ func RowsToNodesAndRootHash(
 			dbCertificateHashes.Elements,
 		)
 
-		println(node.BitString().String())
-		println(hex.EncodeToString(node.XYLeftChildHash(true)), hex.EncodeToString(node.XYRightChildHash(true)))
-		println(hex.EncodeToString(node.ZLeftChildHash(true)), hex.EncodeToString(node.ZRightChildHash(true)))
-		if len(node.CertificateHashes) > 0 {
-			x := sha256.Sum256(node.ConcatenatedCertificateHashes())
-			println("certs", hex.EncodeToString(x[:]))
-		}
-		// println("h", hex.EncodeToString(node.Hash()))
-		println()
 		// append new instance to the list, will be returned to the client after
 		// some additional processing
 		nodes = append(nodes, node)

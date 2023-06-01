@@ -2,7 +2,6 @@ package crypto
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"log"
 
@@ -318,15 +317,9 @@ func (node *Node) Hash() SHA256Hash {
 	bytes = append(bytes, node.ZLeftChildHash(true)...)
 	bytes = append(bytes, node.ZRightChildHash(true)...)
 
-	println(node.BitString().String())
-	println(hex.EncodeToString(bytes[1:33]), hex.EncodeToString(bytes[33:65]))
-	println(hex.EncodeToString(bytes[65:97]), hex.EncodeToString(bytes[97:129]))
-
 	// hash of an intermediate node
 	if len(node.CertificateHashes) == 0 {
 		hash := sha256.Sum256(bytes)
-		println("h", hex.EncodeToString(hash[:]))
-		println()
 		return hash[:]
 	} else {
 		certificateHash := sha256.Sum256(node.ConcatenatedCertificateHashes())
@@ -337,10 +330,6 @@ func (node *Node) Hash() SHA256Hash {
 				certificateHash[:]...,
 			),
 		)
-
-		println("certs", hex.EncodeToString(certificateHash[:]))
-		println("h", hex.EncodeToString(hash[:]))
-		println()
 
 		return hash[:]
 	}
