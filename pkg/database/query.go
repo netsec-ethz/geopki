@@ -26,7 +26,13 @@ func BuildNodeQueries(bitStrings []*comm.XYBitString, minAltitude, maxAltitude u
 		// compute all prefixes of bitString that are not obtained by removing a trailing zero
 		// 1. convert to string 2. remove trailing zeros, 3. compute all prefixes
 		trimmedXYBitString := strings.TrimRight(
-			strconv.FormatUint(bitStringPair.XYBitString, 2),
+			fmt.Sprintf(
+				// left-pad with 0s
+				"%0*s",
+				64,
+				// convert integer to bit string
+				strconv.FormatUint(bitStringPair.XYBitString, 2),
+			),
 			"0",
 		)
 
