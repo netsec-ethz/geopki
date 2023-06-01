@@ -1,6 +1,7 @@
 package database
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -54,14 +55,14 @@ func BuildNodeQueries(bitStrings []*comm.XYBitString, minAltitude, maxAltitude u
 		// the fly. thus an easier improvement to ensure this stays safe would be to use a
 		// postgres function
 		queries[i] = fmt.Sprintf(
-			"(SELECT bit_string_51, bit_string_15, neighbor_hash, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash, certificate_hashes "+
+			"(SELECT bit_string_51, bit_string_15, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash, certificate_hashes "+
 				"FROM nodes "+
 				"WHERE bit_string_51 IN (%s) AND "+
 				"altitude_min <= %d AND "+
 				"altitude_max >= %d"+
 				"UNION ALL"+
 				" "+
-				"SELECT bit_string_51, bit_string_15, neighbor_hash, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash, certificate_hashes "+
+				"SELECT bit_string_51, bit_string_15, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash, certificate_hashes "+
 				"FROM nodes "+
 				"WHERE "+
 				"bit_string_51_int >= %d AND "+
@@ -101,13 +102,12 @@ func RowsToNodesAndRootHash(
 		var dbXYBitString pgtype.Bits
 		var dbZBitString pgtype.Bits
 		// use a pointer to a byte array to allow for null values
-		var dbNeighborHash, dbXYLeftChildHash, dbXYRightChildHash, dbZLeftChildHash, dbZRightChildHash []byte
+		var dbXYLeftChildHash, dbXYRightChildHash, dbZLeftChildHash, dbZRightChildHash []byte
 		var dbCertificateHashes pgtype.Array[[]byte]
 
 		err := rows.Scan(
 			&dbXYBitString,
 			&dbZBitString,
-			&dbNeighborHash,
 			&dbXYLeftChildHash,
 			&dbXYRightChildHash,
 			&dbZLeftChildHash,
@@ -135,7 +135,6 @@ func RowsToNodesAndRootHash(
 			binary.BigEndian.Uint16(ZBitString),
 			uint8(dbZBitString.Len),
 
-			dbNeighborHash,
 			dbXYLeftChildHash,
 			dbXYRightChildHash,
 			dbZLeftChildHash,
@@ -143,6 +142,16 @@ func RowsToNodesAndRootHash(
 
 			dbCertificateHashes.Elements,
 		)
+
+		println(node.BitString().String())
+		println(hex.EncodeToString(node.XYLeftChildHash(true)), hex.EncodeToString(node.XYRightChildHash(true)))
+		println(hex.EncodeToString(node.ZLeftChildHash(true)), hex.EncodeToString(node.ZRightChildHash(true)))
+		if len(node.CertificateHashes) > 0 {
+			x := sha256.Sum256(node.ConcatenatedCertificateHashes())
+			println("certs", hex.EncodeToString(x[:]))
+		}
+		// println("h", hex.EncodeToString(node.Hash()))
+		println()
 		// append new instance to the list, will be returned to the client after
 		// some additional processing
 		nodes = append(nodes, node)
@@ -171,14 +180,10 @@ func RowsToNodesAndRootHash(
 
 	for i, node := range nodes {
 
-		// check if the neighbor and each of the children are in 'bitStringSet', i.e.
+		// check whether each of the children are in 'bitStringSet', i.e.
 		// will thus be returned to the user. if they are, the respective hash
 		// does not have to be included in the response and can be set to nil
 		// this loop could be omitted increasing the performance but increasing the response size
-
-		if bitStringSet.Contains(node.NeighborPair()) {
-			node.ClearNeighbor()
-		}
 
 		child, err := node.XYLeftChildPair()
 		if err != nil || bitStringSet.Contains(child) {
@@ -203,7 +208,6 @@ func RowsToNodesAndRootHash(
 			ZBitString:     uint32(node.ZBitString),
 			ZBitStringLen:  uint32(node.ZBitStringLen),
 			// do not fill with default hashes, can be omitted for smaller response sizes
-			NeighborHash:      node.NeighborHash(false),
 			XYLeftChildHash:   node.XYLeftChildHash(false),
 			XYRightChildHash:  node.XYRightChildHash(false),
 			ZLeftChildHash:    node.ZLeftChildHash(false),

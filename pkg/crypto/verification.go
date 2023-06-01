@@ -88,18 +88,6 @@ func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) (mapset
 	// build the tree
 	for _, node := range nodes {
 
-		if node.neighborHash == nil {
-			neighbor, ok := bitStringMap[node.NeighborPair()]
-
-			if ok {
-				node.SetNeighbor(neighbor)
-			}
-
-			// else: response did not contain neighbor nor neighbor hash
-			// -> must be default hash -> set nothing
-
-		}
-
 		if node.xyLeftChildHash == nil {
 			childBitString, err := node.XYLeftChildPair()
 			// if err == nil child does not exist -> default hash -> do nothing

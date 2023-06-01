@@ -23,7 +23,6 @@ INSERT_INTO_NODES_STR = (
     ",".join([
         "bit_string",
         "area",
-        "neighbor_hash",
         "left_child_hash",
         "right_child_hash",
         "certificate_hashes"
@@ -35,7 +34,6 @@ INSERT_INTO_NODES_BITSTRING_INT_STR = (
     ",".join([
         "bit_string",
         "bit_string_51",
-        "neighbor_hash",
         "left_child_hash",
         "right_child_hash",
         "certificate_hashes"
@@ -48,7 +46,6 @@ INSERT_INTO_NODES_BITSTRING_INT_Z_SUBTREES_STR = (
         "bit_string_51",
         "bit_string_51_int",
         "bit_string_15",
-        "neighbor_hash",
         "xy_left_child_hash",
         "xy_right_child_hash",
         "z_left_child_hash",
@@ -128,7 +125,6 @@ class BitStringRow:
         self.xy_right_child_hash: Optional[bytes] = None
         self.z_left_child_hash: Optional[bytes] = None
         self.z_right_child_hash: Optional[bytes] = None
-        self.neighbor_hash: Optional[bytes] = None
         self.hash = None
 
     def get_certificate_hashes(self) -> bytes:
@@ -470,23 +466,6 @@ def main(
 
         row = bit_string_map[(xy_bit_string, z_bit_string)]
 
-        if len(xy_bit_string) == 0 and len(z_bit_string) == 0:
-            # the root node does not have a neighbor
-            neighbor = None
-        else:
-            if mode == "bitstring-int-z-subtrees":
-                if len(z_bit_string) > 0:
-                    # neighbor in z subtree
-                    neighbor = xy_bit_string, z_bit_string[:-1] + \
-                        ("0" if z_bit_string[-1:] == "1" else "1")
-                else:
-                    # neighbor not in z-subtree
-                    neighbor = xy_bit_string[:-1] + \
-                        ("0" if xy_bit_string[-1:] == "1" else "1"), ''
-            else:
-                neighbor = xy_bit_string[:-1] + \
-                    ("0" if xy_bit_string[-1:] == "1" else "1"), ''
-
         xy_left_child = xy_bit_string + "0", ''
         xy_right_child = xy_bit_string + "1", ''
 
@@ -523,6 +502,7 @@ def main(
         else:
             # for intermediate nodes H(1 || h_1 || h_2) if there are no certificate hashes
             # and H(1 || h_1 || h_2 || h_3) otherwise
+
             if len(row.certificate_hashes) > 0:
                 row.hash = hashlib.sha256(
                     b"\x01" +
@@ -541,17 +521,16 @@ def main(
                     row.z_right_child_hash
                 ).digest()
 
-        if not neighbor is None:
-            # only set the neighbor hash if it is not the root
-            # has to be done after the computation of the node's hash
-
-            if neighbor in bit_string_map:
-                # neighbor exists, set its neighbor's hash
-                # when iterating over the neighbor, this row's neighbor hash will be set
-                bit_string_map[neighbor].neighbor_hash = row.hash
-            else:
-                # neighbor does not exist, own neighbor hash is set to the empty one
-                row.neighbor_hash = None
+            if xy_bit_string == "11010001000110111111010010000101011010000":
+                print()
+                print(row.xy_left_child_hash.hex())
+                print(row.xy_right_child_hash.hex())
+                print(row.z_left_child_hash.hex())
+                print(row.z_right_child_hash.hex())
+                print(hashlib.sha256(row.get_certificate_hashes()).digest(
+                ).hex() if len(row.certificate_hashes) > 0 else "no h")
+                print(row.hash.hex())
+                print()
 
     f = open(os.path.join(output_path_nodes, "part-0.sql"), "w")
     size = 0
@@ -584,7 +563,7 @@ def main(
             bit_string_tuple[0][:51].ljust(51, '0'),
             2
         )
-        neighbor_hash = "NULL" if row.neighbor_hash is None else f"E'\\\\x{row.neighbor_hash.hex()}'"
+
         xy_left_child_hash = "NULL" if (row.xy_left_child_hash is None or row.xy_left_child_hash ==
                                         DEFAULT_HASH) else f"E'\\\\x{row.xy_left_child_hash.hex()}'"
         xy_right_child_hash = "NULL" if (row.xy_right_child_hash is None or row.xy_right_child_hash ==
@@ -616,15 +595,15 @@ def main(
 
         if mode == "bitstring-int":
             size += f.write(
-                f"('{bit_string_tuple[0]}', {bit_string_51_int}, {neighbor_hash}, {xy_left_child_hash}, {xy_right_child_hash}, {certificate_hash_array})"
+                f"('{bit_string_tuple[0]}', {bit_string_51_int}, {xy_left_child_hash}, {xy_right_child_hash}, {certificate_hash_array})"
             )
         elif mode == "bitstring-int-z-subtrees":
             size += f.write(
-                f"(b'{bit_string_tuple[0]}', {bit_string_51_int}, b'{bit_string_tuple[1]}', {neighbor_hash}, {xy_left_child_hash}, {xy_right_child_hash}, {z_left_child_hash}, {z_right_child_hash}, {certificate_hash_array})"
+                f"(b'{bit_string_tuple[0]}', {bit_string_51_int}, b'{bit_string_tuple[1]}', {xy_left_child_hash}, {xy_right_child_hash}, {z_left_child_hash}, {z_right_child_hash}, {certificate_hash_array})"
             )
         else:
             size += f.write(
-                f"(b'{bit_string_tuple[0]}', {polygon}, {neighbor_hash}, {xy_left_child_hash}, {xy_right_child_hash}, {certificate_hash_array})"
+                f"(b'{bit_string_tuple[0]}', {polygon}, {xy_left_child_hash}, {xy_right_child_hash}, {certificate_hash_array})"
             )
 
         if size >= MAX_FILE_SIZE:

@@ -2,6 +2,7 @@ package crypto
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log"
 
@@ -12,11 +13,11 @@ type Node struct {
 	// the raw bit string associated with this node
 	bitstring.RawBitStringPair
 
-	neighbor, xyLeftChild, xyRightChild, zLeftChild, zRightChild *Node
+	xyLeftChild, xyRightChild, zLeftChild, zRightChild *Node
 
-	// the hashes of the neighbor, and all children
+	// the hashes of all children
 	// can be nil when sent as a response or when it is equal to the default hash
-	neighborHash, xyLeftChildHash, xyRightChildHash, zLeftChildHash, zRightChildHash SHA256Hash
+	xyLeftChildHash, xyRightChildHash, zLeftChildHash, zRightChildHash SHA256Hash
 
 	CertificateHashes []SHA256Hash
 }
@@ -28,7 +29,7 @@ func NewDBNode(
 	ZBitString uint16,
 	ZBitStringLen uint8,
 
-	neighborHash, xyLeftChildHash, xyRightChildHash, zLeftChildHash, zRightChildHash SHA256Hash,
+	xyLeftChildHash, xyRightChildHash, zLeftChildHash, zRightChildHash SHA256Hash,
 	certificateHashes []SHA256Hash,
 ) *Node {
 
@@ -44,7 +45,6 @@ func NewDBNode(
 			},
 		},
 
-		neighborHash:     neighborHash,
 		xyLeftChildHash:  xyLeftChildHash,
 		xyRightChildHash: xyRightChildHash,
 		zLeftChildHash:   zLeftChildHash,
@@ -88,51 +88,6 @@ func NewTreeNode(
 // returns XYBitString and ZBitString as a pair struct
 func (node *Node) Pair() bitstring.RawBitStringPair {
 	return node.RawBitStringPair
-}
-
-// returns the neighbor hash. if 'useDefault' is set, returns SHA256(0) if nil
-func (node *Node) NeighborHash(useDefault bool) SHA256Hash {
-	if node.neighbor != nil {
-		return node.neighbor.Hash()
-	}
-
-	if (!useDefault) || node.neighborHash != nil {
-		return node.neighborHash
-	}
-
-	return DEFAULT_HASH
-}
-
-// sets the neighbor hash
-func (node *Node) SetNeighborHash(neighborHash SHA256Hash) error {
-	if node.neighbor != nil {
-		return fmt.Errorf("tried setting neighbor on node with non-nil neighbor")
-	}
-
-	node.neighborHash = neighborHash
-
-	return nil
-}
-
-// sets the neighbor node
-func (node *Node) SetNeighbor(neighbor *Node) error {
-	if !node.RawBitStringPair.NeighborPair().Equals(neighbor.RawBitStringPair) {
-		return fmt.Errorf("tried setting invalid neighbor")
-	}
-
-	if node.neighborHash != nil {
-		return fmt.Errorf("tried setting neighbor on node with non-nil neighbor hash")
-	}
-
-	node.neighbor = neighbor
-
-	return nil
-}
-
-// sets 'neighbor' and 'neighborHash' to nil
-func (node *Node) ClearNeighbor() {
-	node.neighbor = nil
-	node.neighborHash = nil
 }
 
 // returns the left xy child hash. if 'useDefault' is set, returns SHA256(0) if nil
@@ -363,9 +318,15 @@ func (node *Node) Hash() SHA256Hash {
 	bytes = append(bytes, node.ZLeftChildHash(true)...)
 	bytes = append(bytes, node.ZRightChildHash(true)...)
 
+	println(node.BitString().String())
+	println(hex.EncodeToString(bytes[1:33]), hex.EncodeToString(bytes[33:65]))
+	println(hex.EncodeToString(bytes[65:97]), hex.EncodeToString(bytes[97:129]))
+
 	// hash of an intermediate node
 	if len(node.CertificateHashes) == 0 {
 		hash := sha256.Sum256(bytes)
+		println("h", hex.EncodeToString(hash[:]))
+		println()
 		return hash[:]
 	} else {
 		certificateHash := sha256.Sum256(node.ConcatenatedCertificateHashes())
@@ -376,6 +337,10 @@ func (node *Node) Hash() SHA256Hash {
 				certificateHash[:]...,
 			),
 		)
+
+		println("certs", hex.EncodeToString(certificateHash[:]))
+		println("h", hex.EncodeToString(hash[:]))
+		println()
 
 		return hash[:]
 	}

@@ -9,7 +9,6 @@ CREATE TABLE IF NOT EXISTS nodes
     bit_string_15 bit varying(15) NOT NULL,
     altitude_min smallint NOT NULL DEFAULT 0,
     altitude_max smallint NOT NULL DEFAULT 32767,
-    neighbor_hash bytea,
     xy_left_child_hash bytea,
     xy_right_child_hash bytea,
     z_left_child_hash bytea,

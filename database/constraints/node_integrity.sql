@@ -15,30 +15,6 @@ ALTER TABLE IF EXISTS public.nodes
       (
         CASE
           WHEN (
-            neighbor_hash IS NULL AND
-            hash_of_neighbor(
-              bit_string_51,
-              bit_string_15
-            ) IS NULL
-          ) THEN TRUE
-          WHEN (
-            neighbor_hash IS NULL OR
-            hash_of_neighbor(
-              bit_string_51,
-              bit_string_15
-            ) IS NULL
-          ) THEN FALSE
-          ELSE (
-            neighbor_hash = hash_of_neighbor(
-              bit_string_51,
-              bit_string_15
-            )
-          )
-        END
-      ) AND
-      (
-        CASE
-          WHEN (
             xy_left_child_hash IS NULL AND
             hash_of_node(bit_string_51 || b'0', bit_string_15) IS NULL
           ) THEN TRUE

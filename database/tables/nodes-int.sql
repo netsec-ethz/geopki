@@ -6,7 +6,6 @@ CREATE TABLE IF NOT EXISTS nodes
 (
     bit_string bit varying(66) NOT NULL,
     bit_string_51_int bigint NOT NULL,
-    neighbor_hash bytea,
     left_child_hash bytea,
     right_child_hash bytea,
     certificate_hashes bytea[] NOT NULL DEFAULT '{}'::bytea[],

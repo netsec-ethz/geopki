@@ -67,43 +67,8 @@ FOR z_bit_string_depth IN REVERSE len15..1 LOOP
   SET
     xy_left_child_hash = new_xy_left_child_hash,
     xy_right_child_hash = new_xy_right_child_hash,
-    neighbor_hash = new_neighbor_hash,
     z_left_child_hash = new_z_left_child_hash,
     z_right_child_hash = new_z_right_child_hash
-  
-  FROM node_hashes
-  WHERE nodes.bit_string_51 = node_hashes.bit_string_51
-  AND   nodes.bit_string_15 = node_hashes.bit_string_15;
-
-  -- update neighbors
-  WITH node_hashes AS (
-    SELECT
-      nodes.bit_string_51 as bit_string_51,
-      nodes.bit_string_15 as bit_string_15,
-      -- compute the neighbor hash using the joined data
-      smt_hash(
-        neighbor.bit_string_51,
-        neighbor.bit_string_15,
-        neighbor.xy_left_child_hash,
-        neighbor.xy_right_child_hash,
-        neighbor.z_left_child_hash,
-        neighbor.z_right_child_hash,
-        neighbor.certificate_hashes
-      ) as new_neighbor_hash
-    FROM
-      nodes
-      -- neighbor in the z subtree
-      FULL OUTER JOIN nodes as neighbor
-        ON (
-          neighbor.bit_string_51 = nodes.bit_string_51 AND
-          neighbor.bit_string_15 = neighbor_of_bit_string(nodes.bit_string_15)
-        )
-    -- conditions on the original table
-    WHERE nodes.bit_string_51 = input_bit_string_51
-    AND   nodes.bit_string_15 = neighbor_of_bit_string(update_bit_string_15)
-  )
-  UPDATE nodes
-  SET neighbor_hash = new_neighbor_hash
   
   FROM node_hashes
   WHERE nodes.bit_string_51 = node_hashes.bit_string_51
@@ -198,40 +163,7 @@ FOR xy_bit_string_depth IN REVERSE len51..0 LOOP
   FROM node_hashes
   WHERE nodes.bit_string_51 = node_hashes.bit_string_51
   AND   nodes.bit_string_15 = node_hashes.bit_string_15;
-
-  -- update neighbors
-
-  WITH node_hashes AS (
-    SELECT
-      nodes.bit_string_51 as bit_string_51,
-      nodes.bit_string_15 as bit_string_15,
-      -- compute the neighbor hash using the joined data
-      smt_hash(
-        neighbor.bit_string_51,
-        neighbor.bit_string_15,
-        neighbor.xy_left_child_hash,
-        neighbor.xy_right_child_hash,
-        neighbor.z_left_child_hash,
-        neighbor.z_right_child_hash,
-        neighbor.certificate_hashes
-      ) as new_neighbor_hash
-    FROM
-      nodes
-      -- neighbor in the 2D tree
-      FULL OUTER JOIN nodes as neighbor
-        ON (
-          neighbor.bit_string_51 = neighbor_of_bit_string(nodes.bit_string_51) AND
-          neighbor.bit_string_15 = nodes.bit_string_15 -- b''
-        )
-    -- conditions on the original table
-    WHERE nodes.bit_string_51 = neighbor_of_bit_string(update_bit_string_51)
-    AND   nodes.bit_string_15 = ''
-  )
-  UPDATE nodes
-  SET neighbor_hash = new_neighbor_hash
-  FROM node_hashes
-  WHERE nodes.bit_string_51 = node_hashes.bit_string_51
-  AND   nodes.bit_string_15 = node_hashes.bit_string_15;
+  
 END LOOP;
 END;
 $BODY$;

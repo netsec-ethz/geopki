@@ -8,7 +8,6 @@ CREATE OR REPLACE FUNCTION public.query_by_bitstring(
     RETURNS TABLE (
 		bit_string bit varying(66),
 		certificate_hashes bytea[],
-		neighbor_hash bytea,
 		left_child_hash bytea,
 		right_child_hash bytea
 	)
@@ -22,7 +21,7 @@ BEGIN
 RETURN QUERY (
   SELECT
     nodes.bit_string, nodes.certificate_hashes,
-    nodes.neighbor_hash, nodes.left_child_hash, nodes.right_child_hash
+    nodes.left_child_hash, nodes.right_child_hash
   FROM nodes
 WHERE
   bit_string_52 >= (

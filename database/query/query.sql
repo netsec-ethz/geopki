@@ -1,6 +1,6 @@
 SELECT
 	bit_string_51, bit_string_15, certificate_hashes,
-	neighbor_hash, left_child_hash, right_child_hash, altitude_child_hash
+	left_child_hash, right_child_hash, altitude_child_hash
 	--, area
 FROM nodes
 WHERE ST_DWITHIN(
