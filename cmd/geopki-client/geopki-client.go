@@ -94,20 +94,21 @@ func main() {
 		publicKey = decodedPublicKey.(*ecdsa.PublicKey)
 	}
 
-	response, err := comm.Query(
+	query, err := comm.NewQuery(longitude, latitude, altitude, radius, F_GROW)
+	if err != nil {
+		log.Fatalf("❌ building fquery: %v\n", err)
+	}
+
+	response, err := comm.QueryMapServer(
 		address,
-		longitude,
-		latitude,
-		altitude,
-		radius,
+		query,
 		includeCertificates,
-		F_GROW,
 	)
 	if err != nil {
 		log.Fatalf("❌ request failed: %v\n", err)
 	}
 
-	certificateHashes, err := crypto.VerifyResponse(response, publicKey)
+	certificateHashes, err := crypto.VerifyResponse(response, query, publicKey)
 	if err != nil {
 		log.Fatalf("❌ response verification failed: %v\n", err)
 	}

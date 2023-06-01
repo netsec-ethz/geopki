@@ -75,11 +75,19 @@ func (b RawXYBitString) BitString() *XYBitString {
 
 	return &XYBitString{
 		// move the relevant bits to the end
-		xMin:       xMin >> (32 - X_BITS),
-		xPrecision: (b.XYBitStringLen + 1) / 2,
+		XMin:       xMin >> (32 - X_BITS),
+		XPrecision: (b.XYBitStringLen + 1) / 2,
 		// move the relevant bits to the end
-		yMin:       yMin >> (32 - Y_BITS),
-		yPrecision: b.XYBitStringLen / 2,
+		YMin:       yMin >> (32 - Y_BITS),
+		YPrecision: b.XYBitStringLen / 2,
+	}
+}
+
+// returns the bit string pair as strings
+func (b RawZBitString) BitString() *ZBitString {
+	return &ZBitString{
+		ZMin:       b.ZBitString >> (16 - Z_BITS),
+		ZPrecision: b.ZBitStringLen,
 	}
 }
 
@@ -87,10 +95,7 @@ func (b RawXYBitString) BitString() *XYBitString {
 func (pair RawBitStringPair) BitStringPair() *BitStringPair {
 	return &BitStringPair{
 		XYBitString: *pair.RawXYBitString.BitString(),
-		ZBitString: ZBitString{
-			zMin:       pair.ZBitString >> (16 - Z_BITS),
-			zPrecision: pair.ZBitStringLen,
-		},
+		ZBitString:  *pair.RawZBitString.BitString(),
 	}
 }
 

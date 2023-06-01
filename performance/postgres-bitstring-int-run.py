@@ -207,8 +207,8 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                                 f"FROM nodes "
                                 f"WHERE bit_string_51 IN (" +
                                 ','.join(point_queries) + ") AND "
-                                f"altitude_min <= {query_altitude - args.query_radius} AND "
-                                f"altitude_max >= {query_altitude + args.query_radius}"
+                                f"altitude_min <= {query_altitude + args.query_radius} AND "
+                                f"altitude_max >= {query_altitude - args.query_radius}"
                                 "UNION ALL "
                                 "SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash "
                                 "FROM nodes "
@@ -216,8 +216,8 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                                 f"bit_string_51_int >= {imin} AND "
                                 f"bit_string_51_int <= {imax} AND "
                                 # fix altitude for now
-                                f"altitude_min <= {query_altitude - args.query_radius} AND "
-                                f"altitude_max >= {query_altitude + args.query_radius}"
+                                f"altitude_min <= {query_altitude + args.query_radius} AND "
+                                f"altitude_max >= {query_altitude - args.query_radius}"
                                 f")"
                                 for point_queries, imin, imax in bit_strings
                                 if (query_altitude := 22767)

@@ -49,21 +49,21 @@ var DELTAS = []int32{-1, 0, 1}
 type XYBitString struct {
 	// The smallest x, and y coordinates of the voxel.
 	// Must be in `[0, C_X]` and `[0, C_Y]` respectively.
-	xMin, yMin uint32
+	XMin, YMin uint32
 
 	// The number of bits used to encode `xMin` and `yMin`, respectively.
 	// Must be in `[0, X_BITS]` and `[0, Y_BITS]`, respectively.
-	xPrecision, yPrecision uint8
+	XPrecision, YPrecision uint8
 }
 
 type ZBitString struct {
 	// The smallest z coordinate of the voxel.
 	// Must be in `[0, C_Z]``
-	zMin uint16
+	ZMin uint16
 
 	// The number of bits used to encode `zMin`
 	// Must be in `[0, Z_BITS]`
-	zPrecision uint8
+	ZPrecision uint8
 }
 
 // this struct is analogous to the 'DiscretizedVoxel' class in '../coordinatez.py'
@@ -174,15 +174,15 @@ func NewBitStringPair(
 
 	pair := &BitStringPair{
 		XYBitString: XYBitString{
-			xMin: xMin,
-			yMin: yMin,
+			XMin: xMin,
+			YMin: yMin,
 
-			xPrecision: xPrecision,
-			yPrecision: yPrecision,
+			XPrecision: xPrecision,
+			YPrecision: yPrecision,
 		},
 		ZBitString: ZBitString{
-			zMin:       zMin,
-			zPrecision: zPrecision,
+			ZMin:       zMin,
+			ZPrecision: zPrecision,
 		},
 	}
 
@@ -248,15 +248,15 @@ func BitStringPairFromStringPair(
 
 	pair := &BitStringPair{
 		XYBitString: XYBitString{
-			xMin: uint32(x),
-			yMin: uint32(y),
+			XMin: uint32(x),
+			YMin: uint32(y),
 
-			xPrecision: xPrecision,
-			yPrecision: yPrecision,
+			XPrecision: xPrecision,
+			YPrecision: yPrecision,
 		},
 		ZBitString: ZBitString{
-			zMin:       uint16(z),
-			zPrecision: uint8(len(zBitString)),
+			ZMin:       uint16(z),
+			ZPrecision: uint8(len(zBitString)),
 		},
 	}
 
@@ -287,12 +287,12 @@ func XYBitStringFromGeodeticCoordinates(longitude, latitude float64) (*XYBitStri
 	// create an instance with the full precision
 	return &XYBitString{
 		// 0x3ffffff = uint32(math.MaxUint32) >> (32 - X_BITS), go complains if written out..
-		xMin: (x) & 0x3ffffff,
+		XMin: (x) & 0x3ffffff,
 		// 0x1ffffff = (uint32(math.MaxUint32) >> (32 - Y_BITS)), go complains if written out..
-		yMin: (y) & 0x1ffffff,
+		YMin: (y) & 0x1ffffff,
 
-		xPrecision: X_BITS,
-		yPrecision: Y_BITS,
+		XPrecision: X_BITS,
+		YPrecision: Y_BITS,
 	}, nil
 }
 
@@ -312,8 +312,8 @@ func ZBitStringFromGeodeticCoordinate(altitude float64) (*ZBitString, error) {
 
 	// create an instance with the full precision
 	return &ZBitString{
-		zMin:       z,
-		zPrecision: Z_BITS,
+		ZMin:       z,
+		ZPrecision: Z_BITS,
 	}, nil
 }
 
@@ -348,9 +348,9 @@ func (bitString *XYBitString) XBitString() string {
 		"%0*s",
 		X_BITS,
 		// convert integer to bit string
-		strconv.FormatInt(int64(bitString.xMin), 2),
+		strconv.FormatInt(int64(bitString.XMin), 2),
 		// only use the first xPrecision (most significant) bits
-	)[:bitString.xPrecision]
+	)[:bitString.XPrecision]
 }
 
 // The bit string encoding the `yMin` value, i.e. the `yPrecision` MSBs
@@ -360,9 +360,9 @@ func (bitString *XYBitString) YBitString() string {
 		"%0*s",
 		Y_BITS,
 		// convert integer to bit string
-		strconv.FormatInt(int64(bitString.yMin), 2),
+		strconv.FormatInt(int64(bitString.YMin), 2),
 		// only use the first yPrecision (most significant) bits
-	)[:bitString.yPrecision]
+	)[:bitString.YPrecision]
 }
 
 // The bit string encoding the `zMin` value, i.e. the `zPrecision` MSBs
@@ -372,9 +372,9 @@ func (bitString *ZBitString) BitString() string {
 		"%0*s",
 		Z_BITS,
 		// convert integer to bit string
-		strconv.FormatInt(int64(bitString.zMin), 2),
+		strconv.FormatInt(int64(bitString.ZMin), 2),
 		// only use the first zPrecision (most significant) bits
-	)[:bitString.zPrecision]
+	)[:bitString.ZPrecision]
 }
 
 // The smallest discretized `x` coordinate that is no longer in the voxel
@@ -382,7 +382,7 @@ func (bitString *XYBitString) XMax() uint32 {
 	// conceptually set the X_BITS - xPrecision least significant bits to 1
 	// and add one to the resulting integer
 
-	return bitString.xMin + (1 << (X_BITS - bitString.xPrecision))
+	return bitString.XMin + (1 << (X_BITS - bitString.XPrecision))
 }
 
 // The smallest discretized `y` coordinate that is no longer in the voxel
@@ -390,7 +390,7 @@ func (bitString *XYBitString) YMax() uint32 {
 	// conceptually set the Y_BITS - yPrecision least significant bits to 1
 	// and add one to the resulting integer
 
-	return bitString.yMin + (1 << (Y_BITS - bitString.yPrecision))
+	return bitString.YMin + (1 << (Y_BITS - bitString.YPrecision))
 }
 
 // The smallest discretized `z` coordinate that is no longer in the voxel
@@ -398,15 +398,15 @@ func (bitString *ZBitString) ZMax() uint16 {
 	// conceptually set the Z_BITS - zPrecision least significant bits to 1
 	// and add one to the resulting integer
 
-	return bitString.zMin + (1 << (Z_BITS - bitString.zPrecision))
+	return bitString.ZMin + (1 << (Z_BITS - bitString.ZPrecision))
 }
 
 // Returns a string representation of the discretized coordinates
 func (pair *BitStringPair) String() string {
 	return "" +
-		fmt.Sprintf("X: [%d, %d)", pair.xMin, pair.XMax()) + "\n" +
-		fmt.Sprintf("Y: [%d, %d)", pair.yMin, pair.YMax()) + "\n" +
-		fmt.Sprintf("Z: [%d, %d)", pair.zMin, pair.ZMax())
+		fmt.Sprintf("X: [%d, %d)", pair.XMin, pair.XMax()) + "\n" +
+		fmt.Sprintf("Y: [%d, %d)", pair.YMin, pair.YMax()) + "\n" +
+		fmt.Sprintf("Z: [%d, %d)", pair.ZMin, pair.ZMax())
 }
 
 func (b *XYBitString) String() string {
@@ -450,8 +450,8 @@ func interleaveUint32WithZeros(input uint32) uint64 {
 
 func (bitString *XYBitString) RawXYBitStringPair() RawXYBitString {
 	// first shift numbers to move the used bits from the end to the start
-	xBitString := bitString.xMin << (32 - X_BITS)
-	yBitString := bitString.yMin << (32 - Y_BITS)
+	xBitString := bitString.XMin << (32 - X_BITS)
+	yBitString := bitString.YMin << (32 - Y_BITS)
 
 	// https://lemire.me/blog/2018/01/08/how-fast-can-you-bit-interleave-32-bit-integers/
 	xZeroInterleaved := (interleaveUint32WithZeros(xBitString) << 1)
@@ -461,15 +461,15 @@ func (bitString *XYBitString) RawXYBitStringPair() RawXYBitString {
 
 	return RawXYBitString{
 		XYBitString:    XYBitString,
-		XYBitStringLen: bitString.xPrecision + bitString.yPrecision,
+		XYBitStringLen: bitString.XPrecision + bitString.YPrecision,
 	}
 }
 
 func (bitString *ZBitString) RawZBitStringPair() RawZBitString {
 	return RawZBitString{
 		// move the used bits from the end to the start
-		ZBitString:    bitString.zMin << (16 - Z_BITS),
-		ZBitStringLen: bitString.zPrecision,
+		ZBitString:    bitString.ZMin << (16 - Z_BITS),
+		ZBitStringLen: bitString.ZPrecision,
 	}
 }
 
@@ -505,28 +505,28 @@ func Undiscretize(x, y uint32, z uint16) (float64, float64, float64) {
 // Returns the geodetic coordinate corresponding to the point with the
 // smallest longitude, latitude
 func (bitString *XYBitString) GeodeticCoordinates() (float64, float64) {
-	return UndiscretizeX(bitString.xMin), UndiscretizeY(bitString.yMin)
+	return UndiscretizeX(bitString.XMin), UndiscretizeY(bitString.YMin)
 }
 
 // Returns the geodetic coordinate corresponding to the point with the
 // smallest altitude
-func (bitString *ZBitString) GeodeticCoordinates() float64 {
-	return UndiscretizeZ(bitString.zMin)
+func (bitString *ZBitString) GeodeticCoordinate() float64 {
+	return UndiscretizeZ(bitString.ZMin)
 }
 
 // Returns the geodetic coordinate corresponding to the point with the
 // smallest longitude, latitude and altitude.
 func (pair *BitStringPair) GeodeticCoordinates() (float64, float64, float64) {
-	return UndiscretizeX(pair.xMin), UndiscretizeY(pair.yMin), UndiscretizeZ(pair.zMin)
+	return UndiscretizeX(pair.XMin), UndiscretizeY(pair.YMin), UndiscretizeZ(pair.ZMin)
 }
 
 // Returns a two dimensional boundary of the voxel's projection
 // to the earth's surface in geodetic coordinates.
 func (bitString *XYBitString) Rect() s2.Rect {
-	longitude_min := UndiscretizeX(bitString.xMin)
+	longitude_min := UndiscretizeX(bitString.XMin)
 	longitude_max := UndiscretizeX(bitString.XMax())
 
-	latitude_min := UndiscretizeY(bitString.yMin)
+	latitude_min := UndiscretizeY(bitString.YMin)
 	latitude_max := UndiscretizeY(bitString.YMax())
 
 	return s2.Rect{
@@ -538,10 +538,10 @@ func (bitString *XYBitString) Rect() s2.Rect {
 // Returns a two dimensional boundary of the voxel's projection
 // to the earth's surface in geodetic coordinates.
 func (bitString *XYBitString) Loop() *s2.Loop {
-	longitude_min := UndiscretizeX(bitString.xMin)
+	longitude_min := UndiscretizeX(bitString.XMin)
 	longitude_max := UndiscretizeX(bitString.XMax())
 
-	latitude_min := UndiscretizeY(bitString.yMin)
+	latitude_min := UndiscretizeY(bitString.YMin)
 	latitude_max := UndiscretizeY(bitString.YMax())
 
 	// counter-clockwise orientation for non-holes
@@ -570,14 +570,14 @@ func (bitString *XYBitString) Grow2D(steps uint8) error {
 	var xBitsToClear uint8
 	var yBitsToClear uint8
 
-	if bitString.xPrecision+bitString.yPrecision <= steps {
+	if bitString.XPrecision+bitString.YPrecision <= steps {
 		// cannot grow further, one bit must be left in the end
 		return fmt.Errorf("cannot grow further in 2D, only one bit left")
-	} else if bitString.xPrecision == bitString.yPrecision {
+	} else if bitString.XPrecision == bitString.YPrecision {
 		// start with the y bit, if odd clear one more y bit
 		xBitsToClear = steps / 2
 		yBitsToClear = (steps + 1) / 2
-	} else if bitString.xPrecision == bitString.yPrecision+1 {
+	} else if bitString.XPrecision == bitString.YPrecision+1 {
 		// start with the x bit, if odd clear one more x bit
 		xBitsToClear = (steps + 1) / 2
 		yBitsToClear = steps / 2
@@ -586,12 +586,12 @@ func (bitString *XYBitString) Grow2D(steps uint8) error {
 	}
 
 	// clear all bits outside the new precision, used bits are at the end
-	bitString.xPrecision -= xBitsToClear
-	bitString.xMin = bitString.xMin & (uint32(math.MaxUint32) << (X_BITS - bitString.xPrecision))
+	bitString.XPrecision -= xBitsToClear
+	bitString.XMin = bitString.XMin & (uint32(math.MaxUint32) << (X_BITS - bitString.XPrecision))
 
 	// clear all bits outside the new precision
-	bitString.yPrecision -= yBitsToClear
-	bitString.yMin = bitString.yMin & (uint32(math.MaxUint32) << (Y_BITS - bitString.yPrecision))
+	bitString.YPrecision -= yBitsToClear
+	bitString.YMin = bitString.YMin & (uint32(math.MaxUint32) << (Y_BITS - bitString.YPrecision))
 
 	return nil
 }
@@ -600,15 +600,15 @@ func (bitString *XYBitString) Grow2D(steps uint8) error {
 // Throws an exception if the it is not possible to grow `z` times.
 // Multiplies the covered altitude by `2 ** steps.`
 func (bitString *ZBitString) GrowZ(steps uint8) error {
-	if bitString.zPrecision <= steps {
+	if bitString.ZPrecision <= steps {
 		// cannot grow further
 		return fmt.Errorf("cannot grow further in the altitude, only one bit left")
 	}
 
 	// clear all bits starting from yPrecision to yPrecision + yBitsToClear
-	zBitMask := uint16(math.MaxUint16) << (Z_BITS - bitString.zPrecision - steps)
-	bitString.zMin &= zBitMask
-	bitString.zPrecision -= steps
+	zBitMask := uint16(math.MaxUint16) << (Z_BITS - bitString.ZPrecision - steps)
+	bitString.ZMin &= zBitMask
+	bitString.ZPrecision -= steps
 
 	return nil
 }
@@ -624,7 +624,7 @@ func (bitString *XYBitString) Grow2DToCoverArea(maxArea float64) error {
 	if growSteps < 0 {
 		// no shrinking
 		return nil
-	} else if growSteps > float64(bitString.xPrecision+bitString.yPrecision) {
+	} else if growSteps > float64(bitString.XPrecision+bitString.YPrecision) {
 		return fmt.Errorf("something seems off, cannot grow larger than the whole world")
 	}
 
@@ -634,7 +634,7 @@ func (bitString *XYBitString) Grow2DToCoverArea(maxArea float64) error {
 // Grows (*modifies*) the voxel by removing bits from the z bit string until the voxel's
 // altitude would be greater than `altitudeMaxRange` if another bit was removed.
 func (bitString *ZBitString) GrowZToLength(altitudeMaxRange float64) error {
-	currentAltitudeRange := float64(bitString.ZMax() - bitString.zMin + 1)
+	currentAltitudeRange := float64(bitString.ZMax() - bitString.ZMin + 1)
 	growSteps := math.Log2(altitudeMaxRange / currentAltitudeRange)
 
 	if growSteps < 0 {
@@ -727,9 +727,9 @@ func PolygonsTo2DBitStrings(polygons []*s2.Loop, fGrow float64) ([]RawXYBitStrin
 				for _, dy := range DELTAS {
 
 					// compute neighbor coordinates
-					xNext := uint32((int32(voxel.xMin) + dx*(1<<(X_BITS-voxel.xPrecision))) % int32(C_X))
+					xNext := uint32((int32(voxel.XMin) + dx*(1<<(X_BITS-voxel.XPrecision))) % int32(C_X))
 
-					yStep := int32(voxel.yMin) + dy*(1<<(Y_BITS-voxel.yPrecision))
+					yStep := int32(voxel.YMin) + dy*(1<<(Y_BITS-voxel.YPrecision))
 					yNext := uint32(yStep)
 
 					if yStep < 0 {
@@ -741,22 +741,22 @@ func PolygonsTo2DBitStrings(polygons []*s2.Loop, fGrow float64) ([]RawXYBitStrin
 					} else if yStep >= int32(C_Y) {
 						// the y-coordinate 'flips', we can account for this
 						// by rotating around x and set y to C_Y - step size = original y
-						yNext = voxel.yMin
+						yNext = voxel.YMin
 						// if we overflow the x coordinate wraps around
 						xNext = (xNext + (C_X / 2)) % C_X
 					}
 
 					// clear bottom bits of the x coordinate, might be messed up after wrapping around
-					xNext = xNext & (uint32(math.MaxUint32) << (X_BITS - voxel.xPrecision))
+					xNext = xNext & (uint32(math.MaxUint32) << (X_BITS - voxel.XPrecision))
 
 					q = append(
 						q,
 						&XYBitString{
-							xMin: xNext,
-							yMin: yNext,
+							XMin: xNext,
+							YMin: yNext,
 
-							xPrecision: voxel.xPrecision,
-							yPrecision: voxel.yPrecision,
+							XPrecision: voxel.XPrecision,
+							YPrecision: voxel.YPrecision,
 						},
 					)
 				}
@@ -868,7 +868,7 @@ func SmallestEnclosingZBitString(altitudeMin, altitudeMax float64) (*ZBitString,
 	}
 
 	altitudeMaxRange := altitudeMax - altitudeMin + 1
-	currentAltitudeRange := float64(bitString.ZMax() - bitString.zMin + 1)
+	currentAltitudeRange := float64(bitString.ZMax() - bitString.ZMin + 1)
 	growSteps := math.Ceil(math.Log2(altitudeMaxRange / currentAltitudeRange))
 
 	if growSteps < 0 {

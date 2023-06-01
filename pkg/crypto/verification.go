@@ -14,9 +14,9 @@ import (
 	mapset "github.com/deckarep/golang-set/v2"
 )
 
-// verifies a recieved response based on a public key
+// verifies a recieved response based on the query and the server's public key
 // and returns the set of all certificate hashes as hex strings
-func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) (mapset.Set[string], error) {
+func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa.PublicKey) (mapset.Set[string], error) {
 	smh := NewSMHFromCommSMH(response.GetSignedMapHead())
 
 	if !smh.Verify(publicKey) {
@@ -158,6 +158,17 @@ func VerifyResponse(response *comm.Response, publicKey *ecdsa.PublicKey) (mapset
 	// verify root hash against SMH
 	if !bytes.Equal(rootHash, response.SignedMapHead.RootHash) {
 		return nil, fmt.Errorf("computed root hash does not match the SMH")
+	}
+
+	// ensure all requested nodes have been returned, or, the omitted subtrees are empty
+	for _, xyBitString := range query.XYBitStrings {
+
+		// find node corresponding to z subtree root or the
+		// smallest ancestor of it
+		ok := rootNode.PathIsComplete([]rune(xyBitString.BitString().String()), query.MinAltitude, query.MaxAltitude)
+		if !ok {
+			return nil, fmt.Errorf("server did not include all nodes required by the query (%s, %d, %d)", xyBitString.BitString().String(), query.MinAltitude, query.MaxAltitude)
+		}
 	}
 
 	// verify that all received certificate's hash is in one of the nodes

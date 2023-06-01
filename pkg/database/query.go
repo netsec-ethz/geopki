@@ -70,8 +70,8 @@ func BuildNodeQueries(bitStrings []*comm.XYBitString, minAltitude, maxAltitude u
 				"altitude_max >= %[3]d"+
 				")",
 			strings.Join(pointQueries, ","),
-			minAltitude,
 			maxAltitude,
+			minAltitude,
 			bitStringMinInt,
 			bitStringMaxInt,
 		)
@@ -141,7 +141,6 @@ func RowsToNodesAndRootHash(
 
 			dbCertificateHashes.Elements,
 		)
-
 		// append new instance to the list, will be returned to the client after
 		// some additional processing
 		nodes = append(nodes, node)

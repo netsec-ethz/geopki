@@ -17,17 +17,16 @@ type ErrorResponse struct {
 	Error string
 }
 
-func Query(
-	address string,
+type Query struct {
+	XYBitStrings             []bitstring.RawXYBitString
+	MinAltitude, MaxAltitude int16
+}
+
+func NewQuery(
 	longitude, latitude, altitude float64,
 	radius uint64,
-	includeCertificates bool,
 	fGrow float64,
-) (*Response, error) {
-	if address == "" {
-		return nil, fmt.Errorf("missing address value, use --address=http://[...]")
-	}
-
+) (*Query, error) {
 	if longitude < -180 || longitude > 180 {
 		return nil, fmt.Errorf("invalid longitude value, must be in the range [-180, 180]")
 	}
@@ -68,11 +67,26 @@ func Query(
 
 	altitudeInt := int16(altitude)
 
-	minAltitude := altitudeInt - bitstring.D - int16(radius)
-	maxAltitude := altitudeInt - bitstring.D + int16(radius)
+	query := &Query{
+		XYBitStrings: bitStrings,
+		MinAltitude:  altitudeInt - bitstring.D - int16(radius),
+		MaxAltitude:  altitudeInt - bitstring.D + int16(radius),
+	}
 
-	queries := make([]*XYBitString, len(bitStrings))
-	for i, bitString := range bitStrings {
+	return query, nil
+}
+
+func QueryMapServer(
+	address string,
+	query *Query,
+	includeCertificates bool,
+) (*Response, error) {
+	if address == "" {
+		return nil, fmt.Errorf("missing address value, use --address=http://[...]")
+	}
+
+	queries := make([]*XYBitString, len(query.XYBitStrings))
+	for i, bitString := range query.XYBitStrings {
 		queries[i] = &XYBitString{
 			XYBitString:    bitString.XYBitString,
 			XYBitStringLen: uint32(bitString.XYBitStringLen),
@@ -81,8 +95,8 @@ func Query(
 
 	request, err := proto.Marshal(&Request{
 		XYBitStrings: queries,
-		MinAltitude:  uint32(minAltitude),
-		MaxAltitude:  uint32(maxAltitude),
+		MinAltitude:  uint32(query.MinAltitude),
+		MaxAltitude:  uint32(query.MaxAltitude),
 	})
 
 	if err != nil {

@@ -530,17 +530,6 @@ def main(
                     row.z_right_child_hash
                 ).digest()
 
-            if xy_bit_string == "11010001000110111111010010000101011010000":
-                print()
-                print(row.xy_left_child_hash.hex())
-                print(row.xy_right_child_hash.hex())
-                print(row.z_left_child_hash.hex())
-                print(row.z_right_child_hash.hex())
-                print(hashlib.sha256(row.get_certificate_hashes()).digest(
-                ).hex() if len(row.certificate_hashes) > 0 else "no h")
-                print(row.hash.hex())
-                print()
-
     f = open(os.path.join(output_path_nodes, "part-0.sql"), "w")
     size = 0
 

@@ -359,3 +359,181 @@ func (node *Node) CountNodes() int {
 
 	return c
 }
+
+// walks a given path (consisting of '0' and '1') until either
+// the path is exhausted or a given child is not found
+// returns the found node and the remaining path
+func (node *Node) Walk(
+	xyPath, zPath []rune,
+) (*Node, []rune, []rune) {
+	if len(xyPath) == 0 {
+		if len(zPath) == 0 {
+			// exhausted path
+			return node, xyPath, zPath
+		}
+
+		//xyPath is exhausted, walk zPath
+		if zPath[0] == '0' {
+			if node.zLeftChild == nil {
+				// cannot continue path further, return this node
+				return node, xyPath, zPath
+			} else {
+				return node.zLeftChild.Walk(xyPath, zPath[1:])
+			}
+		} else {
+			if node.zRightChild == nil {
+				// cannot continue path further, return this node
+				return node, xyPath, zPath
+			} else {
+				return node.zRightChild.Walk(xyPath, zPath[1:])
+			}
+		}
+	} else {
+		if xyPath[0] == '0' {
+			if node.xyLeftChild == nil {
+				// cannot continue path further, return this node
+				return node, xyPath, zPath
+			} else {
+				return node.xyLeftChild.Walk(xyPath[1:], zPath)
+			}
+		} else {
+			if node.xyRightChild == nil {
+				// cannot continue path further, return this node
+				return node, xyPath, zPath
+			} else {
+				return node.xyRightChild.Walk(xyPath[1:], zPath)
+			}
+		}
+	}
+}
+
+// checks if the zSubtree is complete with respect to
+// a min and max altitude
+func (node *Node) IsZComplete(
+	altitudeMin, altitudeMax int16,
+) bool {
+	isComplete := true
+
+	leftChild := node.RawZBitString.LeftChild().BitString()
+	leftChildMin, leftChildMax := int16(leftChild.ZMin), int16(leftChild.ZMax())
+
+	rightChild := node.RawZBitString.LeftChild().BitString()
+	rightChildMin, rightChildMax := int16(rightChild.ZMin), int16(rightChild.ZMax())
+
+	// check for intersection of the 1 dimensional lines
+	// line1 = (a1, b1), line2 = (a2, b2)
+	// they do not intersect if one of them starts after the other ends, i.e.
+	// b1 < a2 || b2 < a1 ----> not(b1 < a2 || b2 < a1) <=> b1 >= a2 && b2 >= a1
+	// from perspective of line1: <=> a1 <= b2 && b1 >= a2
+	// from perspective of line2: <=> a2 <= b1 && b2 >= a1
+	if altitudeMin <= leftChildMax && altitudeMax >= leftChildMin {
+		// intersection with left child
+		if node.zLeftChild == nil {
+			// intersects but server did not include the node in the response
+			// only valid if the subtree is empty
+			isComplete = isComplete && (node.zLeftChildHash == nil)
+		} else {
+			isComplete = node.zLeftChild.IsZComplete(altitudeMin, altitudeMax)
+		}
+	}
+
+	if altitudeMin <= rightChildMax && altitudeMax >= rightChildMin {
+		// intersection with right child
+		if node.zRightChild == nil {
+			// intersects but server did not include the node in the response
+			// only valid if the subtree is empty
+			isComplete = isComplete && (node.zRightChild == nil)
+		} else {
+			isComplete = node.zRightChild.IsZComplete(altitudeMin, altitudeMax)
+		}
+	}
+
+	return isComplete
+}
+
+// checks if all subtrees contained in the subtree
+// rooted at this node are complete
+func (node *Node) IsComplete(
+	minAltitude, maxAltitude int16,
+) bool {
+	isComplete := true
+
+	if node.xyLeftChild == nil {
+		// the server did not send this node which we requested,
+		// the only valid reason is if that subtree is empty = has a default hash value
+		isComplete = isComplete && (node.xyLeftChildHash == nil)
+	} else {
+		// recurse
+		isComplete = isComplete && node.xyLeftChild.IsComplete(minAltitude, maxAltitude)
+	}
+
+	if node.xyRightChild == nil {
+		// the server did not send this node which we requested,
+		// the only valid reason is if that subtree is empty = has a default hash value
+		isComplete = isComplete && (node.xyRightChildHash == nil)
+	} else {
+		// recurse
+		isComplete = isComplete && node.xyRightChild.IsComplete(minAltitude, maxAltitude)
+	}
+
+	if node.zLeftChild == nil {
+		// the server did not send this node which we requested,
+		// the only valid reason is if that subtree is empty = has a default hash value
+		isComplete = isComplete && (node.zLeftChildHash == nil)
+	} else {
+		// check z subtree for completeness
+		isComplete = isComplete && node.zLeftChild.IsZComplete(minAltitude, maxAltitude)
+	}
+
+	if node.zRightChild == nil {
+		// the server did not send this node which we requested,
+		// the only valid reason is if that subtree is empty = has a default hash value
+		isComplete = isComplete && (node.zRightChildHash == nil)
+	} else {
+		// check z subtree for completeness
+		isComplete = isComplete && node.zRightChild.IsZComplete(minAltitude, maxAltitude)
+	}
+
+	return isComplete
+}
+
+// checks if the zSubtrees of all nodes along the path are complete
+// with respect to minAltitude and maxAltitude
+// AND that the full subtree rooted at the node at the end of the path
+// has a complete zSubtrees with respect to minAltitude and maxAltitude
+func (node *Node) PathIsComplete(
+	xyPath []rune,
+	minAltitude, maxAltitude int16,
+) bool {
+
+	if len(xyPath) == 0 {
+		// exhausted path, this subtree must be fully complete
+		return node.IsComplete(minAltitude, maxAltitude)
+	} else {
+		// check z subtree of node for completeness
+		if !node.IsZComplete(minAltitude, maxAltitude) {
+			// certainly not complete since one of the z trees along the path is not
+			return false
+		}
+		// complete so far, continue checks
+
+		if xyPath[0] == '0' {
+			if node.xyLeftChild == nil {
+				// the server did not send this node which we requested,
+				// the only valid reason is if that subtree is empty = has a default hash value
+				return node.xyLeftChildHash == nil
+			} else {
+				return node.xyLeftChild.PathIsComplete(xyPath[1:], minAltitude, maxAltitude)
+			}
+		} else {
+			if node.xyRightChild == nil {
+				// the server did not send this node which we requested,
+				// the only valid reason is if that subtree is empty
+				return node.xyRightChildHash == nil
+			} else {
+				return node.xyRightChild.PathIsComplete(xyPath[1:], minAltitude, maxAltitude)
+			}
+		}
+	}
+
+}

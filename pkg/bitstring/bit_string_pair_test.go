@@ -114,29 +114,29 @@ func TestBitStringPairFromStringPair(t *testing.T) {
 	}
 
 	// 2^24
-	if b.xMin != 16777216 {
-		t.Fatalf(`invalid xMin: %d`, b.xMin)
+	if b.XMin != 16777216 {
+		t.Fatalf(`invalid xMin: %d`, b.XMin)
 	}
 
-	if b.xPrecision != 2 {
-		t.Fatalf(`invalid xPrecision: %d`, b.xPrecision)
+	if b.XPrecision != 2 {
+		t.Fatalf(`invalid xPrecision: %d`, b.XPrecision)
 	}
 
-	if b.yMin != 0 {
-		t.Fatalf(`invalid yMin: %d`, b.yMin)
+	if b.YMin != 0 {
+		t.Fatalf(`invalid yMin: %d`, b.YMin)
 	}
 
-	if b.yPrecision != 1 {
-		t.Fatalf(`invalid yPrecision: %d`, b.yPrecision)
+	if b.YPrecision != 1 {
+		t.Fatalf(`invalid yPrecision: %d`, b.YPrecision)
 	}
 
 	// 2^13 + 2^12
-	if b.zMin != 12288 {
-		t.Fatalf(`invalid zMin: %d`, b.zMin)
+	if b.ZMin != 12288 {
+		t.Fatalf(`invalid zMin: %d`, b.ZMin)
 	}
 
-	if b.zPrecision != 4 {
-		t.Fatalf(`invalid zPrecision: %d`, b.zPrecision)
+	if b.ZPrecision != 4 {
+		t.Fatalf(`invalid zPrecision: %d`, b.ZPrecision)
 	}
 }
 
@@ -187,19 +187,19 @@ func TestXYBitStringFromGeodeticCoordinates(t *testing.T) {
 		t.Fatalf(`should not throw error: %v`, err)
 	}
 
-	if b.xMin != 34546099 {
-		t.Fatalf(`invalid xMin: %d`, b.xMin)
+	if b.XMin != 34546099 {
+		t.Fatalf(`invalid xMin: %d`, b.XMin)
 	}
-	if b.yMin != 28034814 {
-		t.Fatalf(`invalid yMin: %d`, b.yMin)
+	if b.YMin != 28034814 {
+		t.Fatalf(`invalid yMin: %d`, b.YMin)
 	}
 
 	// should always be the full precision for points
-	if b.xPrecision != X_BITS {
-		t.Fatalf(`invalid xPrecision: %d`, b.xPrecision)
+	if b.XPrecision != X_BITS {
+		t.Fatalf(`invalid xPrecision: %d`, b.XPrecision)
 	}
-	if b.yPrecision != Y_BITS {
-		t.Fatalf(`invalid yPrecision: %d`, b.yPrecision)
+	if b.YPrecision != Y_BITS {
+		t.Fatalf(`invalid yPrecision: %d`, b.YPrecision)
 	}
 }
 
@@ -238,11 +238,11 @@ func TestZBitStringFromGeodeticCoordinate(t *testing.T) {
 		t.Fatalf(`should not throw error: %v`, err)
 	}
 
-	if int16(b.zMin) != 1337-D {
-		t.Fatalf(`invalid zMin: %d`, b.zMin)
+	if int16(b.ZMin) != 1337-D {
+		t.Fatalf(`invalid zMin: %d`, b.ZMin)
 	}
-	if b.zPrecision != Z_BITS {
-		t.Fatalf(`invalid zPrecision: %d`, b.zPrecision)
+	if b.ZPrecision != Z_BITS {
+		t.Fatalf(`invalid zPrecision: %d`, b.ZPrecision)
 	}
 }
 
@@ -267,26 +267,26 @@ func TestBitStringPairFromGeodeticCoordinates(t *testing.T) {
 		t.Fatalf(`should not throw error: %v`, err)
 	}
 
-	if b.xMin != 34546099 {
-		t.Fatalf(`invalid xMin: %d`, b.xMin)
+	if b.XMin != 34546099 {
+		t.Fatalf(`invalid xMin: %d`, b.XMin)
 	}
-	if b.yMin != 28034814 {
-		t.Fatalf(`invalid yMin: %d`, b.yMin)
+	if b.YMin != 28034814 {
+		t.Fatalf(`invalid yMin: %d`, b.YMin)
 	}
-	if int16(b.zMin) != 1337-D {
-		t.Fatalf(`invalid zMin: %d`, b.zMin)
+	if int16(b.ZMin) != 1337-D {
+		t.Fatalf(`invalid zMin: %d`, b.ZMin)
 	}
 
 	// should always be the full precision for points
-	if b.xPrecision != X_BITS {
-		t.Fatalf(`invalid xPrecision: %d`, b.xPrecision)
+	if b.XPrecision != X_BITS {
+		t.Fatalf(`invalid xPrecision: %d`, b.XPrecision)
 	}
-	if b.yPrecision != Y_BITS {
-		t.Fatalf(`invalid yPrecision: %d`, b.yPrecision)
+	if b.YPrecision != Y_BITS {
+		t.Fatalf(`invalid yPrecision: %d`, b.YPrecision)
 	}
 
-	if b.zPrecision != Z_BITS {
-		t.Fatalf(`invalid zPrecision: %d`, b.zPrecision)
+	if b.ZPrecision != Z_BITS {
+		t.Fatalf(`invalid zPrecision: %d`, b.ZPrecision)
 	}
 }
 

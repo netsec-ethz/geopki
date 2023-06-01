@@ -184,8 +184,8 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                                 f"FROM nodes WHERE "
                                 f"bit_string_txt LIKE '{bit_string}%' AND "
                                 # fix altitude for now
-                                f"min_altitude_of_bit_string(bit_string) <= {22767 - args.query_radius} AND "
-                                f"max_altitude_of_bit_string(bit_string) >= {22767 + args.query_radius}"
+                                f"min_altitude_of_bit_string(bit_string) <= {22767 + args.query_radius} AND "
+                                f"max_altitude_of_bit_string(bit_string) >= {22767 - args.query_radius}"
                                 f"))"
                                 for bit_string in bit_strings
                             ])
