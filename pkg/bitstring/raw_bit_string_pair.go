@@ -246,7 +246,7 @@ func (pair *RawBitStringPair) XYRightChildPair() (RawBitStringPair, error) {
 func (pair *RawZBitString) LeftChild() RawZBitString {
 	return RawZBitString{
 		// clear all bits except the used bits
-		ZBitString: pair.ZBitString & (uint16(math.MaxUint16) << (64 - pair.ZBitStringLen)),
+		ZBitString: pair.ZBitString & (uint16(math.MaxUint16) << (16 - pair.ZBitStringLen)),
 		// then extend the length, this now includes one of the cleared bits
 		ZBitStringLen: pair.ZBitStringLen + 1,
 	}

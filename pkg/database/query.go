@@ -176,6 +176,7 @@ func RowsToNodesAndRootHash(
 		// this loop could be omitted increasing the performance but increasing the response size
 
 		child, err := node.XYLeftChildPair()
+		// if err != nil, the child does not exist and the bit string can be cleared
 		if err != nil || bitStringSet.Contains(child) {
 			node.ClearXYLeftChild()
 		}
