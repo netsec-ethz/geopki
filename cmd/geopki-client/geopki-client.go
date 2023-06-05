@@ -115,13 +115,13 @@ func main() {
 
 	query, err := comm.NewQuery(longitude, latitude, altitude, radius, F_GROW)
 	if err != nil {
-		log.Fatalf("❌ building fquery: %v\n", err)
+		log.Fatalf("❌ building query: %v\n", err)
 	}
 
 	buildingQuery = time.Since(buildingQueryStart)
 	requestStart = time.Now()
 
-	response, err := comm.QueryMapServer(
+	response, request_size, response_size, err := comm.QueryMapServer(
 		address,
 		query,
 		includeCertificates,
@@ -141,6 +141,10 @@ func main() {
 	verification = time.Since(verificationStart)
 
 	fmt.Printf("✅ Cryptographic verification of response succeeded!\n")
+
+	fmt.Printf("🏋️ Sizes\n")
+	fmt.Printf("    Request size: %dB, %d bit strings\n", request_size, len(query.XYBitStrings))
+	fmt.Printf("    Response size: %dB, %d nodes\n", response_size, len(response.Nodes))
 
 	fmt.Printf("⌛️ Timing\n")
 	fmt.Printf("    Fetch & Parse Public Key: %fs\n", fetchingDecodingPublicKey.Seconds())

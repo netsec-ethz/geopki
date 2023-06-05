@@ -80,9 +80,9 @@ func QueryMapServer(
 	address string,
 	query *Query,
 	includeCertificates bool,
-) (*Response, error) {
+) (*Response, int, int, error) {
 	if address == "" {
-		return nil, fmt.Errorf("missing address value, use --address=http://[...]")
+		return nil, 0, 0, fmt.Errorf("missing address value, use --address=http://[...]")
 	}
 
 	queries := make([]*XYBitString, len(query.XYBitStrings))
@@ -100,7 +100,7 @@ func QueryMapServer(
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf(
+		return nil, 0, 0, fmt.Errorf(
 			"failed marshalling message: %v",
 			err,
 		)
@@ -119,7 +119,7 @@ func QueryMapServer(
 		bytes.NewBuffer(request),
 	)
 	if err != nil {
-		return nil, fmt.Errorf(
+		return nil, 0, 0, fmt.Errorf(
 			"failed sending HTTP POST request to %s: %v",
 			address,
 			err,
@@ -130,7 +130,7 @@ func QueryMapServer(
 
 	responseBody, err := io.ReadAll(plainResponse.Body)
 	if err != nil {
-		return nil, fmt.Errorf(
+		return nil, 0, 0, fmt.Errorf(
 			"failed reading response: %v",
 			err,
 		)
@@ -143,16 +143,16 @@ func QueryMapServer(
 		var errorResponse ErrorResponse
 		err = json.Unmarshal(responseBody, &errorResponse)
 		if err != nil {
-			return nil, fmt.Errorf(
+			return nil, 0, 0, fmt.Errorf(
 				"failed unmarshalling: %v",
 				err,
 			)
 		}
 
-		return nil, fmt.Errorf("received error message: %s", errorResponse.Error)
+		return nil, 0, 0, fmt.Errorf("received error message: %s", errorResponse.Error)
 	}
 
-	return response, nil
+	return response, len(request), len(responseBody), nil
 }
 
 func ParseQuery(
