@@ -4,3 +4,8 @@ CREATE TABLE IF NOT EXISTS certificates
     certificate bytea,
     CONSTRAINT certificates_pkey PRIMARY KEY (certificate_hash)
 );
+
+CREATE INDEX certificate_hash
+    ON public.certificates USING hash
+    (certificate_hash)
+;
