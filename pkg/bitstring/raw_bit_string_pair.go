@@ -69,7 +69,7 @@ func deInterleaveUint64(input uint64) (uint32, uint32) {
 	return deInterleaveOddBits(input >> 1), deInterleaveOddBits(input)
 }
 
-// returns the bit string pair as strings
+// returns an equivalent XYBitString instance
 func (b RawXYBitString) BitString() *XYBitString {
 	xMin, yMin := deInterleaveUint64(b.XYBitString)
 
@@ -83,7 +83,7 @@ func (b RawXYBitString) BitString() *XYBitString {
 	}
 }
 
-// returns the bit string pair as strings
+// returns an equivalent ZBitString instance
 func (b RawZBitString) BitString() *ZBitString {
 	return &ZBitString{
 		ZMin:       b.ZBitString >> (16 - Z_BITS),

@@ -1,6 +1,8 @@
 package bitstring
 
 import (
+	"math"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -351,5 +353,111 @@ func TestBitStringPair(t *testing.T) {
 
 	if z != zBitString {
 		t.Fatalf(`invalid z bitstring: %s`, z)
+	}
+}
+
+func TestRawXYBitStringPair(t *testing.T) {
+	xyBitString := "010011010001"
+	zBitString := "111001"
+
+	b, _ := BitStringPairFromStringPair(xyBitString, zBitString)
+	p := b.RawBitStringPair()
+
+	if int(p.RawXYBitString.XYBitStringLen) != len(xyBitString) {
+		t.Fatalf(`invalid xy bit string len, received %d, expected %d`, p.RawXYBitString.XYBitStringLen, len(xyBitString))
+	}
+
+	if int(p.RawZBitString.ZBitStringLen) != len(zBitString) {
+		t.Fatalf(`invalid z bit string len, received %d, expected %d`, p.RawZBitString.ZBitStringLen, len(zBitString))
+	}
+
+	paddedXYBitString := xyBitString + strings.Repeat("0", 64-len(xyBitString))
+	paddedZBitString := zBitString + strings.Repeat("0", 16-len(zBitString))
+
+	parsedXYBitString, err := strconv.ParseUint(paddedXYBitString, 2, 64)
+	if err != nil {
+		t.Fatalf(`should not throw error: %v`, err)
+	}
+	parsedZBitString, err := strconv.ParseUint(paddedZBitString, 2, 16)
+	if err != nil {
+		t.Fatalf(`should not throw error: %v`, err)
+	}
+
+	if parsedXYBitString != p.RawXYBitString.XYBitString {
+		t.Fatalf(`Invalid bit string, expected %d, received %d`, p.RawXYBitString.XYBitString, parsedXYBitString)
+	}
+
+	if uint16(parsedZBitString) != p.RawZBitString.ZBitString {
+		t.Fatalf(`Invalid bit string, expected %d, received %d`, p.RawZBitString.ZBitString, parsedZBitString)
+	}
+}
+
+const EPSILON = 0.001
+
+func isEpsilonClose(value, reference, epsilon float64) bool {
+	return math.Abs(value-reference) <= epsilon
+}
+
+func TestUndiscretize(t *testing.T) {
+	longitude, latitude, altitude := Undiscretize(0, 0, 0)
+
+	if !isEpsilonClose(longitude, -180, EPSILON) {
+		t.Fatalf(`Invalid undescretized longitude, expected %d, received %f`, -180, longitude)
+	}
+
+	if !isEpsilonClose(latitude, -90, EPSILON) {
+		t.Fatalf(`Invalid undescretized longitude, expected %d, received %f`, -90, latitude)
+	}
+
+	if !isEpsilonClose(altitude, float64(D), EPSILON) {
+		t.Fatalf(`Invalid undescretized altitude, expected %d, received %f`, D, altitude)
+	}
+
+	longitude, latitude, altitude = Undiscretize((1 << (X_BITS - 1)), (1 << (Y_BITS - 1)), uint16(-D))
+
+	if !isEpsilonClose(longitude, 0, EPSILON) {
+		t.Fatalf(`Invalid undescretized longitude, expected %d, received %f`, 0, longitude)
+	}
+
+	if !isEpsilonClose(latitude, 0, EPSILON) {
+		t.Fatalf(`Invalid undescretized longitude, expected %d, received %f`, 0, latitude)
+	}
+
+	if !isEpsilonClose(altitude, 0, EPSILON) {
+		t.Fatalf(`Invalid undescretized altitude, expected %d, received %f`, 0, altitude)
+	}
+
+	longitude, latitude, altitude = Undiscretize((1<<X_BITS)-1, (1<<Y_BITS)-1, (1<<Z_BITS)-1)
+
+	if !isEpsilonClose(longitude, 180, EPSILON) {
+		t.Fatalf(`Invalid undescretized longitude, expected %d, received %f`, 180, longitude)
+	}
+
+	if !isEpsilonClose(latitude, 90, EPSILON) {
+		t.Fatalf(`Invalid undescretized longitude, expected %d, received %f`, 90, latitude)
+	}
+
+	if !isEpsilonClose(altitude, float64(H), EPSILON) {
+		t.Fatalf(`Invalid undescretized altitude, expected %d, received %f`, H, altitude)
+	}
+}
+
+func TestGeodeticCoordinates(t *testing.T) {
+	xyBitString := "010011010001"
+	zBitString := "111001"
+
+	b, _ := BitStringPairFromStringPair(xyBitString, zBitString)
+	longitude, latitude, altitude := b.GeodeticCoordinates()
+
+	if !isEpsilonClose(longitude, -135, EPSILON) {
+		t.Fatalf(`Invalid undescretized longitude, expected %d, received %f`, -135, longitude)
+	}
+
+	if !isEpsilonClose(latitude, 36.5625, EPSILON) {
+		t.Fatalf(`Invalid undescretized longitude, expected %d, received %f`, 90, latitude)
+	}
+
+	if !isEpsilonClose(altitude, 19184, EPSILON) {
+		t.Fatalf(`Invalid undescretized altitude, expected %d, received %f`, 19184, altitude)
 	}
 }

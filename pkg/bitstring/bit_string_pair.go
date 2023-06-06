@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	mapset "github.com/deckarep/golang-set/v2"
-	"github.com/golang/geo/r1"
-	"github.com/golang/geo/s1"
 	"github.com/golang/geo/s2"
 	geo "github.com/kellydunn/golang-geo"
 	"golang.org/x/exp/slices"
@@ -522,21 +520,6 @@ func (pair *BitStringPair) GeodeticCoordinates() (float64, float64, float64) {
 
 // Returns a two dimensional boundary of the voxel's projection
 // to the earth's surface in geodetic coordinates.
-func (bitString *XYBitString) Rect() s2.Rect {
-	longitude_min := UndiscretizeX(bitString.XMin)
-	longitude_max := UndiscretizeX(bitString.XMax())
-
-	latitude_min := UndiscretizeY(bitString.YMin)
-	latitude_max := UndiscretizeY(bitString.YMax())
-
-	return s2.Rect{
-		Lng: s1.Interval{Lo: longitude_min, Hi: longitude_max},
-		Lat: r1.Interval{Lo: latitude_min, Hi: latitude_max},
-	}
-}
-
-// Returns a two dimensional boundary of the voxel's projection
-// to the earth's surface in geodetic coordinates.
 func (bitString *XYBitString) Loop() *s2.Loop {
 	longitude_min := UndiscretizeX(bitString.XMin)
 	longitude_max := UndiscretizeX(bitString.XMax())
@@ -614,7 +597,7 @@ func (bitString *ZBitString) GrowZ(steps uint8) error {
 }
 
 // Grows (*modifies*) the voxel by removing bits from the 2d bit string until the voxel's
-// shadow projected to the earth's surface (`.Rect()`) would be greater than
+// shadow projected to the earth's surface (`.Loop()`) would be greater than
 // `max_area` if another bit was removed.
 // The area units are the ones computed by the S2 library
 func (bitString *XYBitString) Grow2DToCoverArea(maxArea float64) error {
