@@ -40,19 +40,15 @@ func main() {
 	var publicKey *ecdsa.PublicKey
 
 	// set up timing variables
-	var fetchingDecodingPublicKeyStart time.Time
+	var start time.Time
+
 	var fetchingDecodingPublicKey time.Duration
-
-	var buildingQueryStart time.Time
 	var buildingQuery time.Duration
-
-	var requestStart time.Time
 	var request time.Duration
-
-	var verificationStart time.Time
 	var verification time.Duration
+	var consistency time.Duration
 
-	fetchingDecodingPublicKeyStart = time.Now()
+	start = time.Now()
 
 	if len(publicKeyBase64) == 0 {
 		fmt.Println("🚨 No public key passed as an argument, fetching it from the server.")
@@ -110,16 +106,16 @@ func main() {
 		publicKey = decodedPublicKey.(*ecdsa.PublicKey)
 	}
 
-	fetchingDecodingPublicKey = time.Since(fetchingDecodingPublicKeyStart)
-	buildingQueryStart = time.Now()
+	fetchingDecodingPublicKey = time.Since(start)
+	start = time.Now()
 
 	query, err := comm.NewQuery(longitude, latitude, altitude, radius, F_GROW)
 	if err != nil {
 		log.Fatalf("❌ building query: %v\n", err)
 	}
 
-	buildingQuery = time.Since(buildingQueryStart)
-	requestStart = time.Now()
+	buildingQuery = time.Since(start)
+	start = time.Now()
 
 	response, request_size, response_size, err := comm.QueryMapServer(
 		address,
@@ -130,15 +126,23 @@ func main() {
 		log.Fatalf("❌ request failed: %v\n", err)
 	}
 
-	request = time.Since(requestStart)
-	verificationStart = time.Now()
+	request = time.Since(start)
+	start = time.Now()
 
 	certificateHashes, err := crypto.VerifyResponse(response, query, publicKey)
 	if err != nil {
 		log.Fatalf("❌ response verification failed: %v\n", err)
 	}
 
-	verification = time.Since(verificationStart)
+	verification = time.Since(start)
+	start = time.Now()
+
+	err = crypto.EnsureConsistency(address, response, publicKey)
+	if err != nil {
+		log.Fatalf("❌ consistency verification failed: %v\n", err)
+	}
+
+	consistency = time.Since(start)
 
 	fmt.Printf("✅ Cryptographic verification of response succeeded!\n")
 
@@ -151,6 +155,7 @@ func main() {
 	fmt.Printf("    Build Query: %fs\n", buildingQuery.Seconds())
 	fmt.Printf("    Send Request & Receive Response: %fs\n", request.Seconds())
 	fmt.Printf("    Verify Response: %fs\n", verification.Seconds())
+	fmt.Printf("    Verify Consistency: %fs\n", consistency.Seconds())
 
 	fmt.Printf("📡 Received %d certificate hashes:\n", certificateHashes.Cardinality())
 	for _, certificateHash := range certificateHashes.ToSlice() {

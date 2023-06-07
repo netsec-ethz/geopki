@@ -4,18 +4,26 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"math"
+	"net/http"
 
 	"geopki/pkg/bitstring"
 	"geopki/pkg/comm"
 
 	mapset "github.com/deckarep/golang-set/v2"
+	"github.com/google/trillian"
+	"github.com/transparency-dev/merkle/proof"
+	"github.com/transparency-dev/merkle/rfc6962"
+	"google.golang.org/protobuf/proto"
 )
 
 // verifies a recieved response based on the query and the server's public key
 // and returns the set of all certificate hashes as hex strings
+// this function does not perform any consistency checks
 func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa.PublicKey) (mapset.Set[string], error) {
 	smh := NewSMHFromCommSMH(response.GetSignedMapHead())
 
@@ -193,4 +201,51 @@ func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa
 
 	// verification succeeded, return certificates
 	return certificateStringHashes, nil
+}
+
+func EnsureConsistency(address string, response *comm.Response, publicKey *ecdsa.PublicKey) error {
+	sch := NewSCHFromCommSCH(response.GetSignedConsistencyHead())
+	if !sch.Verify(publicKey) {
+		return fmt.Errorf("signature on the SCH is invalid")
+	}
+
+	smh := NewSMHFromCommSMH(response.GetSignedMapHead())
+	marshaledSMH, err := smh.Marshal()
+	if err != nil {
+		return nil
+	}
+
+	leafHash := rfc6962.DefaultHasher.HashLeaf(marshaledSMH)
+	leafHashBase64 := base64.RawURLEncoding.EncodeToString(leafHash)
+
+	plainResponse, err := http.Get(
+		fmt.Sprintf("%s/v1/get-proof-by-hash?hash=%s&tree_size=%d", address, leafHashBase64, sch.Size),
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"failed sending HTTP GET request to %s: %v",
+			address,
+			err,
+		)
+	}
+
+	defer plainResponse.Body.Close()
+
+	responseBody, err := io.ReadAll(plainResponse.Body)
+	if err != nil {
+		return fmt.Errorf(
+			"failed reading response: %v",
+			err,
+		)
+	}
+
+	pf := new(trillian.Proof)
+	err = proto.Unmarshal(responseBody, pf)
+
+	if err != nil {
+		return fmt.Errorf("failed unmarshaling: %v", err)
+	}
+
+	// https://github.com/google/trillian/blob/master/client/log_verifier.go#L90
+	return proof.VerifyInclusion(rfc6962.DefaultHasher, uint64(pf.LeafIndex), sch.Size, leafHash, pf.Hashes, sch.RootHash)
 }

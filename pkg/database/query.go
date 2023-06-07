@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func BuildNodeQueries(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uint16) []string {
@@ -88,6 +90,49 @@ func BuildNodeQueries(bitStrings []*comm.XYBitString, minAltitude, maxAltitude u
 
 func BuildNodeQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uint16) string {
 	return strings.Join(BuildNodeQueries(bitStrings, minAltitude, maxAltitude), "UNION")
+}
+
+func QueryRootHash(
+	dbPool *pgxpool.Pool,
+	ctx context.Context,
+) (crypto.SHA256Hash, error) {
+
+	row := dbPool.QueryRow(
+		ctx,
+		"SELECT xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash, certificate_hashes "+
+			"FROM nodes "+
+			"WHERE bit_string_51=b'' AND bit_string_15=b''",
+	)
+
+	var dbXYLeftChildHash, dbXYRightChildHash, dbZLeftChildHash, dbZRightChildHash []byte
+	var dbCertificateHashes pgtype.Array[[]byte]
+
+	err := row.Scan(
+		&dbXYLeftChildHash,
+		&dbXYRightChildHash,
+		&dbZLeftChildHash,
+		&dbZRightChildHash,
+		&dbCertificateHashes,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// create new node instance from loaded data
+	node := crypto.NewDBNode(
+		// root node has zero length for both
+		0, 0, 0, 0,
+
+		dbXYLeftChildHash,
+		dbXYRightChildHash,
+		dbZLeftChildHash,
+		dbZRightChildHash,
+
+		dbCertificateHashes.Elements,
+	)
+
+	return node.Hash(), nil
 }
 
 func RowsToNodesAndRootHash(

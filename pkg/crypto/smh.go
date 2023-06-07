@@ -3,17 +3,30 @@ package crypto
 import (
 	"crypto/ecdsa"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/binary"
+	"fmt"
+
 	"geopki/pkg/comm"
+
+	"google.golang.org/protobuf/proto"
 )
+
+type CTLogServer struct {
+	Url            string
+	SignedTreeHead []byte
+}
 
 // the map head
 type MapHead struct {
 	// the root hash of the tree
 	RootHash SHA256Hash
 
-	// the unix timestamp in seconds when this SMH / version was created
+	// the unix timestamp in seconds when this version was created
 	Timestamp uint64
+
+	// the set of covered ct log servers
+	CoveredCTLogServers []CTLogServer
 }
 
 type SignedMapHead struct {
@@ -26,14 +39,18 @@ type SignedMapHead struct {
 
 // returns the bytes to be signed
 func (smh *MapHead) TBSBytes() []byte {
-	bytes := smh.RootHash
+	tbsBytes := smh.RootHash
 
 	timestampBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(timestampBytes, smh.Timestamp)
+	tbsBytes = append(tbsBytes, timestampBytes...)
 
-	bytes = append(bytes, timestampBytes...)
+	for _, coveredCTLogServers := range smh.CoveredCTLogServers {
+		tbsBytes = append(tbsBytes, []byte(coveredCTLogServers.Url)...)
+		tbsBytes = append(tbsBytes, coveredCTLogServers.SignedTreeHead...)
+	}
 
-	return bytes
+	return tbsBytes
 }
 
 func (smh *SignedMapHead) Sign(privateKey *ecdsa.PrivateKey) error {
@@ -60,12 +77,41 @@ func (smh *SignedMapHead) Proto() *comm.SignedMapHead {
 	}
 }
 
+// serializes the smh (including the signature)
+func (smh *SignedMapHead) Marshal() ([]byte, error) {
+	return proto.Marshal(smh.Proto())
+}
+
+func (smh *MapHead) String() string {
+	s := ""
+	s += fmt.Sprintf("%s at %d\n", base64.StdEncoding.EncodeToString(smh.RootHash), smh.Timestamp)
+
+	for _, coveredCTLogServers := range smh.CoveredCTLogServers {
+		s += fmt.Sprintf("    %s, %s\n", coveredCTLogServers.Url, base64.StdEncoding.EncodeToString(coveredCTLogServers.SignedTreeHead))
+	}
+
+	return s
+}
+
 func NewSMHFromCommSMH(smh *comm.SignedMapHead) *SignedMapHead {
 	return &SignedMapHead{
 		MapHead: MapHead{
 			RootHash:  smh.RootHash,
 			Timestamp: smh.Timestamp,
+			// TODO
+			CoveredCTLogServers: []CTLogServer{},
 		},
 		Signature: smh.Signature,
 	}
+}
+
+func UnmarshalSignedMapHead(data []byte) (*SignedMapHead, error) {
+	smh := new(comm.SignedMapHead)
+
+	err := proto.Unmarshal(data, smh)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewSMHFromCommSMH(smh), nil
 }

@@ -3,6 +3,14 @@ package geopki;
 
 option go_package = "pkg/comm";
 
+message SignedConsistencyHead {
+  bytes RootHash = 1;
+  uint64 Timestamp = 2;
+  uint64 Size = 3;
+
+  bytes Signature = 4;
+}
+
 message SignedMapHead {
   bytes RootHash = 1;
   uint64 Timestamp = 2;
@@ -31,8 +39,10 @@ message Node {
 }
 
 message Response {
-  SignedMapHead SignedMapHead = 1;
-  repeated Node Nodes = 2;
+  SignedConsistencyHead SignedConsistencyHead = 1;
+  SignedMapHead SignedMapHead = 2;
 
-  repeated bytes Certificates = 3;
+  repeated Node Nodes = 3;
+
+  repeated bytes Certificates = 4;
 }

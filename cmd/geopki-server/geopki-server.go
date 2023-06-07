@@ -13,6 +13,8 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"strconv"
+	"time"
 
 	"geopki/pkg/comm"
 	"geopki/pkg/crypto"
@@ -24,15 +26,25 @@ import (
 )
 
 // 'constants', arrays can't be set to 'const' though!
+
+// constant list of trusted proxy strings
 var TRUSTED_PROXIES = []string{"localhost"}
 
 const (
-	PREPARED_STATEMENT_QUERY_BITSTRINGS = "query_bit_strings"
+	// maximum merge delay in seconds
+	MAXIMUM_MERGE_DELAY = 5
 )
 
 type EndpointHandlerEnv struct {
 	dbPool     *pgxpool.Pool
 	privateKey *ecdsa.PrivateKey
+
+	// client for accessing the consistency tree
+	consistencyClient *crypto.ConsistencyTreeClient
+	// caches the most recent SMH value
+	currentSignedMapHead *crypto.SignedMapHead
+	// caches the most recent SCH value
+	currentSignedConsistencyHead *crypto.SignedConsistencyHead
 }
 
 func main() {
@@ -41,23 +53,33 @@ func main() {
 	var listenAddress string
 	var listenPort uint64
 
+	var trillianAddress string
+	var consistencyLogId int64
+
 	var databaseUrl string
 	var privateKeyBase64 string
 	var privateKey *ecdsa.PrivateKey
 
 	flag.StringVar(&listenAddress, "address", "0.0.0.0", "The address to listen on")
 	flag.Uint64Var(&listenPort, "port", 1234, "The port to listen on")
+
+	// run a trillian instance
+	// for development, docker setup described at https://github.com/google/trillian/tree/v1.5.2/examples/deployment works well
+	flag.StringVar(&trillianAddress, "trillian-address", "localhost:8090", "The address of the trillian server serving the consistency tree")
+	flag.Int64Var(&consistencyLogId, "clog-id", 1, "The log id of the consistency tree on the trillian server")
 	flag.Parse()
 
+	ctx := context.Background()
+
 	if listenPort > math.MaxUint16 {
-		fmt.Fprintf(os.Stderr, "Invalid port value '%d'\n", listenPort)
+		fmt.Fprintf(os.Stderr, "invalid port value '%d'\n", listenPort)
 		os.Exit(1)
 	}
 
 	// load database url from env variable, should not show up in the history
 	databaseUrl = os.Getenv("DATABASE_URL")
 	if len(databaseUrl) == 0 {
-		fmt.Fprintf(os.Stderr, "No 'DATABASE_URL' environment variable provided\n")
+		fmt.Fprintf(os.Stderr, "no 'DATABASE_URL' environment variable provided\n")
 		os.Exit(2)
 	}
 
@@ -68,54 +90,132 @@ func main() {
 		privateKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed generating a random private key\n")
+			fmt.Fprintf(os.Stderr, "failed generating a random private key\n")
 			os.Exit(3)
 		}
+
+		marshaledPrivateKey, err := x509.MarshalECPrivateKey(privateKey)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed marshaling random private key\n")
+			os.Exit(4)
+		}
+
+		fmt.Printf("Using the following private key: PRIVATE_KEY=%s\n", base64.StdEncoding.EncodeToString(marshaledPrivateKey))
+
 	} else {
 		derPrivateKey, err := base64.StdEncoding.DecodeString(privateKeyBase64)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed decoding the private key, must be base64 encoded\n")
-			os.Exit(4)
+			fmt.Fprintf(os.Stderr, "failed decoding the private key, must be base64 encoded\n")
+			os.Exit(5)
 		}
 
 		privateKey, err = x509.ParseECPrivateKey(derPrivateKey)
 
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed decoding the private key, it must be DER encoded (and then base64).\n")
-			os.Exit(5)
+			fmt.Fprintf(os.Stderr, "failed decoding the private key, it must be DER encoded (and then base64).\n")
+			os.Exit(6)
 		}
 	}
 
 	// create a connection pool
-	dbPool, err := pgxpool.New(context.Background(), databaseUrl)
+	dbPool, err := pgxpool.New(ctx, databaseUrl)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to create connection pool: %v\n", err)
-		os.Exit(6)
+		fmt.Fprintf(os.Stderr, "unable to create connection pool: %v\n", err)
+		os.Exit(7)
 	}
 
 	// check if the connection is working
-	err = dbPool.Ping(context.Background())
+	err = dbPool.Ping(ctx)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to connect to the database: %v\n", err)
-		os.Exit(7)
+		fmt.Fprintf(os.Stderr, "unable to connect to the database: %v\n", err)
+		os.Exit(8)
 	}
 
 	defer dbPool.Close()
 
+	// ensure the existence of a consistency tree service
+	consistencyClient, err := crypto.NewConsistencyTreeClient(trillianAddress, consistencyLogId, privateKey, MAXIMUM_MERGE_DELAY)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "unable to create consistency client: %v\n", err)
+		os.Exit(9)
+	}
+
+	sch, err := consistencyClient.LatestSignedConsistencyHead(ctx)
+	if err != nil {
+
+		err2 := consistencyClient.InitializeLog(ctx)
+
+		if err2 != nil {
+			fmt.Fprintf(os.Stderr, "unable to obtain latest consistency head: %v\n", err)
+			fmt.Fprintf(os.Stderr, "unable to initialize log server: %v\n", err2)
+			os.Exit(10)
+		}
+	}
+
+	// if the log was newly initialized, add the current SMH
+	if err != nil || sch.Size == 0 {
+		// query the current root hash
+		rootHash, err := database.QueryRootHash(dbPool, ctx)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "unable to query root hash: %v\n", err)
+			os.Exit(11)
+		}
+
+		// create new SMH
+		smh := crypto.SignedMapHead{
+			MapHead: crypto.MapHead{
+				RootHash:  rootHash,
+				Timestamp: uint64(time.Now().UnixNano()),
+			},
+		}
+		smh.Sign(privateKey)
+
+		// insert it into the consistency tree
+		sch, err = consistencyClient.AppendSignedMapHead(ctx, smh)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "unable to append new SMH: %v\n", err)
+			os.Exit(12)
+		}
+	}
+
+	// cache the current smh
+	smh, err := consistencyClient.LatestSignedMapHead(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "unable to obtain latest signed map head: %v\n", err)
+		os.Exit(13)
+	}
+
+	if !smh.Verify(&privateKey.PublicKey) {
+		fmt.Fprintf(os.Stderr, "cannot verify the signature on the latest SMH, did the private key change?\n")
+		os.Exit(14)
+	}
+
+	fmt.Printf("Serving data with SMH:\n%s\n\n", smh.String())
+
+	// create handler environment for shared data
+	env := &EndpointHandlerEnv{
+		dbPool:     dbPool,
+		privateKey: privateKey,
+
+		consistencyClient:            consistencyClient,
+		currentSignedMapHead:         smh,
+		currentSignedConsistencyHead: sch,
+	}
+
+	// setup web server
 	r := gin.Default()
 
 	// configure gin engine
 	r.SetTrustedProxies(TRUSTED_PROXIES)
 
-	// create handler environment
-	env := &EndpointHandlerEnv{
-		dbPool:     dbPool,
-		privateKey: privateKey,
-	}
-
 	// install endpoints
 	r.POST("/v1/query", env.postQuery)
 	r.GET("/v1/public-key", env.getPublicKey)
+	r.GET("/v1/get-sch", env.getSignedConsistencyHead)
+	r.GET("/v1/get-sch-consistency", env.getSignedConsistencyHeadConsistency)
+	r.GET("/v1/get-proof-by-hash", env.getProofByHash)
+	r.GET("/v1/get-entries", env.getEntries)
+	r.GET("/v1/get-entry-and-proof", env.getEntryAndProof)
 
 	// start server
 	r.Run(fmt.Sprintf("%s:%d", listenAddress, listenPort))
@@ -146,8 +246,8 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 	// read request body
 	query, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Reading request body failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
+		fmt.Fprintf(os.Stderr, "reading request body failed: %v\n", err)
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
 		})
 		return
@@ -155,8 +255,7 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 
 	requestBitStringPairs, minAltitude, maxAltitude, err := comm.ParseQuery(query)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Reading request body failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
 		})
 		return
@@ -165,7 +264,7 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 	sqlQuery := database.BuildNodeQuery(requestBitStringPairs, minAltitude, maxAltitude)
 
 	rows, err := env.dbPool.Query(
-		context.Background(),
+		c.Request.Context(),
 		sqlQuery,
 	)
 	if err != nil {
@@ -197,21 +296,12 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 		return
 	}
 
-	// TODO: change to persistent SMH, not on the fly-computed smhs
-	smh := crypto.SignedMapHead{
-		MapHead: crypto.MapHead{
-			RootHash:  rootHash,
-			Timestamp: 0,
-		},
-	}
-	smh.Sign(env.privateKey)
-
 	var certificates [][]byte
 	if includeCertificates && certificateStringHashes.Cardinality() > 0 {
 		sqlQuery := database.BuildCertificateQuery(certificateStringHashes.ToSlice())
 
 		rows, err := env.dbPool.Query(
-			context.Background(),
+			c.Request.Context(),
 			sqlQuery,
 		)
 		if err != nil {
@@ -237,16 +327,17 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 	}
 
 	response, err := proto.Marshal(&comm.Response{
-		SignedMapHead: smh.Proto(),
-		Nodes:         nodes,
+		SignedConsistencyHead: env.currentSignedConsistencyHead.Proto(),
+		SignedMapHead:         env.currentSignedMapHead.Proto(),
+		Nodes:                 nodes,
 
 		Certificates: certificates,
 	})
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Marshalling response failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "marshalling response failed, check the server logs",
+			"error": "failed marshaling response, check the server logs",
 		})
 		return
 	}
@@ -281,10 +372,10 @@ func (env *EndpointHandlerEnv) getPublicKey(c *gin.Context) {
 
 	publicKey, err := x509.MarshalPKIXPublicKey(&env.privateKey.PublicKey)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed marshalling public key: %v\n", err)
+		fmt.Fprintf(os.Stderr, "failed marshaling public key: %v\n", err)
 
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Failed marshalling public key",
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed marshaling public key",
 		})
 	}
 
@@ -292,5 +383,234 @@ func (env *EndpointHandlerEnv) getPublicKey(c *gin.Context) {
 		http.StatusOK,
 		"application/octet-stream",
 		publicKey,
+	)
+}
+
+func (env *EndpointHandlerEnv) getSignedConsistencyHead(c *gin.Context) {
+	sch, err := env.consistencyClient.LatestSignedConsistencyHead(c.Request.Context())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed retrieving latest SCT: %v\n", err)
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to retrieve the latest signed consistency head",
+		})
+	}
+
+	response, err := proto.Marshal(sch.Proto())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed marshaling response, check the server logs",
+		})
+		return
+	}
+
+	c.Data(
+		http.StatusOK,
+		"application/octet-stream",
+		response,
+	)
+}
+
+func (env *EndpointHandlerEnv) getSignedConsistencyHeadConsistency(c *gin.Context) {
+
+	treeSize1Str := c.DefaultQuery("first", "abc")
+	treeSize2Str := c.DefaultQuery("second", "abc")
+
+	treeSize1, err := strconv.ParseUint(treeSize1Str, 2, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "received invalid tree size for argument 'first'",
+		})
+		return
+	}
+
+	treeSize2, err := strconv.ParseUint(treeSize2Str, 2, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "received invalid tree size for argument 'second'",
+		})
+		return
+	}
+
+	if treeSize1 == treeSize2 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "the two tree sizes cannot be the same",
+		})
+		return
+	}
+
+	proof, err := env.consistencyClient.ConsistencyProof(c.Request.Context(), treeSize1, treeSize2)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "obtaining consistency proof failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "retrieving consistency proof failed, check the server logs",
+		})
+		return
+	}
+
+	response, err := proto.Marshal(proof)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed marshaling response, check the server logs",
+		})
+		return
+	}
+
+	c.Data(
+		http.StatusOK,
+		"application/octet-stream",
+		response,
+	)
+}
+
+func (env *EndpointHandlerEnv) getProofByHash(c *gin.Context) {
+
+	hashBase64 := c.DefaultQuery("hash", "#")
+	treeSizeStr := c.DefaultQuery("tree_size", "abc")
+
+	treeSize, err := strconv.ParseUint(treeSizeStr, 2, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "received invalid tree size for argument 'tree_size'",
+		})
+		return
+	}
+
+	hash, err := base64.RawURLEncoding.DecodeString(hashBase64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	proof, err := env.consistencyClient.ProveSignedMapHeadHashInclusion(c.Request.Context(), treeSize, hash)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "obtaining a proof of inclusion for consistency tree failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "obtaining a proof of inclusion for consistency tree failed, check the server logs",
+		})
+		return
+	}
+
+	response, err := proto.Marshal(proof)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed marshaling response, check the server logs",
+		})
+		return
+	}
+
+	c.Data(
+		http.StatusOK,
+		"application/octet-stream",
+		response,
+	)
+}
+
+func (env *EndpointHandlerEnv) getEntries(c *gin.Context) {
+	startStr := c.DefaultQuery("start", "abc")
+	endStr := c.DefaultQuery("end", "abc")
+
+	start, err := strconv.ParseUint(startStr, 2, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "received invalid index for argument 'start'",
+		})
+		return
+	}
+
+	end, err := strconv.ParseUint(endStr, 2, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "received invalid index for argument 'end'",
+		})
+		return
+	}
+
+	if start > end {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "the 'end' value must be greater than or equal to 'start'",
+		})
+		return
+	}
+
+	entries, err := env.consistencyClient.GetEntries(c.Request.Context(), start, end)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "obtaining entries failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "obtaining entries failed, check the server logs",
+		})
+		return
+	}
+
+	response, err := proto.Marshal(entries)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed marshaling response, check the server logs",
+		})
+		return
+	}
+
+	c.Data(
+		http.StatusOK,
+		"application/octet-stream",
+		response,
+	)
+}
+
+func (env *EndpointHandlerEnv) getEntryAndProof(c *gin.Context) {
+	leafIndexStr := c.DefaultQuery("leaf_index", "abc")
+	treeSizeStr := c.DefaultQuery("tree_size", "abc")
+
+	leafIndex, err := strconv.ParseUint(leafIndexStr, 2, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "received invalid index for argument 'leaf_index'",
+		})
+		return
+	}
+
+	treeSize, err := strconv.ParseUint(treeSizeStr, 2, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "received invalid tree size for argument 'tree_size'",
+		})
+		return
+	}
+
+	if leafIndex >= treeSize {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "the 'leaf_index' value must be strictly greater than 'tree_size'",
+		})
+		return
+	}
+
+	entryAndProof, err := env.consistencyClient.GetEntryAndProof(c.Request.Context(), treeSize, leafIndex)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "obtaining entry and proof failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "obtaining entry and proof failed, check the server logs",
+		})
+		return
+	}
+
+	response, err := proto.Marshal(entryAndProof)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed marshaling response, check the server logs",
+		})
+		return
+	}
+
+	c.Data(
+		http.StatusOK,
+		"application/octet-stream",
+		response,
 	)
 }

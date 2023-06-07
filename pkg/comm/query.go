@@ -101,7 +101,7 @@ func QueryMapServer(
 
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf(
-			"failed marshalling message: %v",
+			"failed marshaling message: %v",
 			err,
 		)
 	}
@@ -144,7 +144,7 @@ func QueryMapServer(
 		err = json.Unmarshal(responseBody, &errorResponse)
 		if err != nil {
 			return nil, 0, 0, fmt.Errorf(
-				"failed unmarshalling: %v",
+				"failed unmarshaling: %v",
 				err,
 			)
 		}
