@@ -117,7 +117,7 @@ func main() {
 	buildingQuery = time.Since(start)
 	start = time.Now()
 
-	response, request_size, response_size, err := comm.QueryMapServer(
+	response, requestSize, responseSize, err := comm.QueryMapServer(
 		address,
 		query,
 		includeCertificates,
@@ -129,6 +129,9 @@ func main() {
 	request = time.Since(start)
 	start = time.Now()
 
+	// ensure the response is complete with respect to the query and
+	// that the server included exactly all data it knows in that area by
+	// recomputing the root hash
 	certificateHashes, err := crypto.VerifyResponse(response, query, publicKey)
 	if err != nil {
 		log.Fatalf("❌ response verification failed: %v\n", err)
@@ -137,18 +140,20 @@ func main() {
 	verification = time.Since(start)
 	start = time.Now()
 
-	err = crypto.EnsureConsistency(address, response, publicKey)
+	// ensure the received signed map head is included in the consistency tree
+	// by requesting a proof of inclusion for the consistency tree
+	proofResponseSize, err := crypto.EnsureConsistency(address, response, publicKey)
 	if err != nil {
 		log.Fatalf("❌ consistency verification failed: %v\n", err)
 	}
 
 	consistency = time.Since(start)
-
 	fmt.Printf("✅ Cryptographic verification of response succeeded!\n")
 
 	fmt.Printf("🏋️ Sizes\n")
-	fmt.Printf("    Request size: %dB, %d bit strings\n", request_size, len(query.XYBitStrings))
-	fmt.Printf("    Response size: %dB, %d nodes\n", response_size, len(response.Nodes))
+	fmt.Printf("    Request size: %dB, %d bit strings\n", requestSize, len(query.XYBitStrings))
+	fmt.Printf("    Response size: %dB, %d nodes\n", responseSize, len(response.Nodes))
+	fmt.Printf("    Consistency proof response size: %dB\n", proofResponseSize)
 
 	fmt.Printf("⌛️ Timing\n")
 	fmt.Printf("    Fetch & Parse Public Key: %fs\n", fetchingDecodingPublicKey.Seconds())

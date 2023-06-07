@@ -9,10 +9,8 @@ require (
 	github.com/google/trillian v1.5.2
 	github.com/jackc/pgx/v5 v5.3.1
 	github.com/kellydunn/golang-geo v0.7.0
-	github.com/transparency-dev/formats v0.0.0-20230509143954-bd462731986f
 	github.com/transparency-dev/merkle v0.0.2
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
-	golang.org/x/mod v0.10.0
 	google.golang.org/grpc v1.54.0
 	google.golang.org/protobuf v1.30.0
 )

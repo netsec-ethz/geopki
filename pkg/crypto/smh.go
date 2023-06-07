@@ -13,7 +13,10 @@ import (
 )
 
 type CTLogServer struct {
-	Url            string
+	// the http(-s) url of the log
+	Url string
+
+	// the latest version of the log that is covered
 	SignedTreeHead []byte
 }
 
@@ -70,10 +73,20 @@ func (smh *SignedMapHead) Verify(publicKey *ecdsa.PublicKey) bool {
 }
 
 func (smh *SignedMapHead) Proto() *comm.SignedMapHead {
+	// create list of covered log servers
+	coveredCTLogServers := make([]*comm.CTLogServer, len(smh.CoveredCTLogServers))
+	for i, coveredCTLogServer := range smh.CoveredCTLogServers {
+		coveredCTLogServers[i] = &comm.CTLogServer{
+			Url:            coveredCTLogServer.Url,
+			SignedTreeHead: coveredCTLogServer.SignedTreeHead,
+		}
+	}
+
 	return &comm.SignedMapHead{
-		RootHash:  smh.RootHash,
-		Timestamp: smh.Timestamp,
-		Signature: smh.Signature,
+		RootHash:            smh.RootHash,
+		Timestamp:           smh.Timestamp,
+		Signature:           smh.Signature,
+		CoveredCTLogServers: coveredCTLogServers,
 	}
 }
 
@@ -94,12 +107,21 @@ func (smh *MapHead) String() string {
 }
 
 func NewSMHFromCommSMH(smh *comm.SignedMapHead) *SignedMapHead {
+
+	// create list of covered log servers
+	coveredCTLogServers := make([]CTLogServer, len(smh.GetCoveredCTLogServers()))
+	for i, coveredCTLogServer := range smh.GetCoveredCTLogServers() {
+		coveredCTLogServers[i] = CTLogServer{
+			Url:            coveredCTLogServer.GetUrl(),
+			SignedTreeHead: coveredCTLogServer.GetSignedTreeHead(),
+		}
+	}
+
 	return &SignedMapHead{
 		MapHead: MapHead{
-			RootHash:  smh.RootHash,
-			Timestamp: smh.Timestamp,
-			// TODO
-			CoveredCTLogServers: []CTLogServer{},
+			RootHash:            smh.RootHash,
+			Timestamp:           smh.Timestamp,
+			CoveredCTLogServers: coveredCTLogServers,
 		},
 		Signature: smh.Signature,
 	}

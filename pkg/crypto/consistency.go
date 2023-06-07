@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// a head of the consistency tree
 type ConsistencyHead struct {
 	// the root hash of the tree
 	RootHash SHA256Hash
@@ -28,6 +29,7 @@ type ConsistencyHead struct {
 	Size uint64
 }
 
+// a signed head of the consistency tree
 type SignedConsistencyHead struct {
 	// the map head the signature is computed over
 	ConsistencyHead
@@ -53,6 +55,7 @@ func (smh *ConsistencyHead) TBSBytes() []byte {
 	return bytes
 }
 
+// signs the SCH, overrides the Signature field
 func (smh *SignedConsistencyHead) Sign(privateKey *ecdsa.PrivateKey) error {
 	signature, err := ecdsa.SignASN1(rand.Reader, privateKey, smh.TBSBytes())
 
@@ -65,10 +68,12 @@ func (smh *SignedConsistencyHead) Sign(privateKey *ecdsa.PrivateKey) error {
 	return nil
 }
 
+// verifies the Singature field against the TBSBytes
 func (sch *SignedConsistencyHead) Verify(publicKey *ecdsa.PublicKey) bool {
 	return ecdsa.VerifyASN1(publicKey, sch.TBSBytes(), sch.Signature)
 }
 
+// creates a protobuf message based on the SCH
 func (smh *SignedConsistencyHead) Proto() *comm.SignedConsistencyHead {
 	return &comm.SignedConsistencyHead{
 		RootHash:  smh.RootHash,
@@ -78,7 +83,7 @@ func (smh *SignedConsistencyHead) Proto() *comm.SignedConsistencyHead {
 	}
 }
 
-// serializes the smh (including the signature)
+// serializes the smh (including the signature) to protobuf bytes
 func (sch *SignedConsistencyHead) Marshal() ([]byte, error) {
 	return proto.Marshal(sch.Proto())
 }
@@ -107,7 +112,7 @@ func UnmarshalSignedConsistencyHead(data []byte) (*SignedConsistencyHead, error)
 	return NewSCHFromCommSCH(sch), nil
 }
 
-func NewSCHFromCheckpoint(consistencyHead *ConsistencyHead, privateKey *ecdsa.PrivateKey) (*SignedConsistencyHead, error) {
+func SignConsistencyHead(consistencyHead *ConsistencyHead, privateKey *ecdsa.PrivateKey) (*SignedConsistencyHead, error) {
 	sch := &SignedConsistencyHead{
 		ConsistencyHead: *consistencyHead,
 	}
@@ -218,7 +223,7 @@ func (p *ConsistencyTreeClient) LatestSignedConsistencyHead(ctx context.Context)
 		return nil, fmt.Errorf("failed to fetch consistency head: %v", err)
 	}
 
-	return NewSCHFromCheckpoint(consistencyHead, p.privateKey)
+	return SignConsistencyHead(consistencyHead, p.privateKey)
 }
 
 // Gets the latest map head, can be cached
@@ -274,7 +279,7 @@ func (p *ConsistencyTreeClient) AppendSignedMapHead(ctx context.Context, smh Sig
 	})
 
 	if response.GetProof() != nil && err == nil {
-		return NewSCHFromCheckpoint(consistencyHead, p.privateKey)
+		return SignConsistencyHead(consistencyHead, p.privateKey)
 	}
 
 	// if not, add it
@@ -302,7 +307,7 @@ func (p *ConsistencyTreeClient) AppendSignedMapHead(ctx context.Context, smh Sig
 		})
 
 		if response.GetProof() != nil && err == nil {
-			return NewSCHFromCheckpoint(consistencyHeadNew, p.privateKey)
+			return SignConsistencyHead(consistencyHeadNew, p.privateKey)
 		}
 	}
 

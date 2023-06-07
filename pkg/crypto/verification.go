@@ -203,16 +203,16 @@ func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa
 	return certificateStringHashes, nil
 }
 
-func EnsureConsistency(address string, response *comm.Response, publicKey *ecdsa.PublicKey) error {
+func EnsureConsistency(address string, response *comm.Response, publicKey *ecdsa.PublicKey) (int, error) {
 	sch := NewSCHFromCommSCH(response.GetSignedConsistencyHead())
 	if !sch.Verify(publicKey) {
-		return fmt.Errorf("signature on the SCH is invalid")
+		return 0, fmt.Errorf("signature on the SCH is invalid")
 	}
 
 	smh := NewSMHFromCommSMH(response.GetSignedMapHead())
 	marshaledSMH, err := smh.Marshal()
 	if err != nil {
-		return nil
+		return 0, nil
 	}
 
 	leafHash := rfc6962.DefaultHasher.HashLeaf(marshaledSMH)
@@ -222,7 +222,7 @@ func EnsureConsistency(address string, response *comm.Response, publicKey *ecdsa
 		fmt.Sprintf("%s/v1/get-proof-by-hash?hash=%s&tree_size=%d", address, leafHashBase64, sch.Size),
 	)
 	if err != nil {
-		return fmt.Errorf(
+		return 0, fmt.Errorf(
 			"failed sending HTTP GET request to %s: %v",
 			address,
 			err,
@@ -233,7 +233,7 @@ func EnsureConsistency(address string, response *comm.Response, publicKey *ecdsa
 
 	responseBody, err := io.ReadAll(plainResponse.Body)
 	if err != nil {
-		return fmt.Errorf(
+		return 0, fmt.Errorf(
 			"failed reading response: %v",
 			err,
 		)
@@ -243,9 +243,9 @@ func EnsureConsistency(address string, response *comm.Response, publicKey *ecdsa
 	err = proto.Unmarshal(responseBody, pf)
 
 	if err != nil {
-		return fmt.Errorf("failed unmarshaling: %v", err)
+		return 0, fmt.Errorf("failed unmarshaling: %v", err)
 	}
 
 	// https://github.com/google/trillian/blob/master/client/log_verifier.go#L90
-	return proof.VerifyInclusion(rfc6962.DefaultHasher, uint64(pf.LeafIndex), sch.Size, leafHash, pf.Hashes, sch.RootHash)
+	return len(responseBody), proof.VerifyInclusion(rfc6962.DefaultHasher, uint64(pf.LeafIndex), sch.Size, leafHash, pf.Hashes, sch.RootHash)
 }

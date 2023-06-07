@@ -3,6 +3,11 @@ package geopki;
 
 option go_package = "pkg/comm";
 
+message CTLogServer {
+  string Url = 1;
+  bytes SignedTreeHead = 2;
+}
+
 message SignedConsistencyHead {
   bytes RootHash = 1;
   uint64 Timestamp = 2;
@@ -14,8 +19,9 @@ message SignedConsistencyHead {
 message SignedMapHead {
   bytes RootHash = 1;
   uint64 Timestamp = 2;
+  repeated CTLogServer CoveredCTLogServers = 3;
 
-  bytes Signature = 3;
+  bytes Signature = 4;
 }
 
 // a node corresponds to a database row
