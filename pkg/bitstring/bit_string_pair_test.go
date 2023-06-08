@@ -311,8 +311,8 @@ func TestYBitString(t *testing.T) {
 func TestZBitString(t *testing.T) {
 	b, _ := BitStringPairFromStringPair("010011010001", "111001")
 
-	if b.ZBitString.BitString() != "111001" {
-		t.Fatalf(`invalid ZBitString: %s`, b.ZBitString.BitString())
+	if b.ZBitString.String() != "111001" {
+		t.Fatalf(`invalid ZBitString: %s`, b.ZBitString.String())
 	}
 }
 

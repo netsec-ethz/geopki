@@ -65,7 +65,7 @@ FROM (
 RETURN (
   CASE
     -- if the subtree is empty
-    WHEN bit_string_51 IS NULL THEN sha256(bytea '\x00')
+    WHEN bit_string_51 IS NULL THEN NULL
     -- the children hash fields of tree leafs must be equal to null
     WHEN (len_51 > 51 OR len_15 > 15) THEN NULL
     -- invalid bit string

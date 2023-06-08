@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/base64"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"geopki/pkg/comm"
@@ -170,8 +169,10 @@ func main() {
 	fmt.Printf("📡 Received %d certificates\n", len(response.GetCertificates()))
 	for _, rawCertificate := range response.GetCertificates() {
 		// TODO: later this will probably parse a x509 certificate
-		certificate := new(crypto.GeoCertificate)
-		json.Unmarshal(rawCertificate, certificate)
+		certificate, err := crypto.UnmarshalGeoCertificate(rawCertificate)
+		if err != nil {
+			log.Fatalf("❌ failed parsing certificate: %v\n", err)
+		}
 
 		fmt.Printf("    %s, %s\n", certificate.Domain, certificate.Certificate_id)
 	}

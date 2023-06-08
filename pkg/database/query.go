@@ -16,7 +16,6 @@ import (
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func BuildNodeQueries(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uint16) []string {
@@ -93,11 +92,11 @@ func BuildNodeQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uin
 }
 
 func QueryRootHash(
-	dbPool *pgxpool.Pool,
+	transaction pgx.Tx,
 	ctx context.Context,
 ) (crypto.SHA256Hash, error) {
 
-	row := dbPool.QueryRow(
+	row := transaction.QueryRow(
 		ctx,
 		"SELECT xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash, certificate_hashes "+
 			"FROM nodes "+

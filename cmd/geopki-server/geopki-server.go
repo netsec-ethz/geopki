@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"flag"
@@ -14,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"geopki/pkg/comm"
@@ -21,6 +24,7 @@ import (
 	"geopki/pkg/database"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/protobuf/proto"
 )
@@ -36,11 +40,18 @@ const (
 )
 
 type EndpointHandlerEnv struct {
-	dbPool     *pgxpool.Pool
+	dbPool *pgxpool.Pool
+	// key used to sign cryptographic statements
 	privateKey *ecdsa.PrivateKey
+	// key for inserting certificates
+	certificateInsertionKeyHash []byte
 
 	// client for accessing the consistency tree
 	consistencyClient *crypto.ConsistencyTreeClient
+
+	// mutex for accessing SMH / SCH
+	cacheLock sync.RWMutex
+
 	// caches the most recent SMH value
 	currentSignedMapHead *crypto.SignedMapHead
 	// caches the most recent SCH value
@@ -56,9 +67,13 @@ func main() {
 	var trillianAddress string
 	var consistencyLogId int64
 
-	var databaseUrl string
 	var privateKeyBase64 string
 	var privateKey *ecdsa.PrivateKey
+
+	var certificateInsertionKey string
+	var certificateInsertionKeyHash [32]byte
+
+	var databaseUrl string
 
 	flag.StringVar(&listenAddress, "address", "0.0.0.0", "The address to listen on")
 	flag.Uint64Var(&listenPort, "port", 1234, "The port to listen on")
@@ -76,13 +91,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// load database url from env variable, should not show up in the history
-	databaseUrl = os.Getenv("DATABASE_URL")
-	if len(databaseUrl) == 0 {
-		fmt.Fprintf(os.Stderr, "no 'DATABASE_URL' environment variable provided\n")
-		os.Exit(2)
-	}
-
 	// load private key from env variable, should not show up in the history
 	privateKeyBase64 = os.Getenv("PRIVATE_KEY")
 	if len(privateKeyBase64) == 0 {
@@ -91,13 +99,13 @@ func main() {
 
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed generating a random private key\n")
-			os.Exit(3)
+			os.Exit(2)
 		}
 
 		marshaledPrivateKey, err := x509.MarshalECPrivateKey(privateKey)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed marshaling random private key\n")
-			os.Exit(4)
+			os.Exit(3)
 		}
 
 		fmt.Printf("Using the following private key: PRIVATE_KEY=%s\n", base64.StdEncoding.EncodeToString(marshaledPrivateKey))
@@ -106,29 +114,44 @@ func main() {
 		derPrivateKey, err := base64.StdEncoding.DecodeString(privateKeyBase64)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed decoding the private key, must be base64 encoded\n")
-			os.Exit(5)
+			os.Exit(4)
 		}
 
 		privateKey, err = x509.ParseECPrivateKey(derPrivateKey)
 
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed decoding the private key, it must be DER encoded (and then base64).\n")
-			os.Exit(6)
+			os.Exit(5)
 		}
+	}
+
+	// load certificate insertion key from env variable, should not show up in the history
+	certificateInsertionKey = os.Getenv("CERT_INSERT_KEY")
+	if len(certificateInsertionKey) == 0 {
+		fmt.Fprintf(os.Stderr, "no 'CERT_INSERT_KEY' environment variable provided\n")
+		os.Exit(6)
+	}
+	certificateInsertionKeyHash = sha256.Sum256([]byte(certificateInsertionKey))
+
+	// load database url from env variable, should not show up in the history
+	databaseUrl = os.Getenv("DATABASE_URL")
+	if len(databaseUrl) == 0 {
+		fmt.Fprintf(os.Stderr, "no 'DATABASE_URL' environment variable provided\n")
+		os.Exit(7)
 	}
 
 	// create a connection pool
 	dbPool, err := pgxpool.New(ctx, databaseUrl)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to create connection pool: %v\n", err)
-		os.Exit(7)
+		os.Exit(8)
 	}
 
 	// check if the connection is working
 	err = dbPool.Ping(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to connect to the database: %v\n", err)
-		os.Exit(8)
+		os.Exit(9)
 	}
 
 	defer dbPool.Close()
@@ -137,7 +160,7 @@ func main() {
 	consistencyClient, err := crypto.NewConsistencyTreeClient(trillianAddress, consistencyLogId, privateKey, MAXIMUM_MERGE_DELAY)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to create consistency client: %v\n", err)
-		os.Exit(9)
+		os.Exit(10)
 	}
 
 	sch, err := consistencyClient.LatestSignedConsistencyHead(ctx)
@@ -148,24 +171,40 @@ func main() {
 		if err2 != nil {
 			fmt.Fprintf(os.Stderr, "unable to obtain latest consistency head: %v\n", err)
 			fmt.Fprintf(os.Stderr, "unable to initialize log server: %v\n", err2)
-			os.Exit(10)
+			os.Exit(11)
 		}
 	}
 
 	// if the log was newly initialized, add the current SMH
 	if err != nil || sch.Size == 0 {
 		// query the current root hash
-		rootHash, err := database.QueryRootHash(dbPool, ctx)
+		tx, err := dbPool.BeginTx(ctx, pgx.TxOptions{
+			IsoLevel: pgx.Serializable,
+		})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "unable to start transaction: %v\n", err)
+			os.Exit(12)
+		}
+
+		rootHash, err := database.QueryRootHash(tx, ctx)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to query root hash: %v\n", err)
-			os.Exit(11)
+			os.Exit(13)
+		}
+
+		err = tx.Commit(ctx)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "unable to commit transaction: %v\n", err)
+			os.Exit(14)
 		}
 
 		// create new SMH
-		smh := crypto.SignedMapHead{
+		smh := &crypto.SignedMapHead{
 			MapHead: crypto.MapHead{
 				RootHash:  rootHash,
 				Timestamp: uint64(time.Now().UnixNano()),
+				// TODO: set the set of covered log servers for instance by storing that in the db and retrieving it here
+				CoveredCTLogServers: []crypto.CTLogServer{},
 			},
 		}
 		smh.Sign(privateKey)
@@ -174,7 +213,7 @@ func main() {
 		sch, err = consistencyClient.AppendSignedMapHead(ctx, smh)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to append new SMH: %v\n", err)
-			os.Exit(12)
+			os.Exit(15)
 		}
 	}
 
@@ -182,22 +221,25 @@ func main() {
 	smh, err := consistencyClient.LatestSignedMapHead(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to obtain latest signed map head: %v\n", err)
-		os.Exit(13)
+		os.Exit(16)
 	}
 
 	if !smh.Verify(&privateKey.PublicKey) {
 		fmt.Fprintf(os.Stderr, "cannot verify the signature on the latest SMH, did the private key change?\n")
-		os.Exit(14)
+		os.Exit(17)
 	}
 
 	fmt.Printf("Serving data with SMH:\n%s\n\n", smh.String())
 
 	// create handler environment for shared data
 	env := &EndpointHandlerEnv{
-		dbPool:     dbPool,
-		privateKey: privateKey,
+		dbPool:                      dbPool,
+		privateKey:                  privateKey,
+		certificateInsertionKeyHash: certificateInsertionKeyHash[:],
 
-		consistencyClient:            consistencyClient,
+		consistencyClient: consistencyClient,
+
+		cacheLock:                    sync.RWMutex{},
 		currentSignedMapHead:         smh,
 		currentSignedConsistencyHead: sch,
 	}
@@ -216,6 +258,7 @@ func main() {
 	r.GET("/v1/get-proof-by-hash", env.getProofByHash)
 	r.GET("/v1/get-entries", env.getEntries)
 	r.GET("/v1/get-entry-and-proof", env.getEntryAndProof)
+	r.POST("/v1/insert", env.postInsert)
 
 	// start server
 	r.Run(fmt.Sprintf("%s:%d", listenAddress, listenPort))
@@ -326,6 +369,8 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 		}
 	}
 
+	env.cacheLock.RLock()
+
 	response, err := proto.Marshal(&comm.Response{
 		SignedConsistencyHead: env.currentSignedConsistencyHead.Proto(),
 		SignedMapHead:         env.currentSignedMapHead.Proto(),
@@ -333,6 +378,8 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 
 		Certificates: certificates,
 	})
+
+	env.cacheLock.RUnlock()
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
@@ -470,7 +517,7 @@ func (env *EndpointHandlerEnv) getProofByHash(c *gin.Context) {
 	hashBase64 := c.DefaultQuery("hash", "#")
 	treeSizeStr := c.DefaultQuery("tree_size", "abc")
 
-	treeSize, err := strconv.ParseUint(treeSizeStr, 2, 64)
+	treeSize, err := strconv.ParseUint(treeSizeStr, 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "received invalid tree size for argument 'tree_size'",
@@ -612,5 +659,121 @@ func (env *EndpointHandlerEnv) getEntryAndProof(c *gin.Context) {
 		http.StatusOK,
 		"application/octet-stream",
 		response,
+	)
+}
+
+func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
+	key := c.DefaultQuery("key", "???")
+	keyHash := sha256.Sum256([]byte(key))
+
+	// compare hashes, avoids timing side channel since the strings are of the same length
+	if !bytes.Equal(keyHash[:], env.certificateInsertionKeyHash) {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "invalid key",
+		})
+		return
+	}
+
+	// check the content type request header
+	contentTypeHeaders, ok := c.Request.Header["Content-Type"]
+	if ok {
+		// if the content type header is set, make sure it is exactly 'application/json'
+		if len(contentTypeHeaders) > 1 || contentTypeHeaders[0] != "application/json" {
+
+			// display an error to the user
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf(
+					"Content-Type:%s is not supported. Don't set the header or use 'application/json'.",
+					contentTypeHeaders[0],
+				),
+			})
+
+			return
+		}
+	}
+
+	// read request body
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "reading request body failed: %v\n", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	cert, err := crypto.UnmarshalGeoCertificate(body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf(
+				"Supplied invalid certificate, %v",
+				err,
+			),
+		})
+		return
+	}
+
+	tx, err := env.dbPool.BeginTx(c.Request.Context(), pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "starting transaction failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "starting transaction failed, check the server logs",
+		})
+		return
+	}
+
+	smh, err := database.UpdateTree(
+		[]*crypto.GeoCertificate{cert},
+		1.0,
+		time.Now(),
+		tx,
+		// TODO: set the set of covered log servers for instance by storing that in the db and retrieving it here
+		[]crypto.CTLogServer{},
+		c.Request.Context(),
+	)
+	defer tx.Rollback(c.Request.Context())
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed updating SMT: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed updating SMT, check the server logs",
+		})
+		return
+	}
+
+	err = tx.Commit(c.Request.Context())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "commiting transaction failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "commiting transaction failed, check the server logs",
+		})
+		return
+	}
+
+	// sign SMH
+	smh.Sign(env.privateKey)
+
+	// insert it into the consistency tree
+	sch, err := env.consistencyClient.AppendSignedMapHead(c.Request.Context(), smh)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed updating the consistency tree: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "updating consistency tree failed, check the server logs",
+		})
+		return
+	}
+
+	// update cached smh and sch, acquire lock to ensure all reads are consistent
+	env.cacheLock.Lock()
+	env.currentSignedMapHead = smh
+	env.currentSignedConsistencyHead = sch
+	env.cacheLock.Unlock()
+
+	c.Data(
+		http.StatusOK,
+		"application/json",
+		[]byte(fmt.Sprintf("{\"success\":true, \"new_tree_size\":%d}", sch.Size)),
 	)
 }

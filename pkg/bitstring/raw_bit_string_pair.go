@@ -5,6 +5,19 @@ import (
 	"math"
 )
 
+var (
+	ROOT_NODE = RawBitStringPair{
+		RawXYBitString: RawXYBitString{
+			XYBitString:    0,
+			XYBitStringLen: 0,
+		},
+		RawZBitString: RawZBitString{
+			ZBitString:    0,
+			ZBitStringLen: 0,
+		},
+	}
+)
+
 type RawXYBitString struct {
 	// the bit string encoding the x and y coordinate
 	//[7]byte interpreted as a big endian integer

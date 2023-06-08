@@ -166,7 +166,7 @@ func NewConsistencyTreeClient(logAddr string, logId int64, privateKey *ecdsa.Pri
 }
 
 // formLeaf creates a trillian log leaf from a signed map head
-func (p *ConsistencyTreeClient) formLeaf(smh SignedMapHead) (*trillian.LogLeaf, error) {
+func (p *ConsistencyTreeClient) formLeaf(smh *SignedMapHead) (*trillian.LogLeaf, error) {
 	marshaledSMH, err := smh.Marshal()
 	if err != nil {
 		return nil, err
@@ -259,7 +259,7 @@ func (p *ConsistencyTreeClient) LatestSignedMapHead(ctx context.Context) (*Signe
 
 // Appends a signed map head to the log and waits to return the new SCH
 // if the smh is already in the tree, the current SCH is returned
-func (p *ConsistencyTreeClient) AppendSignedMapHead(ctx context.Context, smh SignedMapHead) (*SignedConsistencyHead, error) {
+func (p *ConsistencyTreeClient) AppendSignedMapHead(ctx context.Context, smh *SignedMapHead) (*SignedConsistencyHead, error) {
 	leaf, err := p.formLeaf(smh)
 	if err != nil {
 		return nil, err
@@ -334,7 +334,7 @@ func (p *ConsistencyTreeClient) ProveSignedMapHeadHashInclusion(ctx context.Cont
 }
 
 // returns an inclusion proof for a given tree size and smh
-func (p *ConsistencyTreeClient) ProveSignedMapHeadInclusion(ctx context.Context, treeSize uint64, smh SignedMapHead) (*trillian.Proof, error) {
+func (p *ConsistencyTreeClient) ProveSignedMapHeadInclusion(ctx context.Context, treeSize uint64, smh *SignedMapHead) (*trillian.Proof, error) {
 	// Form the leaf from the entry.
 	leaf, err := p.formLeaf(smh)
 	if err != nil {

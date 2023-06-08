@@ -1,0 +1,7 @@
+CREATE OR REPLACE FUNCTION array_intersect(anyarray, anyarray)
+  RETURNS anyarray
+  language sql
+  IMMUTABLE PARALLEL SAFE
+as $BODY$
+    SELECT ARRAY(SELECT UNNEST($1) INTERSECT SELECT UNNEST($2) );
+$BODY$;

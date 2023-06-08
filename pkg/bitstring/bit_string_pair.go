@@ -364,7 +364,7 @@ func (bitString *XYBitString) YBitString() string {
 }
 
 // The bit string encoding the `zMin` value, i.e. the `zPrecision` MSBs
-func (bitString *ZBitString) BitString() string {
+func (bitString *ZBitString) String() string {
 	return fmt.Sprintf(
 		// left-pad with 0s to Z_BITS
 		"%0*s",
@@ -428,7 +428,7 @@ func (b *XYBitString) String() string {
 // Returns the bit string representation of the `x` and `y` coordinate and the
 // bit representation of the `z` coordinate.
 func (pair *BitStringPair) BitStringPair() (string, string) {
-	return pair.XYBitString.String(), pair.ZBitString.BitString()
+	return pair.XYBitString.String(), pair.ZBitString.String()
 }
 
 // https://lemire.me/blog/2018/01/08/how-fast-can-you-bit-interleave-32-bit-integers/
@@ -583,9 +583,9 @@ func (bitString *XYBitString) Grow2D(steps uint8) error {
 // Throws an exception if the it is not possible to grow `z` times.
 // Multiplies the covered altitude by `2 ** steps.`
 func (bitString *ZBitString) GrowZ(steps uint8) error {
-	if bitString.ZPrecision <= steps {
+	if bitString.ZPrecision < steps {
 		// cannot grow further
-		return fmt.Errorf("cannot grow further in the altitude, only one bit left")
+		return fmt.Errorf("cannot grow further in the altitude")
 	}
 
 	// clear all bits starting from yPrecision to yPrecision + yBitsToClear
@@ -617,7 +617,7 @@ func (bitString *XYBitString) Grow2DToCoverArea(maxArea float64) error {
 // Grows (*modifies*) the voxel by removing bits from the z bit string until the voxel's
 // altitude would be greater than `altitudeMaxRange` if another bit was removed.
 func (bitString *ZBitString) GrowZToLength(altitudeMaxRange float64) error {
-	currentAltitudeRange := float64(bitString.ZMax() - bitString.ZMin + 1)
+	currentAltitudeRange := float64(bitString.ZMax() - bitString.ZMin)
 	growSteps := math.Log2(altitudeMaxRange / currentAltitudeRange)
 
 	if growSteps < 0 {
@@ -839,10 +839,10 @@ func ApproximateSphere(longitude, latitude float64, radiusM uint8, quadSegs uint
 
 // Returns the single longest / most precise bit string encompassing both,
 // `altitudeMin` and `altitudeMax`. In contrast to
-// `PolygonsTo2DBitStrings`. Since it only returns
-// a single bit string it is much more likely to use a shorter / less
+// `PolygonsTo2DBitStrings` it only returns
+// a single bit string which results in a shorter / less
 // precise bit string than `polygons_to_2d_bit_strings` but
-// results in a sparser tree. Under the assumption that the altitude
+// makes the tree sparser. Under the assumption that the altitude
 // is rather sparse this seems to be a good tradeoff.
 func SmallestEnclosingZBitString(altitudeMin, altitudeMax float64) (*ZBitString, error) {
 	bitString, err := ZBitStringFromGeodeticCoordinate(altitudeMin)
@@ -851,7 +851,7 @@ func SmallestEnclosingZBitString(altitudeMin, altitudeMax float64) (*ZBitString,
 	}
 
 	altitudeMaxRange := altitudeMax - altitudeMin + 1
-	currentAltitudeRange := float64(bitString.ZMax() - bitString.ZMin + 1)
+	currentAltitudeRange := float64(bitString.ZMax() - bitString.ZMin)
 	growSteps := math.Ceil(math.Log2(altitudeMaxRange / currentAltitudeRange))
 
 	if growSteps < 0 {
@@ -875,7 +875,7 @@ func ExtrudedPolygonsToBitStringPairs(
 	polygons []*s2.Loop,
 	altitudeMin, altitudeMax float64,
 	fGrow float64,
-) ([]RawBitStringPair, error) {
+) ([]*RawBitStringPair, error) {
 
 	xyBitStrings, err := PolygonsTo2DBitStrings(
 		polygons,
@@ -893,9 +893,9 @@ func ExtrudedPolygonsToBitStringPairs(
 		return nil, err
 	}
 
-	bitStringPairs := make([]RawBitStringPair, len(xyBitStrings))
+	bitStringPairs := make([]*RawBitStringPair, len(xyBitStrings))
 	for i, xyBitString := range xyBitStrings {
-		bitStringPairs[i] = RawBitStringPair{
+		bitStringPairs[i] = &RawBitStringPair{
 			RawXYBitString: xyBitString,
 			RawZBitString:  zBitString.RawZBitStringPair(),
 		}

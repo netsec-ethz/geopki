@@ -46,6 +46,8 @@ INSERT_INTO_NODES_BITSTRING_INT_Z_SUBTREES_STR = (
         "bit_string_51",
         "bit_string_51_int",
         "bit_string_15",
+        "altitude_min",
+        "altitude_max",
         "xy_left_child_hash",
         "xy_right_child_hash",
         "z_left_child_hash",
@@ -58,7 +60,8 @@ INSERT_INTO_CERTS_STR = (
     f"INSERT INTO certificates (" +
     ",".join([
         "certificate_hash",
-        "certificate"
+        "certificate",
+        "not_valid_after"
     ]) +
     f") VALUES\n"
 )
@@ -69,16 +72,18 @@ class GeoCertificate:
         self,
         domain: str,
         certificate_id: str,
+        not_valid_after: str,
         list_of_multipolygons: List[List[List[Dict[str, float]]]],
-        list_of_levels: List[str],
+        list_of_altitudes: List[Tuple[float, float]],
         parents: np.ndarray,
         children: np.ndarray,
     ) -> None:
 
         self.domain = domain
         self.certificate_id = certificate_id
+        self.not_valid_after = not_valid_after
         self.list_of_multipolygons = list_of_multipolygons
-        self.list_of_levels = list_of_levels
+        self.list_of_altitudes = list_of_altitudes
         self.parents: List[str] = parents.tolist()
         self.children: List[str] = children.tolist()
 
@@ -86,7 +91,7 @@ class GeoCertificate:
         return json.dumps(
             {
                 'domain': self.domain,
-                'area': [
+                'areas': [
                     json.loads(
                         to_geojson(
                             MultiPolygon(
@@ -101,8 +106,9 @@ class GeoCertificate:
                     )
                     for multipolygon in self.list_of_multipolygons
                 ],
-                'levels': list(self.list_of_levels),
+                'areas_altitude': list(self.list_of_altitudes),
                 'certificate_id': self.certificate_id,
+                'not_valid_after': self.not_valid_after,
                 # 'parents': self.parents,
                 # 'children': self.children,
             },
@@ -330,24 +336,14 @@ def main(
         min_level = row['min_building_level']
         max_level = row['max_building_level']
         surface_geodetic_altitude = row['surface_geodetic_altitude_aster_30'] if 'surface_geodetic_altitude_aster_30' in df.columns else None
+        # fixed expiration date
+        not_valid_after = "2030-01-01 00:00:00+00"
 
         assert len(list_of_multipolygons) == len(list_of_levels)
 
-        geo_cert = GeoCertificate(
-            domain=domain,
-            certificate_id=certificate_id,
-            list_of_multipolygons=list_of_multipolygons,
-            list_of_levels=list_of_levels,
-            parents=parents,
-            children=children,
-        )
+        list_of_altitudes: list[tuple[float, float]] = []
 
-        geo_certificates.append(
-            geo_cert
-        )
-
-        for multipolygon, level in zip(list_of_multipolygons, list_of_levels):
-
+        for level in list_of_levels:
             try:
                 altitude_min, altitude_max = level_to_altitude(
                     min_level,
@@ -358,6 +354,24 @@ def main(
             except (ValueError, AssertionError):
                 print(row)
                 raise
+
+            list_of_altitudes.append((altitude_min, altitude_max))
+
+        geo_cert = GeoCertificate(
+            domain=domain,
+            certificate_id=certificate_id,
+            not_valid_after=not_valid_after,
+            list_of_multipolygons=list_of_multipolygons,
+            list_of_altitudes=list_of_altitudes,
+            parents=parents,
+            children=children,
+        )
+
+        geo_certificates.append(
+            geo_cert
+        )
+
+        for multipolygon, (altitude_min, altitude_max) in zip(list_of_multipolygons, list_of_altitudes):
 
             shapely_polygons = [
                 Polygon(
@@ -405,7 +419,7 @@ def main(
                 try:
 
                     if full:
-                        bit_strings, _, _ in extruded_polygons_to_bit_strings(
+                        bit_strings, _, _ = extruded_polygons_to_bit_strings(
                             polygons=shapely_polygons,
                             altitude_min=altitude_min,
                             altitude_max=altitude_max,
@@ -596,8 +610,11 @@ def main(
                 f"('{bit_string_tuple[0]}', {bit_string_51_int}, {xy_left_child_hash}, {xy_right_child_hash}, {certificate_hash_array})"
             )
         elif mode == "bitstring-int-z-subtrees":
+            altitude_min = int(bit_string_tuple[1].ljust("15", "0"), 2)
+            altitude_max = int(bit_string_tuple[1].ljust("15", "1"), 2) + 1
+
             size += f.write(
-                f"(b'{bit_string_tuple[0]}', {bit_string_51_int}, b'{bit_string_tuple[1]}', {xy_left_child_hash}, {xy_right_child_hash}, {z_left_child_hash}, {z_right_child_hash}, {certificate_hash_array})"
+                f"(b'{bit_string_tuple[0]}', {bit_string_51_int}, b'{bit_string_tuple[1]}', {altitude_min}, {altitude_max}, {xy_left_child_hash}, {xy_right_child_hash}, {z_left_child_hash}, {z_right_child_hash}, {certificate_hash_array})"
             )
         else:
             size += f.write(
@@ -638,9 +655,10 @@ def main(
 
         certificate_hash = f"E'\\\\x{geo_certificate.hash().hex()}'"
         certificate = f"E'\\\\x{geo_certificate.to_cert().hex()}'"
+        expiration_date = f"'{geo_certificate.not_valid_after}'"
 
         size += f.write(
-            f"({certificate_hash}, {certificate})"
+            f"({certificate_hash}, {certificate}, {expiration_date})"
         )
 
         if size >= MAX_FILE_SIZE:
