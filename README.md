@@ -27,7 +27,6 @@ Go Files, relevant for the server and client implementation
 ```
 .
 ├── cmd                           # the go programs
-|   ├── bitstring-performance         # program for measuring the performance of the bit string computations given a volume
 |   ├── geopki-client                 # program for querying a geopki server
 |   └── geopki-server                 # the geopki server program
 |
@@ -75,13 +74,17 @@ Go Files, relevant for the server and client implementation
 ### Performance Measurements
 
 ```
-performance
-└── bitstring-performance         # measures the performance for approximating a sphere using bitstrings
-    ├── bitstring-performance.py      # measures the performancy by calling cmd/bitstring-performance
-    ├── bitstring-performance-plot.py # plots the output of bitstring-performancy.py (bitstring-performance.csv)
-    ├── bitstring-performance.csv     # output of of bitstring-performancy.py
-    ├── f-count.png                   # plot output of of bitstring-performance-plot.py
-    └── f-time.png                    # plot output of of bitstring-performance-plot.py
+.
+├── cmd                           # the go programs
+|   └── bitstring-performance         # program for measuring the performance of the bit string computations given a volume
+|
+└── performance
+    └── bitstring-performance         # measures the performance for approximating a sphere using bitstrings
+        ├── bitstring-performance.py      # measures the performancy by calling cmd/bitstring-performance
+        ├── bitstring-performance-plot.py # plots the output of bitstring-performancy.py (bitstring-performance.csv)
+        ├── bitstring-performance.csv     # output of of bitstring-performancy.py
+        ├── f-count.png                   # plot output of of bitstring-performance-plot.py
+        └── f-time.png                    # plot output of of bitstring-performance-plot.py
 
 ```
 
