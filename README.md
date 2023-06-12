@@ -160,6 +160,7 @@ Note that python is **not** required to run the geopki client nor the server but
       2. Use `export CERT_INSERT_KEY=xxxxxxxxx` to set that value.
 4. Run the server instance using `go run ./cmd/geopki-server --address=0.0.0.0 --port=1234 --trillian-address=localhost:8090 --clog-id=<trillian log id>`.
    1. All arguments except `clog-id` can be omitted if the just shown default values should be used.
+   2. If you forgot the log id, you can use `cmd/list-trees` (in the geopki repo) to list all trees: `go run ./cmd/list-trees --admin_server=localhost:8090`
 
 ### GeoPKI Client
 
