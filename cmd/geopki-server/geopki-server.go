@@ -23,6 +23,7 @@ import (
 	"geopki/pkg/crypto"
 	"geopki/pkg/database"
 
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -252,6 +253,9 @@ func main() {
 
 	// configure gin engine
 	r.SetTrustedProxies(TRUSTED_PROXIES)
+
+	// setup middlewares
+	r.Use(gzip.Gzip(gzip.BestCompression))
 
 	// install endpoints
 	r.POST("/v1/query", env.postQuery)
