@@ -49,8 +49,10 @@ type EndpointHandlerEnv struct {
 	// client for accessing the consistency tree
 	consistencyClient *crypto.ConsistencyTreeClient
 
-	// mutex for accessing SMH / SCH
+	// lock for accessing cached SMH / SCH
 	cacheLock sync.RWMutex
+	// lock for updating the DB
+	updateLock sync.Mutex
 
 	// caches the most recent SMH value
 	currentSignedMapHead *crypto.SignedMapHead
@@ -240,6 +242,7 @@ func main() {
 		consistencyClient: consistencyClient,
 
 		cacheLock:                    sync.RWMutex{},
+		updateLock:                   sync.Mutex{},
 		currentSignedMapHead:         smh,
 		currentSignedConsistencyHead: sch,
 	}
@@ -713,6 +716,14 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		return
 	}
 
+	didLock := env.updateLock.TryLock()
+	if !didLock {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Update is already in progress, try again later",
+		})
+		return
+	}
+
 	tx, err := env.dbPool.BeginTx(c.Request.Context(), pgx.TxOptions{
 		IsoLevel: pgx.Serializable,
 	})
@@ -770,6 +781,7 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 	env.currentSignedMapHead = smh
 	env.currentSignedConsistencyHead = sch
 	env.cacheLock.Unlock()
+	env.updateLock.Unlock()
 
 	c.Data(
 		http.StatusOK,
