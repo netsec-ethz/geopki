@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"math"
@@ -25,6 +24,10 @@ import (
 // and returns the set of all certificate hashes as hex strings
 // this function does not perform any consistency checks
 func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa.PublicKey) (mapset.Set[string], error) {
+	if response.GetSignedMapHead() == nil {
+		return nil, fmt.Errorf("response does not contain a SMH")
+	}
+
 	smh := NewSMHFromCommSMH(response.GetSignedMapHead())
 
 	if !smh.Verify(publicKey) {
@@ -164,7 +167,7 @@ func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa
 	rootHash := rootNode.Hash()
 
 	// verify root hash against SMH
-	if !bytes.Equal(rootHash, response.SignedMapHead.RootHash) {
+	if !bytes.Equal(rootHash, smh.RootHash) {
 		return nil, fmt.Errorf("computed root hash does not match the SMH")
 	}
 
@@ -184,15 +187,15 @@ func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa
 	// first compute the set of all certificate hashes
 	// unfortunately in string form since []byte is not comparable
 	certificateStringHashes := mapset.NewSet[string]()
-	for _, node := range response.Nodes {
+	for _, node := range ns {
 		for _, certificateHash := range node.CertificateHashes {
-			certificateStringHashes.Add(hex.EncodeToString(certificateHash))
+			certificateStringHashes.Add(base64.RawURLEncoding.EncodeToString(certificateHash))
 		}
 	}
 
 	for _, certificate := range response.GetCertificates() {
 		hash := sha256.Sum256(certificate)
-		hashString := hex.EncodeToString(hash[:])
+		hashString := base64.RawURLEncoding.EncodeToString(hash[:])
 
 		if !certificateStringHashes.Contains(hashString) {
 			return nil, fmt.Errorf("certificate with hash '%s' is part of the response but is not contained in any node", hashString)
@@ -204,9 +207,17 @@ func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa
 }
 
 func EnsureConsistency(address string, response *comm.Response, publicKey *ecdsa.PublicKey) (int, error) {
+	if response.GetSignedConsistencyHead() == nil {
+		return 0, fmt.Errorf("response does not contain a SCH")
+	}
+
 	sch := NewSCHFromCommSCH(response.GetSignedConsistencyHead())
 	if !sch.Verify(publicKey) {
 		return 0, fmt.Errorf("signature on the SCH is invalid")
+	}
+
+	if response.GetSignedMapHead() == nil {
+		return 0, fmt.Errorf("response does not contain a SMH")
 	}
 
 	smh := NewSMHFromCommSMH(response.GetSignedMapHead())

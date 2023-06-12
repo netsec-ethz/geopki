@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -205,7 +206,7 @@ func RowsToNodesAndRootHash(
 
 		// collect certificate hashes
 		for _, certificateHash := range dbCertificateHashes.Elements {
-			certificateStringHashes.Add(hex.EncodeToString(certificateHash))
+			certificateStringHashes.Add(base64.RawURLEncoding.EncodeToString(certificateHash))
 		}
 	}
 
@@ -261,11 +262,16 @@ func RowsToNodesAndRootHash(
 	return responseNodes, rootHash, certificateStringHashes, nil
 }
 
-func BuildCertificateQuery(certificateStringHashes []string) string {
+func BuildCertificateQuery(certificateStringHashes []string) (string, error) {
 	encodedHashes := make([]string, len(certificateStringHashes))
 
 	for i, certificateStringHash := range certificateStringHashes {
-		encodedHashes[i] = fmt.Sprintf("E'\\\\x%s'", certificateStringHash)
+		certificateHash, err := base64.RawURLEncoding.DecodeString(certificateStringHash)
+		if err != nil {
+			return "", err
+		}
+
+		encodedHashes[i] = fmt.Sprintf("E'\\\\x%s'", hex.EncodeToString(certificateHash))
 	}
 
 	return fmt.Sprintf(
@@ -273,7 +279,7 @@ func BuildCertificateQuery(certificateStringHashes []string) string {
 			"FROM certificates "+
 			"WHERE certificate_hash IN (%s)",
 		strings.Join(encodedHashes, ","),
-	)
+	), nil
 }
 
 func RowsToCertificates(

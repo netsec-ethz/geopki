@@ -45,8 +45,8 @@ message Node {
 }
 
 message Response {
-  SignedConsistencyHead SignedConsistencyHead = 1;
-  SignedMapHead SignedMapHead = 2;
+  optional SignedConsistencyHead SignedConsistencyHead = 1;
+  optional SignedMapHead SignedMapHead = 2;
 
   repeated Node Nodes = 3;
 

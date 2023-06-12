@@ -255,6 +255,7 @@ func main() {
 
 	// install endpoints
 	r.POST("/v1/query", env.postQuery)
+	r.GET("/v1/certificates", env.getCertificates)
 	r.GET("/v1/public-key", env.getPublicKey)
 	r.GET("/v1/get-sch", env.getSignedConsistencyHead)
 	r.GET("/v1/get-sch-consistency", env.getSignedConsistencyHeadConsistency)
@@ -344,7 +345,14 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 
 	var certificates [][]byte
 	if includeCertificates && certificateStringHashes.Cardinality() > 0 {
-		sqlQuery := database.BuildCertificateQuery(certificateStringHashes.ToSlice())
+		sqlQuery, err := database.BuildCertificateQuery(certificateStringHashes.ToSlice())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "building certificate query failed: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "building database query failed, check the server logs",
+			})
+			return
+		}
 
 		rows, err := env.dbPool.Query(
 			c.Request.Context(),
@@ -400,6 +408,71 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 
 }
 
+// handler for the /certificates endpoint
+func (env *EndpointHandlerEnv) getCertificates(c *gin.Context) {
+
+	certificateStringHashes, nonEmpty := c.GetQueryArray("hash")
+	if !nonEmpty {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "provide at least one hash using the 'hash' parameter",
+		})
+		return
+	}
+
+	var certificates [][]byte
+	sqlQuery, err := database.BuildCertificateQuery(certificateStringHashes)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "building certificate query failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "building database query failed, check the server logs",
+		})
+		return
+	}
+
+	rows, err := env.dbPool.Query(
+		c.Request.Context(),
+		sqlQuery,
+	)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "certificate query failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "database query failed, check the server logs",
+		})
+		return
+	}
+
+	defer rows.Close()
+
+	// at least allocate a capacity of 'len(bit_strings)', then let
+	// the go standard libary handle growth
+	certificates, err = database.RowsToCertificates(rows, len(certificateStringHashes))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "scanning certificate rows failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "scanning rows failed, check the server logs",
+		})
+		return
+	}
+
+	response, err := proto.Marshal(&comm.Response{
+		Certificates: certificates,
+	})
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed marshaling response, check the server logs",
+		})
+		return
+	}
+
+	c.Data(
+		http.StatusOK,
+		"application/octet-stream",
+		response,
+	)
+}
+
 // handler for the /public-key endpoint
 func (env *EndpointHandlerEnv) getPublicKey(c *gin.Context) {
 	// check the content type request header
@@ -427,6 +500,7 @@ func (env *EndpointHandlerEnv) getPublicKey(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed marshaling public key",
 		})
+		return
 	}
 
 	c.Data(
@@ -444,6 +518,7 @@ func (env *EndpointHandlerEnv) getSignedConsistencyHead(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to retrieve the latest signed consistency head",
 		})
+		return
 	}
 
 	response, err := proto.Marshal(sch.Proto())
