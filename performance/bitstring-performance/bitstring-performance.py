@@ -65,7 +65,7 @@ def main(
             [
                 f"go",
                 f"run",
-                f"./cmd/bitstring-performance",
+                f"../../cmd/bitstring-performance",
                 f"--longitude={longitude}",
                 f"--latitude={latitude}",
                 f"--altitude={altitude}",

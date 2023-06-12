@@ -4,7 +4,10 @@ from collections import deque
 from shapely import Point, Polygon, MultiPolygon, from_wkt
 import matplotlib.pyplot as plt
 from geopy import distance
+import os
+import sys
 
+sys.path.insert(1, os.path.join(sys.path[0], '..'))  # noqa - prevent auto formatting
 from coordinates import ZOrderBitString, GeodeticCoordinate
 
 
@@ -121,7 +124,7 @@ def grow_area(initial_area: ZOrderBitString, area: float, f: float, plot=False):
         initial_area.x_precision > 1 and
         ZOrderBitString.from_bit_string(
             initial_area.to_bit_string()[:-1]
-        ).to_shapely_area().area * f < area
+        ).to_shapely_area().area < area * f
     ):
         if plot:
             x, y = initial_area.to_shapely_area().exterior.xy
@@ -349,11 +352,12 @@ l = sphere_to_coarse_2d_binary_strings(
         altitude=0
     ),
     radius_m=10,
-    f_grow=1,
+    f_grow=0.1,
+    f_min=0,
     plot=True
 )
 
-print(len(l))
+print("number of bit strings: ", len(l))
 
 p: MultiPolygon = from_wkt("MULTIPOLYGON(" + ",".join([
     voxel_bounds_to_2d_wkt_polygon(

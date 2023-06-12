@@ -339,6 +339,7 @@ func UpdateTree(
 			return nil, fmt.Errorf("failed inserting possibly non-existent ancestor: %v", err)
 		}
 
+		// requires an 'update_children_hashes' function to be defined
 		query = fmt.Sprintf(
 			"SELECT update_children_hashes(b'%s', b'%s')",
 			bitStringPair.RawXYBitString.BitString().String(),

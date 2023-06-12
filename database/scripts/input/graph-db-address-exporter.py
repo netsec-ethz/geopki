@@ -4,7 +4,6 @@ import numpy as np
 from tqdm import tqdm
 from typing import Dict, List, Tuple, Optional, Set
 from shapely import Polygon, MultiPolygon, box, to_geojson
-from coordinates import ZOrderBitString, GeodeticCoordinate
 from collections import deque
 import matplotlib.pyplot as plt
 import json
@@ -12,6 +11,10 @@ import os
 import math
 import gc
 import hashlib
+import sys
+
+sys.path.insert(1, os.path.join(sys.path[0], '../../..'))  # noqa - prevent auto formatting
+from coordinates import ZOrderBitString, GeodeticCoordinate
 
 INITIAL_AREA_FRACTION = 1
 

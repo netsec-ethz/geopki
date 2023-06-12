@@ -4,14 +4,15 @@ import numpy as np
 from tqdm import tqdm
 from typing import Dict, List, Tuple, Optional, Set
 from shapely import Polygon, MultiPolygon, box, to_geojson
-from coordinates import ZOrderBitString, GeodeticCoordinate, extruded_polygons_to_bit_strings, polygons_to_2d_bit_strings
-from coordinatez import DiscretizedVoxel, extruded_polygons_to_bit_string_tuples
-import matplotlib.pyplot as plt
 import json
 import os
-import math
+import sys
 import gc
 import hashlib
+
+sys.path.insert(1, os.path.join(sys.path[0], '../../..'))  # noqa - prevent auto formatting
+from coordinates import ZOrderBitString, GeodeticCoordinate, extruded_polygons_to_bit_strings, polygons_to_2d_bit_strings
+from coordinatez import DiscretizedVoxel, extruded_polygons_to_bit_string_tuples
 
 INITIAL_AREA_FRACTION = 1
 MAX_FILE_SIZE = 300 * 1000 * 1000  # 300 MB

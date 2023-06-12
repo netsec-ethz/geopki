@@ -11,8 +11,8 @@ import os
 from geopy import distance
 import psycopg2
 
-sys.path.insert(1, os.path.join(sys.path[0], '..'))  # noqa - prevent auto formatting
-from coordinatez import GeodeticCoordinate, polygons_to_2d_bit_strings, sphere_to_polygon
+sys.path.insert(1, os.path.join(sys.path[0], '../../../..'))  # noqa - prevent auto formatting
+from coordinates import GeodeticCoordinate, sphere_to_coarse_2d_binary_strings
 
 MAX_RADIUS_M = 10 * 1000
 MAX_CIRCUMFERENCE_M = 2 * MAX_RADIUS_M * math.pi
@@ -23,11 +23,6 @@ SAMPLING_PRECISION_RADIUS = math.ceil(MAX_RADIUS_M)
 # 360 degrees
 # with 10km radius, circumference is 2 * (10km) * π = 62.83kms
 SAMPLING_PRECISION_BEARING = math.ceil(MAX_CIRCUMFERENCE_M)
-
-QUERY_PLACES_Z: List[Tuple[float, float, int]] = [
-    # for z proof sizes
-    (-0.1295305, 51.5070465, 2000),  # london
-]
 
 QUERY_PLACES: List[Tuple[float, float, int]] = [
     # longitude, latitude, radius in meters
@@ -60,13 +55,13 @@ def sample_circle(latitude: float, longitude: float, radius_m: float) -> Tuple[f
     return p.latitude, p.longitude
 
 
-def generate_queries(query_count: int, z_queries=False):
+def generate_queries(query_count: int):
     query_set: List[float, float, int] = []
 
     for _ in range(query_count):
         # randomly sample a city
         query_place_longitude, query_place_latitude, query_place_radius_m = random.choice(
-            QUERY_PLACES_Z if z_queries else QUERY_PLACES
+            QUERY_PLACES
         )
         latitude, longitude = sample_circle(
             longitude=query_place_longitude,
@@ -94,7 +89,6 @@ class ProcessArgs:
             count_only: bool,
             excluding_bit_string_computation: bool,
             query_set_size: int,
-            z_queries: bool,
             start_event: Event,
             ready_event: Event,
             stop_event: Event
@@ -109,42 +103,23 @@ class ProcessArgs:
         self.count_only = count_only
         self.excluding_bit_string_computation = excluding_bit_string_computation
         self.query_set_size = query_set_size
-        self.z_queries = z_queries
         self.start_event = start_event
         self.ready_event = ready_event
         self.stop_event = stop_event
 
 
-def query_to_bitstring_integers(query: Tuple[float, float, int], query_radius: float):
+def query_to_bitstring(query: Tuple[float, float, int], query_radius: float):
     longitude, latitude, altitude = query
 
-    bit_strings = polygons_to_2d_bit_strings(
-        polygons=[sphere_to_polygon(
-            center=GeodeticCoordinate(
-                longitude=longitude,
-                latitude=latitude,
-                altitude=altitude
-            ),
-            radius_m=query_radius
-        )],
-        f_grow=1,
-        f_min=0
+    return sphere_to_coarse_2d_binary_strings(
+        GeodeticCoordinate(
+            longitude=longitude,
+            latitude=latitude,
+            altitude=altitude
+        ),
+        radius_m=query_radius,
+        f_grow=1
     )
-
-    return [
-        (
-            # compute all prefixes of bit_string that are not obtained by removing a trailing zero
-            [
-                f"b'{b[:i]}'"
-                for i in range(1, bl)
-            ],
-            int(bit_string.ljust(51, '0'), 2),
-            int(bit_string.ljust(51, '1'), 2)
-        )
-        for bit_string in bit_strings
-        # define local variable, requires python >= 3.8 (https://stackoverflow.com/a/55881984)
-        if (b := bit_string.rstrip("0")) and (bl := len(b))
-    ]
 
 
 def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_value: Value):
@@ -163,14 +138,11 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
     cursor = conn.cursor()
 
     # pre-generate a query set
-    query_set = generate_queries(
-        args.query_set_size,
-        args.z_queries,
-    )
+    query_set = generate_queries(args.query_set_size)
 
     if args.excluding_bit_string_computation:
         query_set = [
-            query_to_bitstring_integers(q, args.query_radius)
+            query_to_bitstring(q, args.query_radius)
             for q in query_set
         ]
 
@@ -191,7 +163,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
 
         if not args.excluding_bit_string_computation:
             queries = [
-                query_to_bitstring_integers(q, args.query_radius)
+                query_to_bitstring(q, args.query_radius)
                 for q in queries
             ]
 
@@ -203,24 +175,19 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                         ("SELECT COUNT(*) FROM (" if args.count_only else "") +
                         "UNION".join(
                             [
-                                f"(SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash "
+                                f"((SELECT bit_string, certificate_hashes, left_child_hash, right_child_hash "
                                 f"FROM nodes "
-                                f"WHERE bit_string_51 IN (" +
-                                ','.join(point_queries) + ") AND "
-                                f"altitude_min <= {query_altitude + args.query_radius} AND "
-                                f"altitude_max >= {query_altitude - args.query_radius}"
-                                "UNION ALL "
-                                "SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash "
-                                "FROM nodes "
-                                f"WHERE "
-                                f"bit_string_51_int >= {imin} AND "
-                                f"bit_string_51_int <= {imax} AND "
+                                f"WHERE bit_string_txt IN (" +
+                                ','.join(["'" + bit_string[:i] + "'" for i in range(0, len(bit_string))]) +
+                                ")) UNION ALL "
+                                f"(SELECT bit_string, certificate_hashes, left_child_hash, right_child_hash "
+                                f"FROM nodes WHERE "
+                                f"bit_string_txt LIKE '{bit_string}%' AND "
                                 # fix altitude for now
-                                f"altitude_min <= {query_altitude - args.query_radius} AND "
-                                f"altitude_max >= {query_altitude + args.query_radius}"
-                                f")"
-                                for point_queries, imin, imax in bit_strings
-                                if (query_altitude := 22767)
+                                f"min_altitude_of_bit_string(bit_string) <= {22767 + args.query_radius} AND "
+                                f"max_altitude_of_bit_string(bit_string) >= {22767 - args.query_radius}"
+                                f"))"
+                                for bit_string in bit_strings
                             ])
                         + (") as sq" if args.count_only else "")
                     )
@@ -230,9 +197,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
         )
 
         # simulate fetching all results
-        res = cursor.fetchall()
-        result_count_tmp = res[0][0] if args.count_only else len(res)
-        res = None
+        result_count_tmp = len(cursor.fetchall())
 
         # check whether we need to stop
         if args.stop_event.is_set():
@@ -313,7 +278,6 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
     type=int,
     default=1000
 )
-@click.option('--z-queries', 'z_queries', flag_value=True, default=False)
 @click.option('--excluding-bit-string-computation', 'excluding_bit_string_computation', flag_value=True, default=False)
 @click.option('--count-only', 'count_only', flag_value=True, default=False)
 @click.option(
@@ -333,7 +297,6 @@ def main(
     time_s: int,
     query_radius: int,
     qps_set_size: int,
-    z_queries: bool,
     excluding_bit_string_computation: bool,
     count_only: bool,
     batch_size: bool
@@ -376,7 +339,6 @@ def main(
                     count_only=count_only,
                     excluding_bit_string_computation=excluding_bit_string_computation,
                     query_set_size=qps_set_size,
-                    z_queries=z_queries,
                     start_event=start_event,
                     ready_event=ready_event,
                     stop_event=stop_event,
