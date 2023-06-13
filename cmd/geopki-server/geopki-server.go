@@ -23,6 +23,7 @@ import (
 	"geopki/pkg/crypto"
 	"geopki/pkg/database"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
@@ -256,6 +257,12 @@ func main() {
 
 	// setup middlewares
 	r.Use(gzip.Gzip(gzip.BestCompression))
+	r.Use(cors.New(cors.Config{
+		AllowAllOrigins:  true,
+		AllowMethods:     []string{"GET", "POST"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: false,
+	}))
 
 	// install endpoints
 	r.POST("/v1/query", env.postQuery)

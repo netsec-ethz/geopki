@@ -4,6 +4,8 @@ go 1.20
 
 require (
 	github.com/deckarep/golang-set/v2 v2.3.0
+	github.com/gin-contrib/cors v1.4.0
+	github.com/gin-contrib/gzip v0.0.6
 	github.com/gin-gonic/gin v1.9.0
 	github.com/golang/geo v0.0.0-20230421003525-6adc56603217
 	github.com/google/trillian v1.5.2
@@ -19,7 +21,6 @@ require (
 	github.com/bytedance/sonic v1.8.0 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
 	github.com/erikstmartin/go-testdb v0.0.0-20160219214506-8d10e4a1bae5 // indirect
-	github.com/gin-contrib/gzip v0.0.6 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
