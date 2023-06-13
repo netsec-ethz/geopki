@@ -78,6 +78,11 @@ func (cert *GeoCertificate) Marshal() []byte {
 	return cert.MarshaledCert
 }
 
+// returns a version of the certificate
+func (cert *GeoCertificate) JSON() string {
+	return string(cert.MarshaledCert)
+}
+
 func (cert *GeoCertificate) Hash() SHA256Hash {
 	hash := sha256.Sum256(cert.MarshaledCert)
 	return hash[:]

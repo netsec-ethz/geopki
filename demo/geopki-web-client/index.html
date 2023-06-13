@@ -1,0 +1,327 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+
+    <!-- https://leafletjs.com/examples/quick-start/ -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <!-- Make sure you put this AFTER Leaflet's CSS -->
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+
+    <!-- minimap plugin for leaflet-->
+    <link rel="stylesheet" href="./Control.MiniMap.min.css" />
+    <script src="./Control.MiniMap.min.js" type="text/javascript"></script>
+
+    <!-- font awesome icons-->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+
+    <!-- wasm script provided by golang, see https://golangbot.com/webassembly-using-go/ -->
+    <script src="wasm_exec.js"></script>
+    <!-- define some helper functions-->
+    <script>
+      const DEFAULT_QUERY_RADIUS = 100;
+      const MAX_QUERY_RADIUS = 255;
+      let setViewAfterLocate = false;
+
+      // function for hashing a string, copied from https://stackoverflow.com/a/3426956
+      function hashCode(str) {
+        // java String#hashCode
+        var hash = 0;
+        for (var i = 0; i < str.length; i++) {
+          hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return hash;
+      }
+      // function for turning an integer into a hex color, copied from https://stackoverflow.com/a/3426956
+      function intToRGB(i) {
+        var c = (i & 0x00ffffff).toString(16).toUpperCase();
+
+        return "00000".substring(0, 6 - c.length) + c;
+      }
+
+      // function for fetching and displaying certificates
+      async function fetchCertificates(longitude, latitude, altitude, radius) {
+        const certificates = await window
+          .getJSONCertificates(
+            "http://server.tyratox.ch:1234",
+            longitude,
+            latitude,
+            altitude,
+            radius
+          )
+          .then((jsonCertificates) => jsonCertificates.map(JSON.parse));
+
+        if (window.geoJsonLayers) {
+          for (const geoJsonLayer of geoJsonLayers) {
+            map.removeLayer(geoJsonLayer);
+          }
+        }
+
+        window.geoJsonLayers = [];
+
+        if (certificates.length == 0) {
+          alert(`Query returned zero responses.`);
+        }
+
+        for (const certificate of certificates) {
+          // https://leafletjs.com/examples/geojson/
+          for (const area of certificate.areas) {
+            const geojsonLayer = L.geoJSON(
+              {
+                type: "Feature",
+                properties: {
+                  domain: certificate.domain,
+                  certificate_id: certificate.certificate_id,
+                  not_valid_after: certificate.not_valid_after,
+                },
+                geometry: area,
+              },
+              {
+                style: {
+                  color: "#" + intToRGB(hashCode(certificate.domain)),
+                },
+              }
+            );
+
+            geojsonLayer
+              .bindPopup(function (layer) {
+                const popup = L.DomUtil.create("div", "info-window");
+                popup.innerHTML = `
+      <ul class="feature-props">
+      <li><strong>Domain:</strong> <code>${certificate.domain}</code></li>
+      <li><strong>Expiration Date:</strong> <time>${certificate.not_valid_after}</time></li>
+      <li><strong>Certificate Id:</strong> <code>${certificate.certificate_id}</code></li>
+      <li></li>
+      </ul>
+      <br>
+      <button class='bring-to-back'>Bring to Back</button>
+      <button class='remove'>Remove</button>`;
+
+                popup
+                  .querySelector(".bring-to-back")
+                  .addEventListener("click", () => {
+                    geojsonLayer.closePopup();
+                    geojsonLayer.bringToBack();
+                  });
+
+                popup.querySelector(".remove").addEventListener("click", () => {
+                  geojsonLayer.closePopup();
+                  geojsonLayer.remove();
+                });
+
+                return popup;
+              })
+              .addTo(map);
+
+            geoJsonLayers.push(geojsonLayer);
+          }
+        }
+
+        // const bounds = L.featureGroup(geoJsonLayers).getBounds();
+        // flyToBounds bugs out (https://github.com/Leaflet/Leaflet/issues/6050)
+        // flyTo bugs out (https://github.com/Leaflet/Leaflet/issues/6050)
+        // map.fitBounds(bounds);
+        // map.setView(bounds.getCenter(), 19);
+      }
+
+      async function fetchCertificatesForCurrentMapLocation() {
+        const center = map.getCenter();
+        const radius = DEFAULT_QUERY_RADIUS;
+
+        const certificates = await fetchCertificates(
+          center.lng,
+          center.lat,
+          0,
+          radius
+        );
+
+        if (window.positionMarker) {
+          window.positionMarker.remove();
+          window.positionAccuracyMarker.remove();
+        }
+
+        window.positionMarker = L.marker(center);
+        window.positionMarker.addTo(map);
+
+        window.positionAccuracyMarker = L.circle(center, radius);
+        window.positionAccuracyMarker.addTo(map);
+        window.positionAccuracyMarker.bringToBack();
+
+        return certificates;
+      }
+
+      function onCurrentLocation() {
+        setViewAfterLocate = false;
+        map.locate({ watch: false, maxZoom: 19, enableHighAccuracy: true });
+      }
+
+      function onCurrentMapLocation() {
+        map.stopLocate();
+        fetchCertificatesForCurrentMapLocation().catch((e) => alert(e.message));
+      }
+
+      async function onLocationFound(e) {
+        // https://leafletjs.com/reference.html#map-locationfound
+        const longitude = e.latlng.lng;
+        const latitude = e.latlng.lat;
+        const altitude = e.altitude || 0;
+        const radius = Math.min(e.accuracy / 2, MAX_QUERY_RADIUS);
+
+        await fetchCertificates(longitude, latitude, altitude, radius);
+
+        if (window.positionMarker) {
+          window.positionMarker.remove();
+          window.positionAccuracyMarker.remove();
+        }
+
+        window.positionMarker = L.marker(e.latlng);
+        window.positionMarker.addTo(map);
+
+        window.positionAccuracyMarker = L.circle(e.latlng, radius);
+        window.positionAccuracyMarker.addTo(map);
+        window.positionAccuracyMarker.bringToBack();
+
+        if (!setViewAfterLocate) {
+          setViewAfterLocate = true;
+          map.setView(e.latlng, 19);
+        }
+      }
+
+      function onLocationError(e) {
+        alert(e.message);
+      }
+    </script>
+    <script>
+      // custom code to load the web assembly file
+      const go = new Go();
+
+      WebAssembly.instantiateStreaming(
+        fetch("geopki-client.wasm"),
+        go.importObject
+      ).then(async (result) => {
+        go.run(result.instance);
+      });
+    </script>
+    <style>
+      /* what would a demo be without some styling :) */
+      body {
+        padding: 0;
+        margin: 0;
+        font-size: 16px;
+      }
+      html,
+      body,
+      #map {
+        height: 100%;
+        width: 100vw;
+      }
+
+      .feature-props {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      .overlay {
+        z-index: 999999;
+      }
+
+      .big-button {
+        position: relative;
+
+        font-size: 5rem;
+        padding: 4rem;
+
+        background-color: #fff;
+        color: #000;
+        border-radius: 2rem;
+        border: #000 0.25rem solid;
+
+        cursor: crosshair;
+      }
+
+      .big-button:not(:last-child) {
+        margin-right: 1rem;
+      }
+
+      .big-button i {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      }
+
+      #big-button-group {
+        position: fixed;
+        bottom: 1rem;
+        left: 50%;
+        transform: translateX(-50%);
+
+        display: flex;
+        flex-direction: row;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="big-button-group" class="overlay">
+      <div
+        id="current-location"
+        class="big-button"
+        title="query current GPS location"
+        onclick="onCurrentLocation()"
+      >
+        <i class="fa-solid fa-location-dot"></i>
+      </div>
+      <div
+        id="current-map-location"
+        class="big-button"
+        title="query current map center"
+        onclick="onCurrentMapLocation()"
+      >
+        <i class="fa-solid fa-map-location-dot"></i>
+      </div>
+    </div>
+    <script>
+      /* load leaflet map */
+      window.map = L.map("map").fitWorld();
+
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "© OpenStreetMap",
+      }).addTo(map);
+
+      var minimapLayer = new L.TileLayer(
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+          minZoom: 0,
+          maxZoom: 13,
+          attribution: "© OpenStreetMap",
+        }
+      );
+
+      var miniMap = new L.Control.MiniMap(minimapLayer, {
+        position: "topright",
+      }).addTo(map);
+
+      map.on("locationerror", onLocationError);
+      map.on("locationfound", onLocationFound);
+      map.locate({ watch: false, maxZoom: 19, enableHighAccuracy: true });
+    </script>
+  </body>
+</html>
