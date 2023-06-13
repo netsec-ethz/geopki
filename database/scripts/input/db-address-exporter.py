@@ -134,8 +134,11 @@ class BitStringRow:
         self.z_right_child_hash: Optional[bytes] = None
         self.hash = None
 
-    def get_certificate_hashes(self) -> bytes:
+    def get_concatenated_certificate_hashes(self) -> bytes:
         return b"".join(sorted(self.certificate_hashes))
+
+    def get_certificate_hashes(self) -> list[bytes]:
+        return sorted(self.certificate_hashes)
 
 
 def voxel_bounds_to_2d_wkt_polygon(bounds: Tuple[GeodeticCoordinate, GeodeticCoordinate]) -> str:
@@ -521,7 +524,7 @@ def main(
             # for leaves the hash is H(0 || H(C_0) || H(C_1) | ...)
             row.hash = hashlib.sha256(
                 b"\x00" +
-                row.get_certificate_hashes()
+                row.get_concatenated_certificate_hashes()
             ).digest()
         else:
             # for intermediate nodes H(1 || h_1 || h_2) if there are no certificate hashes
@@ -534,7 +537,8 @@ def main(
                     row.xy_right_child_hash +
                     row.z_left_child_hash +
                     row.z_right_child_hash +
-                    hashlib.sha256(row.get_certificate_hashes()).digest()
+                    hashlib.sha256(
+                        row.get_concatenated_certificate_hashes()).digest()
                 ).digest()
             else:
                 row.hash = hashlib.sha256(
@@ -588,7 +592,7 @@ def main(
         certificate_hashes = f",".join(
             [
                 f"E'\\\\x{h.hex()}'::bytea"
-                for h in row.certificate_hashes
+                for h in row.get_certificate_hashes()
             ]
         )
         certificate_hash_array = f"ARRAY[{certificate_hashes}]::bytea[]"
@@ -611,8 +615,8 @@ def main(
                 f"('{bit_string_tuple[0]}', {bit_string_51_int}, {xy_left_child_hash}, {xy_right_child_hash}, {certificate_hash_array})"
             )
         elif mode == "bitstring-int-z-subtrees":
-            altitude_min = int(bit_string_tuple[1].ljust("15", "0"), 2)
-            altitude_max = int(bit_string_tuple[1].ljust("15", "1"), 2) + 1
+            altitude_min = int(bit_string_tuple[1].ljust(15, "0"), 2)
+            altitude_max = int(bit_string_tuple[1].ljust(15, "1"), 2) + 1
 
             size += f.write(
                 f"(b'{bit_string_tuple[0]}', {bit_string_51_int}, b'{bit_string_tuple[1]}', {altitude_min}, {altitude_max}, {xy_left_child_hash}, {xy_right_child_hash}, {z_left_child_hash}, {z_right_child_hash}, {certificate_hash_array})"
