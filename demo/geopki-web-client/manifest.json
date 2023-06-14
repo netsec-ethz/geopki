@@ -18,11 +18,11 @@
       "sizes": "500x500"
     }
   ],
-  "id": "/?source=pwa",
-  "start_url": "/?source=pwa",
+  "id": "/demo/?source=pwa",
+  "start_url": "/demo/?source=pwa",
   "background_color": "#3498DB",
   "display": "standalone",
-  "scope": "/",
+  "scope": "/demo/",
   "theme_color": "#3498DB",
   "description": "Demo PWA for a GeoPKI system",
   "screenshots": []
