@@ -1,0 +1,29 @@
+{
+  "short_name": "GeoPKI",
+  "name": "GeoPKI Client: Find TLS certificates around you",
+  "icons": [
+    {
+      "src": "/images/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "150x150"
+    },
+    {
+      "src": "/images/favicon-250.png",
+      "type": "image/png",
+      "sizes": "250x250"
+    },
+    {
+      "src": "/images/favicon-500.png",
+      "type": "image/png",
+      "sizes": "500x500"
+    }
+  ],
+  "id": "/?source=pwa",
+  "start_url": "/?source=pwa",
+  "background_color": "#3498DB",
+  "display": "standalone",
+  "scope": "/",
+  "theme_color": "#3498DB",
+  "description": "Demo PWA for a GeoPKI system",
+  "screenshots": []
+}

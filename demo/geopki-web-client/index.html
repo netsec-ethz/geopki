@@ -5,6 +5,29 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="/images/apple-touch-icon.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="/images/favicon-32x32.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="/images/favicon-16x16.png"
+    />
+
+    <!-- PWA support-->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- what would a demo be without some styling :) -->
+    <link rel="stylesheet" href="style.css" />
 
     <!-- https://leafletjs.com/examples/quick-start/ -->
     <link
@@ -32,180 +55,9 @@
 
     <!-- wasm script provided by golang, see https://golangbot.com/webassembly-using-go/ -->
     <script src="wasm_exec.js"></script>
-    <!-- define some helper functions-->
-    <script>
-      const DEFAULT_QUERY_RADIUS = 100;
-      const MAX_QUERY_RADIUS = 255;
-      let setViewAfterLocate = false;
-
-      // function for hashing a string, copied from https://stackoverflow.com/a/3426956
-      function hashCode(str) {
-        // java String#hashCode
-        var hash = 0;
-        for (var i = 0; i < str.length; i++) {
-          hash = str.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        return hash;
-      }
-      // function for turning an integer into a hex color, copied from https://stackoverflow.com/a/3426956
-      function intToRGB(i) {
-        var c = (i & 0x00ffffff).toString(16).toUpperCase();
-
-        return "00000".substring(0, 6 - c.length) + c;
-      }
-
-      // function for fetching and displaying certificates
-      async function fetchCertificates(longitude, latitude, altitude, radius) {
-        const certificates = await window
-          .getJSONCertificates(
-            "http://server.tyratox.ch:1234",
-            longitude,
-            latitude,
-            altitude,
-            radius
-          )
-          .then((jsonCertificates) => jsonCertificates.map(JSON.parse));
-
-        if (window.geoJsonLayers) {
-          for (const geoJsonLayer of geoJsonLayers) {
-            map.removeLayer(geoJsonLayer);
-          }
-        }
-
-        window.geoJsonLayers = [];
-
-        if (certificates.length == 0) {
-          alert(`Query returned zero responses.`);
-        }
-
-        for (const certificate of certificates) {
-          // https://leafletjs.com/examples/geojson/
-          for (const area of certificate.areas) {
-            const geojsonLayer = L.geoJSON(
-              {
-                type: "Feature",
-                properties: {
-                  domain: certificate.domain,
-                  certificate_id: certificate.certificate_id,
-                  not_valid_after: certificate.not_valid_after,
-                },
-                geometry: area,
-              },
-              {
-                style: {
-                  color: "#" + intToRGB(hashCode(certificate.domain)),
-                },
-              }
-            );
-
-            geojsonLayer
-              .bindPopup(function (layer) {
-                const popup = L.DomUtil.create("div", "info-window");
-                popup.innerHTML = `
-      <ul class="feature-props">
-      <li><strong>Domain:</strong> <code>${certificate.domain}</code></li>
-      <li><strong>Expiration Date:</strong> <time>${certificate.not_valid_after}</time></li>
-      <li><strong>Certificate Id:</strong> <code>${certificate.certificate_id}</code></li>
-      <li></li>
-      </ul>
-      <br>
-      <button class='bring-to-back'>Bring to Back</button>
-      <button class='remove'>Remove</button>`;
-
-                popup
-                  .querySelector(".bring-to-back")
-                  .addEventListener("click", () => {
-                    geojsonLayer.closePopup();
-                    geojsonLayer.bringToBack();
-                  });
-
-                popup.querySelector(".remove").addEventListener("click", () => {
-                  geojsonLayer.closePopup();
-                  geojsonLayer.remove();
-                });
-
-                return popup;
-              })
-              .addTo(map);
-
-            geoJsonLayers.push(geojsonLayer);
-          }
-        }
-
-        // const bounds = L.featureGroup(geoJsonLayers).getBounds();
-        // flyToBounds bugs out (https://github.com/Leaflet/Leaflet/issues/6050)
-        // flyTo bugs out (https://github.com/Leaflet/Leaflet/issues/6050)
-        // map.fitBounds(bounds);
-        // map.setView(bounds.getCenter(), 19);
-      }
-
-      async function fetchCertificatesForCurrentMapLocation() {
-        const center = map.getCenter();
-        const radius = DEFAULT_QUERY_RADIUS;
-
-        const certificates = await fetchCertificates(
-          center.lng,
-          center.lat,
-          0,
-          radius
-        );
-
-        if (window.positionMarker) {
-          window.positionMarker.remove();
-          window.positionAccuracyMarker.remove();
-        }
-
-        window.positionMarker = L.marker(center);
-        window.positionMarker.addTo(map);
-
-        window.positionAccuracyMarker = L.circle(center, radius);
-        window.positionAccuracyMarker.addTo(map);
-        window.positionAccuracyMarker.bringToBack();
-
-        return certificates;
-      }
-
-      function onCurrentLocation() {
-        setViewAfterLocate = false;
-        map.locate({ watch: false, maxZoom: 19, enableHighAccuracy: true });
-      }
-
-      function onCurrentMapLocation() {
-        map.stopLocate();
-        fetchCertificatesForCurrentMapLocation().catch((e) => alert(e.message));
-      }
-
-      async function onLocationFound(e) {
-        // https://leafletjs.com/reference.html#map-locationfound
-        const longitude = e.latlng.lng;
-        const latitude = e.latlng.lat;
-        const altitude = e.altitude || 0;
-        const radius = Math.min(e.accuracy / 2, MAX_QUERY_RADIUS);
-
-        await fetchCertificates(longitude, latitude, altitude, radius);
-
-        if (window.positionMarker) {
-          window.positionMarker.remove();
-          window.positionAccuracyMarker.remove();
-        }
-
-        window.positionMarker = L.marker(e.latlng);
-        window.positionMarker.addTo(map);
-
-        window.positionAccuracyMarker = L.circle(e.latlng, radius);
-        window.positionAccuracyMarker.addTo(map);
-        window.positionAccuracyMarker.bringToBack();
-
-        if (!setViewAfterLocate) {
-          setViewAfterLocate = true;
-          map.setView(e.latlng, 19);
-        }
-      }
-
-      function onLocationError(e) {
-        alert(e.message);
-      }
-    </script>
+    <!-- load javascript for making the site interactive -->
+    <script src="demo.js"></script>
+    <!-- javascript to initiate the web assembly -->
     <script>
       // custom code to load the web assembly file
       const go = new Go();
@@ -217,69 +69,11 @@
         go.run(result.instance);
       });
     </script>
-    <style>
-      /* what would a demo be without some styling :) */
-      body {
-        padding: 0;
-        margin: 0;
-        font-size: 16px;
-      }
-      html,
-      body,
-      #map {
-        height: 100%;
-        width: 100vw;
-      }
-
-      .feature-props {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-      }
-
-      .overlay {
-        z-index: 999999;
-      }
-
-      .big-button {
-        position: relative;
-
-        font-size: 5rem;
-        padding: 4rem;
-
-        background-color: #fff;
-        color: #000;
-        border-radius: 2rem;
-        border: #000 0.25rem solid;
-
-        cursor: crosshair;
-      }
-
-      .big-button:not(:last-child) {
-        margin-right: 1rem;
-      }
-
-      .big-button i {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-      }
-
-      #big-button-group {
-        position: fixed;
-        bottom: 1rem;
-        left: 50%;
-        transform: translateX(-50%);
-
-        display: flex;
-        flex-direction: row;
-      }
-    </style>
   </head>
   <body>
     <div id="map"></div>
     <div id="big-button-group" class="overlay">
+      <!-- calls .locate on the leaflet map and queries the geopki server for that area -->
       <div
         id="current-location"
         class="big-button"
@@ -288,6 +82,7 @@
       >
         <i class="fa-solid fa-location-dot"></i>
       </div>
+      <!-- disables leaflets locating and queries the geopki server for the current center of the map -->
       <div
         id="current-map-location"
         class="big-button"
@@ -297,6 +92,7 @@
         <i class="fa-solid fa-map-location-dot"></i>
       </div>
     </div>
+    <!-- initialize map -->
     <script>
       /* load leaflet map */
       window.map = L.map("map").fitWorld();

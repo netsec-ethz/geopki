@@ -1,0 +1,56 @@
+body {
+  padding: 0;
+  margin: 0;
+  font-size: 16px;
+}
+html,
+body,
+#map {
+  height: 100%;
+  width: 100vw;
+}
+
+.feature-props {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.overlay {
+  z-index: 999999;
+}
+
+.big-button {
+  position: relative;
+
+  font-size: 5rem;
+  padding: 4rem;
+
+  background-color: #fff;
+  color: #000;
+  border-radius: 2rem;
+  border: #000 0.25rem solid;
+
+  cursor: crosshair;
+}
+
+.big-button:not(:last-child) {
+  margin-right: 1rem;
+}
+
+.big-button i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+#big-button-group {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+
+  display: flex;
+  flex-direction: row;
+}

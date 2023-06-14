@@ -275,6 +275,9 @@ func main() {
 	r.GET("/v1/get-entry-and-proof", env.getEntryAndProof)
 	r.POST("/v1/insert", env.postInsert)
 
+	// install demo endpoint
+	r.Static("/demo", "./demo/geopki-web-client")
+
 	// start server
 	r.Run(fmt.Sprintf("%s:%d", listenAddress, listenPort))
 }
