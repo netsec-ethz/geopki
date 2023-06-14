@@ -31,11 +31,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// 'constants', arrays can't be set to 'const' though!
-
-// constant list of trusted proxy strings
-var TRUSTED_PROXIES = []string{"localhost"}
-
 const (
 	// maximum merge delay in seconds
 	MAXIMUM_MERGE_DELAY = 5
@@ -253,7 +248,6 @@ func main() {
 	r := gin.Default()
 
 	// configure gin engine
-	r.SetTrustedProxies(TRUSTED_PROXIES)
 
 	// setup middlewares
 	r.Use(gzip.Gzip(gzip.BestCompression))
