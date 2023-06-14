@@ -67,6 +67,7 @@
         go.importObject
       ).then(async (result) => {
         go.run(result.instance);
+        window.loadedWasm = true;
       });
     </script>
   </head>

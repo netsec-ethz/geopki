@@ -20,14 +20,18 @@ function intToRGB(i) {
 
 // function for fetching and displaying certificates
 async function fetchCertificates(longitude, latitude, altitude, radius) {
+  while (!window.loadedWasm) {
+    return new Promise((resolve, reject) =>
+      setTimeout(() => {
+        fetchCertificates(longitude, latitude, altitude, radius)
+          .then(resolve)
+          .catch(reject);
+      }, 1000)
+    );
+  }
   const certificates = await window
-    .getJSONCertificates(
-      "http://server.tyratox.ch:1234",
-      longitude,
-      latitude,
-      altitude,
-      radius
-    )
+    // set manually to e.g. http://server.tyratox.ch:1234 if you want to use a different server
+    .getJSONCertificates("/", longitude, latitude, altitude, radius)
     .then((jsonCertificates) => jsonCertificates.map(JSON.parse));
 
   if (window.geoJsonLayers) {
