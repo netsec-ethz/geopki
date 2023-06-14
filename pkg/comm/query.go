@@ -13,6 +13,12 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const (
+	// factor for accounting for radius inaccuracies arising from the surface projection
+	// from below ground
+	RADIUS_ERROR_FACTOR = 1.005
+)
+
 type ErrorResponse struct {
 	Error string
 }
@@ -43,8 +49,10 @@ func NewQuery(
 		)
 	}
 
+	radius = uint64(math.Ceil(float64(radius) * RADIUS_ERROR_FACTOR))
+
 	if radius > math.MaxUint8 {
-		return nil, fmt.Errorf("invalid radius value, must be smaller than 255")
+		return nil, fmt.Errorf("invalid radius value, must be smaller than %d", int(math.Floor(float64(255/RADIUS_ERROR_FACTOR))))
 	}
 
 	sphere := bitstring.ApproximateSphere(
