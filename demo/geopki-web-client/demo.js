@@ -26,7 +26,7 @@ async function fetchCertificates(longitude, latitude, altitude, radius) {
         fetchCertificates(longitude, latitude, altitude, radius)
           .then(resolve)
           .catch(reject);
-      }, 1000)
+      }, 300)
     );
   }
   const certificates = await window
