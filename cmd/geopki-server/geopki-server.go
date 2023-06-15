@@ -406,9 +406,9 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 
 	marshaledProof, err := proto.Marshal(proof)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed marshaling proof: %v\n", err)
+		fmt.Fprintf(os.Stderr, "failed marshaling inclusion proof: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed marshaling proof, check the server logs",
+			"error": "failed marshaling inclusion proof, check the server logs",
 		})
 		return
 	}
