@@ -58,6 +58,8 @@ QUERY_RADIUS_VALUES = [10]
     default=10
 )
 @click.option('--postgres-bitstrings', 'mode', flag_value='postgres_bitstrings', default=None)
+@click.option('--postgres-bitstrings-int', 'mode', flag_value='postgres_bitstrings_int', default=None)
+@click.option('--postgres-bitstrings-int-z', 'mode', flag_value='postgres_bitstrings_int_z', default=None)
 @click.option('--postgres-spatial', 'mode', flag_value='postgres_spatial', default=None)
 @click.option('--postgres-baseline', 'mode', flag_value="postgres_baseline")
 @click.option('--neo4j', 'mode', flag_value='neo4j')
