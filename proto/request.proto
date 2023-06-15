@@ -11,6 +11,6 @@ message XYBitString {
 
 message Request {
   repeated XYBitString XYBitStrings = 1;
-  uint32 min_altitude = 2;
-  uint32 max_altitude = 3;
+  uint32 minAltitude = 2;
+  uint32 maxAltitude = 3;
 }
