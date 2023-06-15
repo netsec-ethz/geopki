@@ -135,7 +135,7 @@ def query_to_bitstring_integers(query: Tuple[float, float, int], query_radius: f
         (
             # compute all prefixes of bit_string that are not obtained by removing a trailing zero
             [
-                f"'{b[:i]}'"
+                f"b'{b[:i]}'"
                 for i in range(1, bl)
             ],
             int(bit_string.ljust(51, '0'), 2),
