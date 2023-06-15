@@ -223,7 +223,7 @@ type Node struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// the 52 bits of the xy bit string
+	// the 51 bits of the xy bit string
 	XYBitString    uint64 `protobuf:"varint,1,opt,name=XYBitString,proto3" json:"XYBitString,omitempty"`
 	XYBitStringLen uint32 `protobuf:"varint,2,opt,name=XYBitStringLen,proto3" json:"XYBitStringLen,omitempty"`
 	// the 15 bits of the z bit string

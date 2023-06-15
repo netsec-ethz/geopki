@@ -26,7 +26,7 @@ message SignedMapHead {
 
 // a node corresponds to a database row
 message Node {
-  // the 52 bits of the xy bit string
+  // the 51 bits of the xy bit string
   uint64 XYBitString = 1;
   uint32 XYBitStringLen = 2;
 
@@ -34,7 +34,7 @@ message Node {
   uint32 ZBitString = 3;
   uint32 ZBitStringLen = 4;
 
-  // optional hash values for and all children
+  // optional hash values of all children
   optional bytes XYLeftChildHash = 5;
   optional bytes XYRightChildHash = 6;
   optional bytes ZLeftChildHash = 7;
