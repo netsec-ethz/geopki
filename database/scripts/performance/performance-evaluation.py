@@ -103,13 +103,13 @@ def main(
 
     executable: Optional[str] = None
     if mode == "postgres_baseline":
-        executable = "./performance/postgres-baseline-run.py"
+        executable = "./db-types/postgres-baseline-run.py"
     elif mode == "postgres_spatial":
-        executable = "./performance/postgres-spatial-run.py"
+        executable = "./db-types/postgres-spatial-run.py"
     elif mode == "postgres_bitstrings":
-        executable = "./performance/postgres-bitstring-run.py"
+        executable = "./db-types/postgres-bitstring-run.py"
     elif mode == "neo4j":
-        executable = "./performance/neo4j-run.py"
+        executable = "./db-types/neo4j-run.py"
     else:
         raise Exception(f"Unkown mode '{mode}'")
 
