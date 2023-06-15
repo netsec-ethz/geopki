@@ -389,10 +389,8 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 	}
 
 	env.cacheLock.RLock()
-
 	sch := env.currentSignedConsistencyHead
 	smh := env.currentSignedMapHead
-
 	env.cacheLock.RUnlock()
 
 	proof, err := env.consistencyClient.ProveSignedMapHeadInclusion(c.Request.Context(), sch.Size, smh)
