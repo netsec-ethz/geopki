@@ -142,7 +142,7 @@ func main() {
 
 	// ensure the received signed map head is included in the consistency tree
 	// by requesting a proof of inclusion for the consistency tree
-	proofResponseSize, err := crypto.EnsureConsistency(address, response, publicKey)
+	err = crypto.EnsureConsistency(response, publicKey)
 	if err != nil {
 		log.Fatalf("❌ consistency verification failed: %v\n", err)
 	}
@@ -153,7 +153,7 @@ func main() {
 	fmt.Printf("🏋️ Sizes\n")
 	fmt.Printf("    Request size: %dB, %d bit strings\n", requestSize, len(query.XYBitStrings))
 	fmt.Printf("    Response size: %dB, %d nodes\n", responseSize, len(response.Nodes))
-	fmt.Printf("    Consistency proof response size: %dB\n", proofResponseSize)
+	fmt.Printf("    Consistency proof response size: %dB\n", len(response.InclusionProof))
 
 	fmt.Printf("⌛️ Timing\n")
 	fmt.Printf("    Fetch & Parse Public Key: %fs\n", fetchingDecodingPublicKey.Seconds())

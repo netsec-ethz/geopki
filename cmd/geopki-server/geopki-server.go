@@ -390,16 +390,37 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 
 	env.cacheLock.RLock()
 
+	sch := env.currentSignedConsistencyHead
+	smh := env.currentSignedMapHead
+
+	env.cacheLock.RUnlock()
+
+	proof, err := env.consistencyClient.ProveSignedMapHeadInclusion(c.Request.Context(), sch.Size, smh)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "obtaining a proof of inclusion for consistency tree failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "obtaining a proof of inclusion for consistency tree failed, check the server logs",
+		})
+		return
+	}
+
+	marshaledProof, err := proto.Marshal(proof)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed marshaling proof: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed marshaling proof, check the server logs",
+		})
+		return
+	}
+
 	response, err := proto.Marshal(&comm.Response{
-		SignedConsistencyHead: env.currentSignedConsistencyHead.Proto(),
-		SignedMapHead:         env.currentSignedMapHead.Proto(),
+		SignedConsistencyHead: sch.Proto(),
+		SignedMapHead:         smh.Proto(),
+		InclusionProof:        marshaledProof,
 		Nodes:                 nodes,
 
 		Certificates: certificates,
 	})
-
-	env.cacheLock.RUnlock()
-
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{

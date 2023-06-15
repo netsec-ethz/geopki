@@ -6,9 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"io"
 	"math"
-	"net/http"
 
 	"geopki/pkg/bitstring"
 	"geopki/pkg/comm"
@@ -206,57 +204,35 @@ func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa
 	return certificateStringHashes, nil
 }
 
-func EnsureConsistency(address string, response *comm.Response, publicKey *ecdsa.PublicKey) (int, error) {
+func EnsureConsistency(response *comm.Response, publicKey *ecdsa.PublicKey) error {
 	if response.GetSignedConsistencyHead() == nil {
-		return 0, fmt.Errorf("response does not contain a SCH")
+		return fmt.Errorf("response does not contain a SCH")
 	}
 
 	sch := NewSCHFromCommSCH(response.GetSignedConsistencyHead())
 	if !sch.Verify(publicKey) {
-		return 0, fmt.Errorf("signature on the SCH is invalid")
+		return fmt.Errorf("signature on the SCH is invalid")
 	}
 
 	if response.GetSignedMapHead() == nil {
-		return 0, fmt.Errorf("response does not contain a SMH")
+		return fmt.Errorf("response does not contain a SMH")
 	}
 
 	smh := NewSMHFromCommSMH(response.GetSignedMapHead())
 	marshaledSMH, err := smh.Marshal()
 	if err != nil {
-		return 0, nil
+		return nil
 	}
 
 	leafHash := rfc6962.DefaultHasher.HashLeaf(marshaledSMH)
-	leafHashBase64 := base64.RawURLEncoding.EncodeToString(leafHash)
-
-	plainResponse, err := http.Get(
-		fmt.Sprintf("%s/v1/get-proof-by-hash?hash=%s&tree_size=%d", address, leafHashBase64, sch.Size),
-	)
-	if err != nil {
-		return 0, fmt.Errorf(
-			"failed sending HTTP GET request to %s: %v",
-			address,
-			err,
-		)
-	}
-
-	defer plainResponse.Body.Close()
-
-	responseBody, err := io.ReadAll(plainResponse.Body)
-	if err != nil {
-		return 0, fmt.Errorf(
-			"failed reading response: %v",
-			err,
-		)
-	}
 
 	pf := new(trillian.Proof)
-	err = proto.Unmarshal(responseBody, pf)
+	err = proto.Unmarshal(response.InclusionProof, pf)
 
 	if err != nil {
-		return 0, fmt.Errorf("failed unmarshaling: %v", err)
+		return fmt.Errorf("failed unmarshaling: %v", err)
 	}
 
 	// https://github.com/google/trillian/blob/master/client/log_verifier.go#L90
-	return len(responseBody), proof.VerifyInclusion(rfc6962.DefaultHasher, uint64(pf.LeafIndex), sch.Size, leafHash, pf.Hashes, sch.RootHash)
+	return proof.VerifyInclusion(rfc6962.DefaultHasher, uint64(pf.LeafIndex), sch.Size, leafHash, pf.Hashes, sch.RootHash)
 }

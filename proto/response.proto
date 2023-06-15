@@ -47,8 +47,9 @@ message Node {
 message Response {
   optional SignedConsistencyHead SignedConsistencyHead = 1;
   optional SignedMapHead SignedMapHead = 2;
+  optional bytes InclusionProof = 3;
 
-  repeated Node Nodes = 3;
+  repeated Node Nodes = 4;
 
-  repeated bytes Certificates = 4;
+  repeated bytes Certificates = 5;
 }
