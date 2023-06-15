@@ -263,6 +263,7 @@ func main() {
 	r.GET("/v1/certificates", env.getCertificates)
 	r.GET("/v1/public-key", env.getPublicKey)
 	r.GET("/v1/get-sch", env.getSignedConsistencyHead)
+	r.GET("/v1/get-smh", env.getSignedMapHead)
 	r.GET("/v1/get-sch-consistency", env.getSignedConsistencyHeadConsistency)
 	r.GET("/v1/get-proof-by-hash", env.getProofByHash)
 	r.GET("/v1/get-entries", env.getEntries)
@@ -538,17 +539,32 @@ func (env *EndpointHandlerEnv) getPublicKey(c *gin.Context) {
 }
 
 func (env *EndpointHandlerEnv) getSignedConsistencyHead(c *gin.Context) {
-	sch, err := env.consistencyClient.LatestSignedConsistencyHead(c.Request.Context())
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed retrieving latest SCT: %v\n", err)
+	env.cacheLock.RLock()
+	sch := env.currentSignedConsistencyHead
+	env.cacheLock.RUnlock()
 
+	response, err := proto.Marshal(sch.Proto())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to retrieve the latest signed consistency head",
+			"error": "failed marshaling response, check the server logs",
 		})
 		return
 	}
 
-	response, err := proto.Marshal(sch.Proto())
+	c.Data(
+		http.StatusOK,
+		"application/octet-stream",
+		response,
+	)
+}
+
+func (env *EndpointHandlerEnv) getSignedMapHead(c *gin.Context) {
+	env.cacheLock.RLock()
+	smh := env.currentSignedMapHead
+	env.cacheLock.RUnlock()
+
+	response, err := proto.Marshal(smh.Proto())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
