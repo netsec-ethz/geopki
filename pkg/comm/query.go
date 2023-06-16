@@ -16,7 +16,9 @@ import (
 const (
 	// factor for accounting for radius inaccuracies arising from the surface projection
 	// from below ground
-	RADIUS_ERROR_FACTOR = 1.005
+	RADIUS_ELEVATION_ERROR_FACTOR = 1.005
+	RADIUS_SPHERE_ERROR_FACTOR    = 1.002
+	RADIUS_ERROR_FACTOR           = RADIUS_ELEVATION_ERROR_FACTOR * RADIUS_SPHERE_ERROR_FACTOR
 )
 
 type ErrorResponse struct {
