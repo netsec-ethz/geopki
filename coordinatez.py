@@ -3,14 +3,7 @@ from typing import List, Tuple, Union, Dict, Set
 import math
 from collections import deque
 from geopy import distance
-from osgeo import ogr
-from shapely import box, Point, Polygon, GEOSException, to_wkt
-
-# https://trac.osgeo.org/gdal/browser/trunk/autotest/pymod/ogrtest.py
-_pnt1 = ogr.CreateGeometryFromWkt('POINT(10 20)')
-_pnt2 = ogr.CreateGeometryFromWkt('POINT(30 20)')
-if _pnt1.Union(_pnt2) is None:
-    raise Exception("GEOS is required for this script to properly function")
+from shapely import box, Point, Polygon, GEOSException
 
 SEMI_MAJOR_AXIS_A_M = 6378137.0
 "The semi major axis of the WGS84 ellipsoid model ('radius' at the equator)."
@@ -379,26 +372,6 @@ class DiscretizedVoxel:
             ymax=max_point.latitude
         )
 
-    def intersects(self, polygon: Polygon) -> bool:
-        """
-        Checks for proper ellipsoid surface intersection using GDAL
-        """
-        voxel: ogr.Geometry = ogr.CreateGeometryFromWkt(
-            to_wkt(
-                self.to_shapely_area(),
-                rounding_precision=-1
-            )
-        )
-        voxel.coord
-        poly: ogr.Geometry = ogr.CreateGeometryFromWkt(
-            to_wkt(
-                polygon,
-                rounding_precision=-1
-            )
-        )
-
-        return voxel.Intersects(poly)
-
     def to_voxel(self) -> List[GeodeticCoordinate]:
         """
         Returns the eight corners of the three dimensional voxel.
@@ -737,11 +710,12 @@ class DiscretizedVoxel:
 
 def polygons_to_2d_bit_strings(
         polygons: List[Polygon],
-        f_grow: float
+        f_grow: float,
+        f_min=0.0
 ) -> List[str]:
     """
     Computes a set of 2D bit strings from a given set of polygons.
-    `f_grow` is a parameter influencing the accuracy
+    `f_grow` and `f_min` are parameters influencing the accuracy
     of the approximation.
 
     The algorithm first computes the smallest voxel corresponding
@@ -750,7 +724,10 @@ def polygons_to_2d_bit_strings(
 
     In a next step, a BFS among the voxel's neighbors is performed
     and the neighboring voxels are checked for intersection with
-    the polygon.
+    the polygon. If the intersection's area is at
+    least `f_min` of the voxel's area, it is taken and otherwise
+    it is ignored. With `f_min = 0`, the polygon is over-approximated,
+    with `f_min < 0` it is under-approximated.
 
     After the BFS, neighboring voxels intersecting the polygon are
     merged and only their parent bit string is returned.
@@ -765,6 +742,8 @@ def polygons_to_2d_bit_strings(
     ----------
     :param polygons: The list of polygon to turn into bit strings
     :param f_grow: The fraction of a polygons area which should be used for the voxel size
+    :param f_min: The minimum fraction of the 2D shadow of a voxel that has to intersect
+        a polygon for the bit string to be considered.
     :returns: A list of 2D bit strings approximating the circle
     """
 
@@ -799,9 +778,25 @@ def polygons_to_2d_bit_strings(
             # mark as visited
             visited[bit_string] = True
 
+            voxel_shadow = voxel.to_shapely_area()
+
             # check for intersection. always take the first area
-            if len(intersecting_areas) > 0 and not (voxel.intersects(polygon)):
-                continue
+            try:
+                if len(intersecting_areas) > 0 and not (
+                    voxel_shadow.intersection(
+                        polygon
+                    ).area > f_min * voxel_shadow.area
+                ):
+
+                    continue
+            except GEOSException:
+                if len(intersecting_areas) > 0 and not (
+                   voxel_shadow.intersection(
+                       polygon.buffer(0)
+                   ).area > f_min * voxel_shadow.area
+                   ):
+
+                    continue
 
             # add to intersection list
             intersecting_areas.add(bit_string)
@@ -1045,6 +1040,8 @@ def extruded_polygons_to_bit_string_tuples(
     xy_bit_strings = polygons_to_2d_bit_strings(
         polygons=polygons,
         f_grow=f_grow,
+        # always over-approximate
+        f_min=0
     )
 
     z_bit_string = smallest_enclosing_z_bit_string(

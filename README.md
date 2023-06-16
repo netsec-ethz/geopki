@@ -129,7 +129,6 @@ Note that python is **not** required to run the geopki client nor the server but
 
 1. Install `python3` (tested on version `3.11.3`), should probably work on later versions too
 2. Install pip dependencies using `pip3 install -r requirements.txt`
-3. Install [GDAL](https://gdal.org/download.html#download) with GEOS ([for Intersects to work](https://gdal.org/doxygen/classOGRGeometry.html#a12b9bf1e607908703d68bcdd5a82440c)) and its python bindings
 
 ### GeoPKI Server
 
