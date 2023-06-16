@@ -81,10 +81,18 @@ async function fetchCertificates(longitude, latitude, altitude, radius) {
           popup.innerHTML = `
       <ul class="feature-props">
       <li><strong>Domain:</strong> <code>${certificate.domain}</code></li>
-      <li><strong>Min Altitude:</strong> <time>${minAltitude}m</time></li>
-      <li><strong>Max Altitude:</strong> <time>${maxAltitude}m</time></li>
-      <li><strong>Expiration Date:</strong> <time>${certificate.not_valid_after}</time></li>
-      <li><strong>Certificate Id:</strong> <code>${certificate.certificate_id}</code></li>
+      <li><strong>Min Altitude:</strong> <time>${Math.round(
+        minAltitude
+      )}m</time></li>
+      <li><strong>Max Altitude:</strong> <time>${Math.round(
+        maxAltitude
+      )}m</time></li>
+      <li><strong>Expiration Date:</strong> <time>${
+        certificate.not_valid_after
+      }</time></li>
+      <li><strong>Certificate Id:</strong> <code>${
+        certificate.certificate_id
+      }</code></li>
       </ul>
       <br>
       <button class='bring-to-back'>Bring to Back</button>
