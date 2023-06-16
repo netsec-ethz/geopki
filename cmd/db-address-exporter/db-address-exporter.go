@@ -2,29 +2,29 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 
-	"github.com/apache/arrow/go/v12/parquet/file"
-	"github.com/apache/arrow/go/v12/parquet/schema"
+	"github.com/segmentio/parquet-go"
 )
 
 type Coordinate struct {
-	Longitude float64 `parquet:"name=lon"`
-	Latitude  float64 `parquet:"name=lat"`
+	Longitude float64 `parquet:"lon"`
+	Latitude  float64 `parquet:"lat"`
 }
 type Polygon []Coordinate
 type MultiPolygon []Polygon
 
-type Row struct {
-	Domain              string         `parquet:"name=domain"`
-	CertificateId       string         `parquet:"name=certificate_id"`
-	ListOfMultipolygons []MultiPolygon `parquet:"name=list_of_multipolygons"`
-	ListOfLevels        []string       `parquet:"name=list_of_levels"`
-	Parents             []string       `parquet:"name=parents"`
-	Children            []string       `parquet:"name=children"`
-	MinBuildingLevel    string         `parquet:"name=min_building_level"`
-	MaxBuildingLevel    string         `parquet:"name=max_building_level"`
-	SurfaceAltitude     float64        `parquet:"name=surface_geodetic_altitude_aster_30"`
+type RowType struct {
+	Domain        string `parquet:"domain"`
+	CertificateId string `parquet:"certificate_id"`
+	// ListOfMultipolygons []MultiPolygon `parquet:"list_of_multipolygons,list"`
+	ListOfLevels     []string `parquet:"list_of_levels,list"`
+	Parents          []string `parquet:"parents,list"`
+	Children         []string `parquet:"children,list"`
+	MinBuildingLevel string   `parquet:"min_building_level"`
+	MaxBuildingLevel string   `parquet:"max_building_level"`
+	SurfaceAltitude  float64  `parquet:"surface_geodetic_altitude_aster_30"`
 }
 
 func main() {
@@ -49,17 +49,13 @@ func main() {
 		log.Fatalf("'certs' flag must be set")
 	}
 
-	_, err := schema.NewSchemaFromStruct(Row{})
+	rows, err := parquet.ReadFile[RowType](inputPath)
 	if err != nil {
-		log.Fatalf("could not create a new schema: %v", err)
+		log.Fatalf("Can't open file '%s': %v", inputPath, err)
 	}
 
-	reader, err := file.OpenParquetFile(inputPath, true)
-	if err != nil {
-		log.Fatalf("could not open file '%s': %v", inputPath, err)
+	for _, c := range rows {
+		fmt.Printf("%+v\n", c)
+		break
 	}
-
-	file.rec
-
-	// schema.PrintSchema(sc.Root(), os.Stdout, 2)
 }
