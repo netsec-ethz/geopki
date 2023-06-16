@@ -54,7 +54,10 @@ async function fetchCertificates(longitude, latitude, altitude, radius) {
 
   for (const certificate of certificates) {
     // https://leafletjs.com/examples/geojson/
-    for (const area of certificate.areas) {
+    for (i = 0; i < certificate.areas.length; i++) {
+      const area = certificate.areas[i];
+      const [minAltitude, maxAltitude] = certificate.areas_altitude[i];
+
       const geojsonLayer = L.geoJSON(
         {
           type: "Feature",
@@ -78,9 +81,18 @@ async function fetchCertificates(longitude, latitude, altitude, radius) {
           popup.innerHTML = `
       <ul class="feature-props">
       <li><strong>Domain:</strong> <code>${certificate.domain}</code></li>
-      <li><strong>Expiration Date:</strong> <time>${certificate.not_valid_after}</time></li>
-      <li><strong>Certificate Id:</strong> <code>${certificate.certificate_id}</code></li>
-      <li></li>
+      <li><strong>Min Altitude:</strong> <time>${
+        minAltitude - 10000
+      }m</time></li>
+      <li><strong>Max Altitude:</strong> <time>${
+        maxAltitude - 10000
+      }m</time></li>
+      <li><strong>Expiration Date:</strong> <time>${
+        certificate.not_valid_after
+      }</time></li>
+      <li><strong>Certificate Id:</strong> <code>${
+        certificate.certificate_id
+      }</code></li>
       </ul>
       <br>
       <button class='bring-to-back'>Bring to Back</button>
@@ -156,7 +168,11 @@ async function onLocationFound(e) {
   const altitude = e.altitude || 0;
   const radius = Math.min(e.accuracy / 2, MAX_QUERY_RADIUS);
 
-  await fetchCertificates(longitude, latitude, altitude, radius);
+  try {
+    await fetchCertificates(longitude, latitude, altitude, radius);
+  } catch (e) {
+    alert(e.message);
+  }
 
   if (window.positionMarker) {
     window.positionMarker.remove();
