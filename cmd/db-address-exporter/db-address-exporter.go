@@ -638,8 +638,8 @@ func main() {
 			[]byte(
 				fmt.Sprintf(
 					"(%s, %s, '%s')",
-					encodeHashForDatabase(certificate.MarshaledCert),
 					encodeHashForDatabase(certificate.Hash()),
+					encodeHashForDatabase(certificate.MarshaledCert),
 					certificate.NotValidAfter,
 				),
 			),
