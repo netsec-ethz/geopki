@@ -543,7 +543,7 @@ func main() {
 			isFirstLine = false
 		} else {
 			// insert line break
-			n, err = file.Write([]byte("\n"))
+			n, err = file.Write([]byte(",\n"))
 		}
 		if err != nil {
 			log.Fatalf("failed writing to file %s: %v", fileName, err)
@@ -565,7 +565,8 @@ func main() {
 					node.XYBitString>>(64-51),
 					node.RawZBitString.BitString().String(),
 					node.RawZBitString.BitString().ZMin,
-					node.RawZBitString.BitString().ZMax(),
+					// .ZMax() returns the exclusive maximum but the DB stores the inclusive maximum
+					node.RawZBitString.BitString().ZMax()-1,
 					encodeHashForDatabase(node.XYLeftChildHash(false)),
 					encodeHashForDatabase(node.XYRightChildHash(false)),
 					encodeHashForDatabase(node.ZLeftChildHash(false)),
@@ -625,7 +626,7 @@ func main() {
 			isFirstLine = false
 		} else {
 			// insert line break
-			n, err = file.Write([]byte("\n"))
+			n, err = file.Write([]byte(",\n"))
 		}
 		if err != nil {
 			log.Fatalf("failed writing to file %s: %v", fileName, err)

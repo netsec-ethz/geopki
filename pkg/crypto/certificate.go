@@ -94,7 +94,7 @@ type GeoCertificate struct {
 	NotValidAfter string `json:"not_valid_after"`
 
 	// the marshaled json string
-	MarshaledCert []byte
+	MarshaledCert []byte `json:"-"`
 }
 
 func UnmarshalGeoCertificate(marshaledCertificate []byte) (*GeoCertificate, error) {
