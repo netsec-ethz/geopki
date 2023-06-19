@@ -65,7 +65,7 @@ func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa
 			return nil, fmt.Errorf("received invalid z bit string, the lower bits are not all cleared")
 		}
 
-		node := NewTreeNode(
+		node := NewNode(
 			n.XYBitString,
 			uint8(n.XYBitStringLen),
 			zBitString,

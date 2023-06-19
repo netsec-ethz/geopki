@@ -120,7 +120,7 @@ func QueryRootHash(
 	}
 
 	// create new node instance from loaded data
-	node := crypto.NewDBNode(
+	node := crypto.NewNode(
 		// root node has zero length for both
 		0, 0, 0, 0,
 
@@ -178,7 +178,7 @@ func RowsToNodesAndRootHash(
 		copy(ZBitString, dbZBitString.Bytes)
 
 		// create new node instance from loaded data
-		node := crypto.NewDBNode(
+		node := crypto.NewNode(
 			binary.BigEndian.Uint64(XYBitString),
 			uint8(dbXYBitString.Len),
 

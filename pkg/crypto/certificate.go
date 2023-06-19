@@ -47,8 +47,8 @@ func (area *GeoCertArea) Loops() ([]*s2.Loop, error) {
 
 // this is a mock certificate format until proper x509 extensions are defined
 type GeoCertificate struct {
-	Certificate_id string `json:"certificate_id"`
-	Domain         string `json:"domain"`
+	CertificateId string `json:"certificate_id"`
+	Domain        string `json:"domain"`
 
 	// a list of areas associated with this certificate
 	Areas []GeoCertArea `json:"areas"`

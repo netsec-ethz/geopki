@@ -175,6 +175,6 @@ func main() {
 			log.Fatalf("❌ failed parsing certificate: %v\n", err)
 		}
 
-		fmt.Printf("    %s, %s\n", certificate.Domain, certificate.Certificate_id)
+		fmt.Printf("    %s, %s\n", certificate.Domain, certificate.CertificateId)
 	}
 }

@@ -23,7 +23,7 @@ type Node struct {
 	CertificateHashes []SHA256Hash
 }
 
-func NewDBNode(
+func NewNode(
 	XYBitString uint64,
 	XYBitStringLen uint8,
 
@@ -51,37 +51,6 @@ func NewDBNode(
 		zLeftChildHash:   zLeftChildHash,
 		zRightChildHash:  zRightChildHash,
 
-		CertificateHashes: certificateHashes,
-	}
-}
-
-func NewTreeNode(
-	xyBitString uint64,
-	xyBitStringLen uint8,
-
-	zBitString uint16,
-	zBitStringLen uint8,
-
-	xyLeftChildHash, xyRightChildHash, zLeftChildHash, zRightChildHash []byte,
-	certificateHashes []SHA256Hash,
-) *Node {
-
-	return &Node{
-		RawBitStringPair: bitstring.RawBitStringPair{
-			RawXYBitString: bitstring.RawXYBitString{
-				XYBitString:    xyBitString,
-				XYBitStringLen: xyBitStringLen,
-			},
-			RawZBitString: bitstring.RawZBitString{
-				ZBitString:    zBitString,
-				ZBitStringLen: zBitStringLen,
-			},
-		},
-
-		xyLeftChildHash:   xyLeftChildHash,
-		xyRightChildHash:  xyRightChildHash,
-		zLeftChildHash:    zLeftChildHash,
-		zRightChildHash:   zRightChildHash,
 		CertificateHashes: certificateHashes,
 	}
 }
@@ -285,12 +254,18 @@ func (node *Node) ClearZRightChild() {
 	node.zRightChildHash = nil
 }
 
-func (node *Node) ConcatenatedCertificateHashes() []byte {
+func (node *Node) SortedCertificateHashes() []SHA256Hash {
 	hashes := node.CertificateHashes
 
 	sort.Slice(hashes, func(i, j int) bool {
 		return bytes.Compare(hashes[i], hashes[j]) <= 0
 	})
+
+	return hashes
+}
+
+func (node *Node) ConcatenatedCertificateHashes() []byte {
+	hashes := node.SortedCertificateHashes()
 
 	concatenatedBytes := []byte{}
 	for _, certificateHash := range hashes {
