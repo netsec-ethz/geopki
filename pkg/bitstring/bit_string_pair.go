@@ -608,7 +608,7 @@ func (bitString *XYBitString) Grow2DToCoverArea(maxArea float64) error {
 		// no shrinking
 		return nil
 	} else if growSteps > float64(bitString.XPrecision+bitString.YPrecision) {
-		return fmt.Errorf("something seems off, cannot grow larger than the whole world")
+		return fmt.Errorf("something seems off, cannot grow larger than the whole world (%f / %f = %f > %d;)", maxArea, currentArea, growSteps, bitString.XPrecision+bitString.YPrecision)
 	}
 
 	return bitString.Grow2D(uint8(growSteps))
@@ -676,7 +676,6 @@ func PolygonsTo2DBitStrings(polygons []*s2.Loop, fGrow float64) ([]RawXYBitStrin
 		err = initialBitString.Grow2DToCoverArea(
 			polygon.Area() * fGrow,
 		)
-
 		if err != nil {
 			return nil, err
 		}

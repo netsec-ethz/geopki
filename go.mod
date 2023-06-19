@@ -4,7 +4,6 @@ go 1.20
 
 require (
 	github.com/deckarep/golang-set/v2 v2.3.0
-	github.com/fraugster/parquet-go v0.12.0
 	github.com/gin-contrib/cors v1.4.0
 	github.com/gin-contrib/gzip v0.0.6
 	github.com/gin-gonic/gin v1.9.0
@@ -13,14 +12,21 @@ require (
 	github.com/jackc/pgx/v5 v5.3.1
 	github.com/kellydunn/golang-geo v0.7.0
 	github.com/transparency-dev/merkle v0.0.2
+	github.com/xitongsys/parquet-go v1.6.2
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	google.golang.org/grpc v1.54.0
 	google.golang.org/protobuf v1.30.0
 )
 
 require (
+	github.com/apache/arrow/go/arrow v0.0.0-20200730104253-651201b0f516 // indirect
+	github.com/klauspost/compress v1.15.9 // indirect
+	github.com/pierrec/lz4/v4 v4.1.8 // indirect
+	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
+)
+
+require (
 	github.com/apache/thrift v0.16.0 // indirect
-	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de // indirect
 	github.com/bytedance/sonic v1.8.0 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
 	github.com/erikstmartin/go-testdb v0.0.0-20160219214506-8d10e4a1bae5 // indirect
@@ -48,9 +54,10 @@ require (
 	github.com/pelletier/go-toml/v2 v2.0.6 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
-	github.com/schollz/progressbar/v3 v3.13.1 // indirect
+	github.com/schollz/progressbar/v3 v3.13.1
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.9 // indirect
+	github.com/xitongsys/parquet-go-source v0.0.0-20230607234618-40034c8066df
 	github.com/ziutek/mymysql v1.5.4 // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
 	golang.org/x/crypto v0.8.0 // indirect
