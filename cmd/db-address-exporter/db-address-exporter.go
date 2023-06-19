@@ -7,15 +7,15 @@ import (
 	"fmt"
 	"geopki/pkg/bitstring"
 	"geopki/pkg/crypto"
-	"io"
 	"log"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 
-	goparquet "github.com/fraugster/parquet-go"
 	"github.com/schollz/progressbar/v3"
+	"github.com/xitongsys/parquet-go-source/local"
+	"github.com/xitongsys/parquet-go/reader"
 )
 
 const (
@@ -26,11 +26,11 @@ const (
 )
 
 type Coordinate struct {
-	Longitude float64 `parquet:"lon"`
-	Latitude  float64 `parquet:"lat"`
+	Longitude *float64
+	Latitude  *float64
 }
-type Polygon []Coordinate
-type MultiPolygon []Polygon
+type Polygon []*Coordinate
+type MultiPolygon []*Polygon
 
 func (r *MultiPolygon) GeoCertArea() crypto.GeoCertArea {
 	interiorRings := make([]crypto.LinearRing, 0)
@@ -39,8 +39,8 @@ func (r *MultiPolygon) GeoCertArea() crypto.GeoCertArea {
 	for _, polygon := range *r {
 		ring := make([][2]float64, 0)
 
-		for _, coordinate := range polygon {
-			ring = append(ring, [2]float64{coordinate.Longitude, coordinate.Latitude})
+		for _, coordinate := range *polygon {
+			ring = append(ring, [2]float64{*coordinate.Longitude, *coordinate.Latitude})
 		}
 
 		interiorRings = append(interiorRings, ring)
@@ -53,30 +53,102 @@ func (r *MultiPolygon) GeoCertArea() crypto.GeoCertArea {
 	}
 }
 
-type ParquetRow struct {
-	Domain              string         `parquet:"domain"`
-	CertificateId       string         `parquet:"certificate_id"`
-	ListOfMultipolygons []MultiPolygon `parquet:"list_of_multipolygons,list"`
-	ListOfLevels        []string       `parquet:"list_of_levels"`
-	Parents             []string       `parquet:"parents"`
-	Children            []string       `parquet:"children"`
-	MinBuildingLevel    string         `parquet:"min_building_level"`
-	MaxBuildingLevel    string         `parquet:"max_building_level"`
-	SurfaceAltitude     float64        `parquet:"surface_geodetic_altitude_aster_30"`
+const jsonSchema = `
+{
+  "Tag": "name=schema, repetitiontype=REQUIRED",
+  "Fields": [
+    {
+      "Tag": "name=certificate_id, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY, repetitiontype=OPTIONAL"
+    },
+    {
+      "Tag": "name=list_of_multipolygons, type=LIST, repetitiontype=OPTIONAL",
+      "Fields": [
+        {
+          "Tag": "name=item, type=LIST, repetitiontype=OPTIONAL",
+          "Fields": [
+            {
+              "Tag": "name=item, type=LIST, repetitiontype=OPTIONAL",
+              "Fields": [
+                {
+                  "Tag": "name=item, repetitiontype=OPTIONAL",
+                  "Fields": [
+                    {
+                      "Tag": "name=lat, type=DOUBLE, repetitiontype=OPTIONAL"
+                    },
+                    {
+                      "Tag": "name=lon, type=DOUBLE, repetitiontype=OPTIONAL"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "Tag": "name=list_of_levels, type=LIST, repetitiontype=OPTIONAL",
+      "Fields": [
+        {
+          "Tag": "name=item, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY, repetitiontype=OPTIONAL"
+        }
+      ]
+    },
+    {
+      "Tag": "name=domain, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY, repetitiontype=OPTIONAL"
+    },
+    {
+      "Tag": "name=min_building_level, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY, repetitiontype=OPTIONAL"
+    },
+    {
+      "Tag": "name=max_building_level, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY, repetitiontype=OPTIONAL"
+    },
+    {
+      "Tag": "name=parents, type=LIST, repetitiontype=OPTIONAL",
+      "Fields": [
+        {
+          "Tag": "name=item, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY, repetitiontype=OPTIONAL"
+        }
+      ]
+    },
+    {
+      "Tag": "name=children, type=LIST, repetitiontype=OPTIONAL",
+      "Fields": [
+        {
+          "Tag": "name=item, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY, repetitiontype=OPTIONAL"
+        }
+      ]
+    },
+    {
+      "Tag": "name=surface_geodetic_altitude_aster_30, type=DOUBLE, repetitiontype=OPTIONAL"
+    }
+  ]
+}`
+
+type CertificateRow struct {
+	Certificate_id                     *string
+	List_of_multipolygons              *[]*MultiPolygon
+	List_of_levels                     *[]*string
+	Domain                             *string
+	Min_building_level                 *string
+	Max_building_level                 *string
+	Parents                            *[]*string
+	Children                           *[]*string
+	Surface_geodetic_altitude_aster_30 *float64
 }
 
-func (r *ParquetRow) NotValidAfter() string {
+func (r *CertificateRow) NotValidAfter() string {
 	return "2030-01-01 00:00:00+00"
 }
 
-func (r *ParquetRow) Certificate() (*crypto.GeoCertificate, error) {
-	listOfAltitudes := make([]([2]float64), len(r.ListOfLevels))
-	for i, level := range r.ListOfLevels {
+func (r *CertificateRow) Certificate() (*crypto.GeoCertificate, error) {
+	listOfAltitudes := make([]([2]float64), len(*r.List_of_levels))
+	for i, level := range *r.List_of_levels {
 		altitudeBounds, err := levelToAltitude(
-			r.MinBuildingLevel,
-			r.MaxBuildingLevel,
-			level,
-			r.SurfaceAltitude,
+			*r.Min_building_level,
+			*r.Max_building_level,
+			*level,
+			*r.Surface_geodetic_altitude_aster_30,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed converting level to altitude: %v", err)
@@ -89,22 +161,25 @@ func (r *ParquetRow) Certificate() (*crypto.GeoCertificate, error) {
 		listOfAltitudes[i] = bounds
 	}
 
-	areas := make([]crypto.GeoCertArea, len(r.ListOfMultipolygons))
-	for i, multipolygon := range r.ListOfMultipolygons {
+	areas := make([]crypto.GeoCertArea, len(*r.List_of_multipolygons))
+	for i, multipolygon := range *r.List_of_multipolygons {
 		areas[i] = multipolygon.GeoCertArea()
 	}
 
 	cert := crypto.GeoCertificate{
-		CertificateId: r.CertificateId,
-		Domain:        r.Domain,
+		CertificateId: *r.Certificate_id,
 		Areas:         areas,
 		AreasAltitude: listOfAltitudes,
 		NotValidAfter: r.NotValidAfter(),
 	}
 
+	if r.Domain != nil {
+		cert.Domain = *r.Domain
+	}
+
 	if len(areas) != len(listOfAltitudes) {
 		fmt.Printf("%+v\n\n", r)
-		return nil, fmt.Errorf("list of areas and altitudes do not have the same length. areas: %d, altitudes: %d, multipolygons: %d, levels: %d", len(areas), len(listOfAltitudes), len(r.ListOfMultipolygons), len(r.ListOfLevels))
+		return nil, fmt.Errorf("list of areas and altitudes do not have the same length. areas: %d, altitudes: %d, multipolygons: %d, levels: %d", len(areas), len(listOfAltitudes), len(*r.List_of_multipolygons), len(*r.List_of_levels))
 	}
 
 	marshaledCert, err := json.Marshal(cert)
@@ -125,83 +200,6 @@ type AltitudeBounds struct {
 var FullAltitudeBounds = AltitudeBounds{
 	Minimum: float64(bitstring.D),
 	Maximum: float64(bitstring.H),
-}
-
-func unmarshalPolygon(v interface{}) Polygon {
-	var slice []Coordinate
-
-	list, ok := v.(map[string]interface{})["list"].([]map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	for _, it := range list {
-		coords := it["item"].(map[string]interface{})
-		// lon := coords["lon"].(float64)
-		// lat := coords["lat"].(float64)
-		lon, err := strconv.ParseFloat(string(coords["lon"].([]byte)), 64)
-		if err != nil {
-			log.Fatal("?")
-		}
-		lat, err := strconv.ParseFloat(string(coords["lat"].([]byte)), 64)
-		if err != nil {
-			log.Fatal("?")
-		}
-
-		slice = append(slice, Coordinate{
-			Longitude: lon,
-			Latitude:  lat,
-		})
-	}
-
-	return slice
-}
-
-func unmarshalMultipolygon(v interface{}) MultiPolygon {
-	var slice []Polygon
-
-	list, ok := v.(map[string]interface{})["list"].([]map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	for _, it := range list {
-		slice = append(slice, unmarshalPolygon(it["item"]))
-	}
-
-	return slice
-}
-
-func unmarshalListOfMultipolygons(v interface{}) []MultiPolygon {
-	var slice []MultiPolygon
-
-	list, ok := v.(map[string]interface{})["list"].([]map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	for _, it := range list {
-		slice = append(slice, unmarshalMultipolygon(it["item"]))
-	}
-
-	return slice
-}
-
-func numpyArrayToStringSlice(v interface{}) []string {
-	var slice []string
-
-	list, ok := v.(map[string]interface{})["list"].([]map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	for _, it := range list {
-		item := string(it["item"].([]byte))
-
-		slice = append(slice, item)
-	}
-
-	return slice
 }
 
 func min(a, b float64) float64 {
@@ -351,76 +349,34 @@ func main() {
 		log.Fatalf("'certs' flag must be set")
 	}
 
-	r, err := os.Open(inputPath)
+	fileReader, err := local.NewLocalFileReader(inputPath)
 	if err != nil {
-		log.Fatalf("opening file %s failed :%v", inputPath, err)
+		log.Println("Can't open file", err)
+		return
 	}
-	defer r.Close()
-
-	fr, err := goparquet.NewFileReader(r)
+	pr, err := reader.NewParquetReader(fileReader, jsonSchema, 4)
 	if err != nil {
-		log.Fatalf("reading file %s failed :%v", inputPath, err)
+		log.Println("Can't create parquet reader", err)
+		return
 	}
-
-	// log.Printf("Printing file %s", inputPath)
-	// log.Printf("Schema: %s", fr.GetSchemaDefinition())
 
 	certificates := make([]*crypto.GeoCertificate, 0)
 	bitstringPairToNode := make(map[bitstring.RawBitStringPair]*crypto.Node)
 
-	progressBar := progressbar.Default(int64(fr.NumRows()), "locate certificates")
+	num := int(pr.GetNumRows())
+	progressBar := progressbar.Default(int64(num), "locate certificates")
 
-	for ; ; progressBar.Add(1) {
-		row, err := fr.NextRow()
-		if err == io.EOF {
+	for i := 0; i < num; i++ {
+		rows := make([]CertificateRow, 1)
+		if err = pr.Read(&rows); err != nil {
+			log.Println("Read error", err)
+		}
+		r := rows[0]
+
+		if *r.Certificate_id == "rel:1027211;node:4591429319" || len(*r.List_of_multipolygons) > 1 {
+			fmt.Printf("%+v\n", *r.List_of_multipolygons)
 			break
 		}
-		if err != nil {
-			log.Fatalf("reading record failed: %v", err)
-		}
-
-		r := new(ParquetRow)
-
-		// set default altitude
-		r.SurfaceAltitude = 0
-
-		var x interface{}
-
-		for k, v := range row {
-			if k == "certificate_id" {
-				r.CertificateId = string(v.([]byte))
-			} else if k == "domain" {
-				r.Domain = string(v.([]byte))
-			} else if k == "list_of_multipolygons" {
-				r.ListOfMultipolygons = unmarshalListOfMultipolygons(v)
-				x = v
-			} else if k == "list_of_levels" {
-				r.ListOfLevels = numpyArrayToStringSlice(v)
-			} else if k == "parents" {
-				r.Parents = numpyArrayToStringSlice(v)
-			} else if k == "children" {
-				r.Children = numpyArrayToStringSlice(v)
-			} else if k == "min_building_level" {
-				r.MinBuildingLevel = string(v.([]byte))
-			} else if k == "max_building_level" {
-				r.MaxBuildingLevel = string(v.([]byte))
-			} else if k == "surface_geodetic_altitude_aster_30" {
-				r.SurfaceAltitude = v.(float64)
-			}
-
-			// if vv, ok := v.([]byte); ok {
-			// 	v = string(vv)
-			// }
-			// log.Printf("\t%s = %v", k, v)
-		}
-		// if r.Domain == "" {
-		// 	continue
-		// }
-
-		if r.CertificateId == "rel:1027211;node:4591429319" || len(r.ListOfMultipolygons) > 1 {
-			fmt.Printf("%+v\n", x)
-		}
-		// log.Printf("%v", r)
 
 		certificate, err := r.Certificate()
 		if err != nil {
@@ -429,7 +385,7 @@ func main() {
 		certificates = append(certificates, certificate)
 
 		if progressBar.State().CurrentBytes == 1296 {
-			log.Fatalf("%s: %d", r.CertificateId, len(r.ListOfMultipolygons[0][0]))
+			log.Fatalf("%s: %d", *r.Certificate_id, len(*(*(*r.List_of_multipolygons)[0])[0]))
 			println("here?")
 		}
 
@@ -501,8 +457,8 @@ func main() {
 			}
 		}
 
+		progressBar.Add(1)
 	}
-	// log.Printf("End of file %s (%d records)", inputPath, count)
 
 	// compute child hashes
 	bitstrings := make([]bitstring.RawBitStringPair, 0, len(bitstringPairToNode))
