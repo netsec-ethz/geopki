@@ -26,8 +26,8 @@ const (
 )
 
 type Coordinate struct {
-	Longitude *float64
-	Latitude  *float64
+	Lon *float64
+	Lat *float64
 }
 type Polygon []*Coordinate
 type MultiPolygon []*Polygon
@@ -40,7 +40,7 @@ func (r *MultiPolygon) GeoCertArea() crypto.GeoCertArea {
 		ring := make([][2]float64, 0)
 
 		for _, coordinate := range *polygon {
-			ring = append(ring, [2]float64{*coordinate.Longitude, *coordinate.Latitude})
+			ring = append(ring, [2]float64{*coordinate.Lon, *coordinate.Lat})
 		}
 
 		interiorRings = append(interiorRings, ring)
@@ -143,12 +143,18 @@ func (r *CertificateRow) NotValidAfter() string {
 
 func (r *CertificateRow) Certificate() (*crypto.GeoCertificate, error) {
 	listOfAltitudes := make([]([2]float64), len(*r.List_of_levels))
+
+	surfaceAltitude := 0.0
+	if r.Surface_geodetic_altitude_aster_30 != nil {
+		surfaceAltitude = *r.Surface_geodetic_altitude_aster_30
+	}
+
 	for i, level := range *r.List_of_levels {
 		altitudeBounds, err := levelToAltitude(
 			*r.Min_building_level,
 			*r.Max_building_level,
 			*level,
-			*r.Surface_geodetic_altitude_aster_30,
+			surfaceAltitude,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed converting level to altitude: %v", err)
@@ -360,11 +366,11 @@ func main() {
 		return
 	}
 
-	certificates := make([]*crypto.GeoCertificate, 0)
-	bitstringPairToNode := make(map[bitstring.RawBitStringPair]*crypto.Node)
-
 	num := int(pr.GetNumRows())
 	progressBar := progressbar.Default(int64(num), "locate certificates")
+
+	certificates := make([]*crypto.GeoCertificate, 0, num)
+	bitstringPairToNode := make(map[bitstring.RawBitStringPair]*crypto.Node)
 
 	for i := 0; i < num; i++ {
 		rows := make([]CertificateRow, 1)
@@ -373,24 +379,24 @@ func main() {
 		}
 		r := rows[0]
 
-		if *r.Certificate_id == "rel:1027211;node:4591429319" || len(*r.List_of_multipolygons) > 1 {
-			fmt.Printf("%+v\n", *r.List_of_multipolygons)
-			break
+		if r.Domain == nil {
+			progressBar.Add(1)
+			continue
 		}
 
 		certificate, err := r.Certificate()
 		if err != nil {
 			log.Fatalf("failed converting to a certificate: %v", err)
 		}
-		certificates = append(certificates, certificate)
-
-		if progressBar.State().CurrentBytes == 1296 {
-			log.Fatalf("%s: %d", *r.Certificate_id, len(*(*(*r.List_of_multipolygons)[0])[0]))
-			println("here?")
-		}
 
 		bitstringPairs, err := certificate.BitStrings(F_GROW)
 		if err != nil {
+			if strings.Contains(err.Error(), "invalid loop") || strings.Contains(err.Error(), "duplicate vertices") {
+				// if the geometry is invalid, ignore the certificate
+				progressBar.Add(1)
+				continue
+			}
+			// fmt.Printf("==%s== \n", *r.Certificate_id)
 			log.Fatalf("failed converting to bit string pairs: %v", err)
 		}
 
@@ -404,7 +410,7 @@ func main() {
 					bitstringPair.XYBitString,
 					bitstringPair.XYBitStringLen,
 					bitstringPair.ZBitString,
-					bitstringPair.XYBitStringLen,
+					bitstringPair.ZBitStringLen,
 					nil, nil, nil, nil,
 					[]crypto.SHA256Hash{certificate.Hash()},
 				)
@@ -412,7 +418,7 @@ func main() {
 
 			// iterate over all prefixes of that bit string and add them to bitstringPairToNode
 			// first iterate over prefixes of the altitude bit string, including the empty string ''
-			for i := uint8(0); i < bitstringPair.RawZBitString.ZBitStringLen; i++ {
+			for i := uint8(1); i <= bitstringPair.RawZBitString.ZBitStringLen; i++ {
 				ancestor := bitstringPair.RawZBitString.Ancestor(i)
 				b := bitstring.RawBitStringPair{
 					RawXYBitString: bitstringPair.RawXYBitString,
@@ -433,7 +439,7 @@ func main() {
 			}
 
 			// next iterate over prefixes of the 2D bit string
-			for i := uint8(0); i < bitstringPair.RawXYBitString.XYBitStringLen; i++ {
+			for i := uint8(1); i <= bitstringPair.RawXYBitString.XYBitStringLen; i++ {
 				ancestor := bitstringPair.RawXYBitString.Ancestor(i)
 				b := bitstring.RawBitStringPair{
 					RawXYBitString: ancestor,
@@ -457,8 +463,10 @@ func main() {
 			}
 		}
 
+		certificates = append(certificates, certificate)
 		progressBar.Add(1)
 	}
+	progressBar.Exit()
 
 	// compute child hashes
 	bitstrings := make([]bitstring.RawBitStringPair, 0, len(bitstringPairToNode))
@@ -485,6 +493,7 @@ func main() {
 				node.SetXYLeftChildHash(xyLeftChildNode.Hash())
 			}
 		}
+		// ignore else case, might not have a xy left child
 
 		xyRightChild, err := bitstring.XYRightChildPair()
 		if err == nil {
@@ -494,6 +503,7 @@ func main() {
 				node.SetXYRightChildHash(xyRightChildNode.Hash())
 			}
 		}
+		// ignore else case, might not have a xy right child
 
 		zLeftChildNode, ok := bitstringPairToNode[bitstring.ZLeftChildPair()]
 		if ok {
@@ -507,7 +517,7 @@ func main() {
 
 		progressBar.Add(1)
 	}
-	progressBar.Finish()
+	progressBar.Exit()
 
 	// write output
 	fileIndex := 0
@@ -515,7 +525,7 @@ func main() {
 	size := 0
 	isFirstLine := true
 
-	file, err := os.Open(fileName)
+	file, err := os.Create(fileName)
 	if err != nil {
 		log.Fatalf("failed opening file %s: %v", fileName, err)
 	}
@@ -530,6 +540,7 @@ func main() {
 		if isFirstLine {
 			// write insert statement
 			n, err = file.Write([]byte(INSERT_INTO_NODES_STR))
+			isFirstLine = false
 		} else {
 			// insert line break
 			n, err = file.Write([]byte("\n"))
@@ -576,7 +587,7 @@ func main() {
 
 			fileIndex += 1
 			fileName := fmt.Sprintf("%s/part-%d.sql", nodesOutputPath, fileIndex)
-			file, err = os.Open(fileName)
+			file, err = os.Create(fileName)
 			if err != nil {
 				log.Fatalf("failed opening file %s: %v", fileName, err)
 			}
@@ -587,7 +598,7 @@ func main() {
 
 		progressBar.Add(1)
 	}
-	progressBar.Finish()
+	progressBar.Exit()
 
 	err = file.Close()
 	if err != nil {
@@ -598,7 +609,7 @@ func main() {
 	fileName = fmt.Sprintf("%s/part-%d.sql", certificatesOutputPath, fileIndex)
 	size = 0
 	isFirstLine = true
-	file, err = os.Open(fileName)
+	file, err = os.Create(fileName)
 	if err != nil {
 		log.Fatalf("failed opening file %s: %v", fileName, err)
 	}
@@ -611,6 +622,7 @@ func main() {
 		if isFirstLine {
 			// write insert statement
 			n, err = file.Write([]byte(INSERT_INTO_CERTS_STR))
+			isFirstLine = false
 		} else {
 			// insert line break
 			n, err = file.Write([]byte("\n"))
@@ -637,6 +649,11 @@ func main() {
 		size += n
 
 		if size > MAX_FILE_SIZE {
+			_, err = file.Write([]byte("\nON CONFLICT (certificate_hash) DO NOTHING"))
+			if err != nil {
+				log.Fatalf("failed writing to file %s: %v", fileName, err)
+			}
+
 			err = file.Close()
 			if err != nil {
 				log.Fatalf("failed closing file %s: %v", fileName, err)
@@ -644,7 +661,7 @@ func main() {
 
 			fileIndex += 1
 			fileName := fmt.Sprintf("%s/part-%d.sql", nodesOutputPath, fileIndex)
-			file, err = os.Open(fileName)
+			file, err = os.Create(fileName)
 			if err != nil {
 				log.Fatalf("failed opening file %s: %v", fileName, err)
 			}
@@ -655,7 +672,12 @@ func main() {
 
 		progressBar.Add(1)
 	}
-	progressBar.Finish()
+	progressBar.Exit()
+
+	_, err = file.Write([]byte("\nON CONFLICT (certificate_hash) DO NOTHING"))
+	if err != nil {
+		log.Fatalf("failed writing to file %s: %v", fileName, err)
+	}
 
 	err = file.Close()
 	if err != nil {
