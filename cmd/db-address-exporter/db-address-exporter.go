@@ -660,7 +660,7 @@ func main() {
 			}
 
 			fileIndex += 1
-			fileName := fmt.Sprintf("%s/part-%d.sql", nodesOutputPath, fileIndex)
+			fileName := fmt.Sprintf("%s/part-%d.sql", certificatesOutputPath, fileIndex)
 			file, err = os.Create(fileName)
 			if err != nil {
 				log.Fatalf("failed opening file %s: %v", fileName, err)
