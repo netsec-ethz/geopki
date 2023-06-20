@@ -9,7 +9,6 @@ import (
 	"math"
 	"net/http"
 
-	"github.com/golang/geo/s2"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -28,10 +27,36 @@ type Query struct {
 	MinAltitude, MaxAltitude int16
 }
 
+// generalized approximator interface which allows any 2d geometry to be returned
+// allows the wasm client to use S2 and the rest GDAL for computing polygon intersections
+type CircleApproximator interface {
+	ApproximateCircle(longitude, latitude float64, radiusM uint8) bitstring.Geometry2D
+}
+
+type S2CircleApproximator struct{}
+
+func (s *S2CircleApproximator) ApproximateCircle(longitude, latitude float64, radiusM uint8) bitstring.Geometry2D {
+	sphere := bitstring.ApproximateCircle(
+		longitude,
+		latitude,
+		radiusM,
+		// use 64-sided polygon
+		16,
+	)
+
+	return &bitstring.S2Geometry2D{
+		Loop: sphere,
+	}
+}
+
 func NewQuery(
 	longitude, latitude, altitude float64,
 	radius uint64,
 	fGrow float64,
+	// the circle estimator returns some 2d polygon approximating the circle
+	// dependency injection allows returning either a S2 or GDAL geometry which
+	// impacts the accuracy of the polygon intersection computations
+	circleApproximator CircleApproximator,
 ) (*Query, error) {
 	if longitude < -180 || longitude > 180 {
 		return nil, fmt.Errorf("invalid longitude value, must be in the range [-180, 180]")
@@ -55,15 +80,10 @@ func NewQuery(
 		return nil, fmt.Errorf("invalid radius value, must be smaller than %d", int(math.Floor(float64(255/RADIUS_ERROR_FACTOR))))
 	}
 
-	sphere := bitstring.ApproximateCircle(
-		longitude,
-		latitude,
-		uint8(radius),
-		16,
-	)
+	sphere := circleApproximator.ApproximateCircle(longitude, latitude, uint8(radius))
 
 	bitStrings, err := bitstring.PolygonsTo2DBitStrings(
-		[]*s2.Loop{sphere},
+		[]bitstring.Geometry2D{sphere},
 		fGrow,
 	)
 	if err != nil {

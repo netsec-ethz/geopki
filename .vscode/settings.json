@@ -1,5 +1,5 @@
 {
-  "gopls": {
+  "gopls#removeforwasm": {
     "build.env": {
       "GOOS": "js",
       "GOARCH": "wasm"

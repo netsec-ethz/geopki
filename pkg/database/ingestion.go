@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"geopki/pkg/bitstring"
 	"geopki/pkg/crypto"
+	"geopki/pkg/geometry"
 	"sort"
 	"strings"
 	"time"
@@ -185,7 +186,7 @@ func AddCertificates(
 		)
 
 		// compute affected bit strings
-		bitstrings, err := certificate.BitStrings(fGrow)
+		bitstrings, err := geometry.CertificateToBitStrings(certificate, fGrow)
 		if err != nil {
 			return nil, err
 		}

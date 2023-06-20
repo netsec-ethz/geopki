@@ -73,7 +73,7 @@ func (area *GeoCertArea) Loops() ([]*s2.Loop, error) {
 
 		err := loops[i].Validate()
 		if err != nil {
-			fmt.Printf("%s\n", bitstring.LoopToGeoJson(loops[i]))
+			fmt.Printf("%s\n", bitstring.LoopToGeoJsonFeature(loops[i]))
 			return nil, fmt.Errorf("created invalid loop: %v", err)
 		}
 	}
@@ -122,28 +122,4 @@ func (cert *GeoCertificate) JSON() string {
 func (cert *GeoCertificate) Hash() SHA256Hash {
 	hash := sha256.Sum256(cert.MarshaledCert)
 	return hash[:]
-}
-
-func (cert *GeoCertificate) BitStrings(fGrow float64) ([]*bitstring.RawBitStringPair, error) {
-	bitstrings := make([]*bitstring.RawBitStringPair, 0)
-
-	for i, area := range cert.Areas {
-		altitude := cert.AreasAltitude[i]
-		altitudeMin := altitude[0]
-		altitudeMax := altitude[1]
-
-		loops, err := area.Loops()
-		if err != nil {
-			return nil, err
-		}
-
-		bs, err := bitstring.ExtrudedPolygonsToBitStringPairs(loops, altitudeMin, altitudeMax, fGrow)
-		if err != nil {
-			return nil, err
-		}
-
-		bitstrings = append(bitstrings, bs...)
-	}
-
-	return bitstrings, nil
 }

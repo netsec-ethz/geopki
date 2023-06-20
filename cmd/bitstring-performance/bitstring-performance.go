@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"geopki/pkg/comm"
+	"geopki/pkg/geometry"
 )
 
 func main() {
@@ -29,7 +30,7 @@ func main() {
 		var duration time.Duration
 
 		start = time.Now()
-		query, err := comm.NewQuery(longitude, latitude, altitude, radius, fGrow)
+		query, err := comm.NewQuery(longitude, latitude, altitude, radius, fGrow, &geometry.GdalCircleApproximator{})
 		duration = time.Since(start)
 
 		if err != nil {

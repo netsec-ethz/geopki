@@ -148,7 +148,7 @@ func getJSONCertificates(
 		publicKey = decodedPublicKey.(*ecdsa.PublicKey)
 	}
 
-	query, err := comm.NewQuery(longitude, latitude, altitude, radius, F_GROW)
+	query, err := comm.NewQuery(longitude, latitude, altitude, radius, F_GROW, &comm.S2CircleApproximator{})
 	if err != nil {
 		return nil, fmt.Errorf("❌ building query: %v\n", err)
 	}

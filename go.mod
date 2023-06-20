@@ -11,6 +11,7 @@ require (
 	github.com/google/trillian v1.5.2
 	github.com/jackc/pgx/v5 v5.3.1
 	github.com/kellydunn/golang-geo v0.7.0
+	github.com/lukeroth/gdal v0.0.0-20230422025444-05e99f726ff9
 	github.com/transparency-dev/merkle v0.0.2
 	github.com/xitongsys/parquet-go v1.6.2
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1

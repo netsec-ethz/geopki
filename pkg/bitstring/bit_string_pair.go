@@ -70,6 +70,55 @@ type BitStringPair struct {
 	ZBitString
 }
 
+// generic interface for computing intersections
+// allows the dual use of gdal and s2 for the web demo
+type Geometry2D interface {
+	Intersects(bitstring *XYBitString) bool
+	InitialXYBitString(fGrow float64) (*XYBitString, error)
+}
+
+// the s2 implementation of the 'Geometry2D' interface
+type S2Geometry2D struct {
+	Loop *s2.Loop
+}
+
+func (g *S2Geometry2D) Intersects(xyBitstring *XYBitString) bool {
+	return g.Loop.Intersects(xyBitstring.Loop())
+}
+
+func (g *S2Geometry2D) InitialXYBitString(fGrow float64) (*XYBitString, error) {
+	polygon := g.Loop
+
+	initialCoordinate := s2.LatLngFromPoint(polygon.Vertex(0))
+
+	initialBitString, err := XYBitStringFromGeodeticCoordinates(
+		initialCoordinate.Lng.Degrees(),
+		initialCoordinate.Lat.Degrees(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// grow initial bitstring to 'maxArea'
+	maxArea := polygon.Area() * fGrow
+	currentArea := initialBitString.Loop().Area()
+
+	growSteps := math.Log2(maxArea / currentArea)
+
+	if growSteps < 0 {
+		// no shrinking is done so do nothing
+	} else if growSteps > float64(initialBitString.XPrecision+initialBitString.YPrecision) {
+		return nil, fmt.Errorf("something seems off, cannot grow larger than the whole world (%f / %f = %f > %d;)", maxArea, currentArea, growSteps, initialBitString.XPrecision+initialBitString.YPrecision)
+	}
+
+	err = initialBitString.Grow2D(uint8(growSteps))
+	if err != nil {
+		return nil, err
+	}
+
+	return initialBitString, nil
+}
+
 // Creates a new bit string pair instance and ensures the passed values represent
 // a valid bit string pair.
 func NewBitStringPair(
@@ -555,7 +604,7 @@ func (bitString *XYBitString) Grow2D(steps uint8) error {
 
 	if bitString.XPrecision+bitString.YPrecision <= steps {
 		// cannot grow further, one bit must be left in the end
-		return fmt.Errorf("cannot grow further in 2D, only one bit left")
+		return fmt.Errorf("cannot grow further in 2D, %d bits left and tried growing by %d bits", bitString.XPrecision+bitString.YPrecision, steps)
 	} else if bitString.XPrecision == bitString.YPrecision {
 		// start with the y bit, if odd clear one more y bit
 		xBitsToClear = steps / 2
@@ -596,24 +645,6 @@ func (bitString *ZBitString) GrowZ(steps uint8) error {
 	return nil
 }
 
-// Grows (*modifies*) the voxel by removing bits from the 2d bit string until the voxel's
-// shadow projected to the earth's surface (`.Loop()`) would be greater than
-// `max_area` if another bit was removed.
-// The area units are the ones computed by the S2 library
-func (bitString *XYBitString) Grow2DToCoverArea(maxArea float64) error {
-	currentArea := bitString.Loop().Area()
-	growSteps := math.Log2(maxArea / currentArea)
-
-	if growSteps < 0 {
-		// no shrinking
-		return nil
-	} else if growSteps > float64(bitString.XPrecision+bitString.YPrecision) {
-		return fmt.Errorf("something seems off, cannot grow larger than the whole world (%f / %f = %f > %d;)", maxArea, currentArea, growSteps, bitString.XPrecision+bitString.YPrecision)
-	}
-
-	return bitString.Grow2D(uint8(growSteps))
-}
-
 // Grows (*modifies*) the voxel by removing bits from the z bit string until the voxel's
 // altitude would be greater than `altitudeMaxRange` if another bit was removed.
 func (bitString *ZBitString) GrowZToLength(altitudeMaxRange float64) error {
@@ -650,7 +681,7 @@ func (bitString *ZBitString) GrowZToLength(altitudeMaxRange float64) error {
 // The level of the approximation's accuracy is determined by `f_grow`.
 // By setting `f_grow = 0`, the best possible approximation is computed,
 // resulting in more bit strings.
-func PolygonsTo2DBitStrings(polygons []*s2.Loop, fGrow float64) ([]RawXYBitString, error) {
+func PolygonsTo2DBitStrings(polygons []Geometry2D, fGrow float64) ([]RawXYBitString, error) {
 	intersectingAreasAllPolygons := mapset.NewSet[RawXYBitString]()
 
 	for _, polygon := range polygons {
@@ -662,20 +693,8 @@ func PolygonsTo2DBitStrings(polygons []*s2.Loop, fGrow float64) ([]RawXYBitStrin
 		visited := mapset.NewSet[RawXYBitString]()
 		q := make([]*XYBitString, 0, 1)
 
-		initialCoordinate := s2.LatLngFromPoint(polygon.Vertex(0))
+		initialBitString, err := polygon.InitialXYBitString(fGrow)
 
-		initialBitString, err := XYBitStringFromGeodeticCoordinates(
-			initialCoordinate.Lng.Degrees(),
-			initialCoordinate.Lat.Degrees(),
-		)
-
-		if err != nil {
-			return nil, err
-		}
-
-		err = initialBitString.Grow2DToCoverArea(
-			polygon.Area() * fGrow,
-		)
 		if err != nil {
 			return nil, err
 		}
@@ -695,8 +714,7 @@ func PolygonsTo2DBitStrings(polygons []*s2.Loop, fGrow float64) ([]RawXYBitStrin
 			visited.Add(xyBitStringPair)
 
 			// check for intersection
-			// TODO: once a library is available for computing intersections on the WGS84 ellipsoid rather than a spherical approximation, this should be changed
-			if !(voxel.Loop().Intersects(polygon)) {
+			if !(polygon.Intersects(voxel)) {
 				continue
 			}
 
@@ -872,7 +890,7 @@ func SmallestEnclosingZBitString(altitudeMin, altitudeMax float64) (*ZBitString,
 // extruded polygon should be assigned. Always over-approximates,
 // i.e. covers the whole extruded polygon.
 func ExtrudedPolygonsToBitStringPairs(
-	polygons []*s2.Loop,
+	polygons []Geometry2D,
 	altitudeMin, altitudeMax float64,
 	fGrow float64,
 ) ([]*RawBitStringPair, error) {
@@ -904,7 +922,7 @@ func ExtrudedPolygonsToBitStringPairs(
 	return bitStringPairs, nil
 }
 
-func LoopToGeoJson(loop *s2.Loop) string {
+func LoopToGeoPolygon(loop *s2.Loop) string {
 	vertices := (loop.Vertices())
 	coordinates := make([]string, len(vertices)+1)
 	for i, vertex := range vertices {
@@ -914,7 +932,14 @@ func LoopToGeoJson(loop *s2.Loop) string {
 	coordinates[len(vertices)] = coordinates[0]
 
 	return fmt.Sprintf(
-		"{\"type\":\"Feature\",\"properties\":{},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[%s]]}}",
+		"{\"type\":\"Polygon\",\"coordinates\":[[%s]]}",
 		strings.Join(coordinates, ","),
+	)
+}
+
+func LoopToGeoJsonFeature(loop *s2.Loop) string {
+	return fmt.Sprintf(
+		"{\"type\":\"Feature\",\"properties\":{},\"geometry\":%s}",
+		LoopToGeoPolygon(loop),
 	)
 }

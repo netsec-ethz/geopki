@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"geopki/pkg/bitstring"
 	"geopki/pkg/crypto"
+	"geopki/pkg/geometry"
 	"log"
 	"os"
 	"sort"
@@ -389,7 +390,7 @@ func main() {
 			log.Fatalf("failed converting to a certificate: %v", err)
 		}
 
-		bitstringPairs, err := certificate.BitStrings(F_GROW)
+		bitstringPairs, err := geometry.CertificateToBitStrings(certificate, F_GROW)
 		if err != nil {
 			if strings.Contains(err.Error(), "invalid loop") || strings.Contains(err.Error(), "duplicate vertices") {
 				// if the geometry is invalid, ignore the certificate

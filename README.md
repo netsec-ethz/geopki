@@ -121,7 +121,9 @@ database/scripts/performance
 
 #### Go
 For running the geopki client or server, go is required.
-Dependencies are automatically downloaded and managed by go.
+Most dependencies are automatically downloaded and managed by go.
+The only exception is [Geospatial Data Abstraction Library (GDAL)](https://gdal.org/) which has to be [installed seperately](https://gdal.org/download.html).
+[Go bindings](https://github.com/lukeroth/gdal) are used to interact with GDAL unless with the exception of the wasm client that uses [S2](https://github.com/golang/geo).
 
 #### Python
 For running the python scripts, python and the relevant dependencies have to be installed.

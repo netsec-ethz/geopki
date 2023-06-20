@@ -14,6 +14,7 @@ import (
 
 	"geopki/pkg/comm"
 	"geopki/pkg/crypto"
+	"geopki/pkg/geometry"
 )
 
 const (
@@ -109,7 +110,7 @@ func main() {
 	fetchingDecodingPublicKey = time.Since(start)
 	start = time.Now()
 
-	query, err := comm.NewQuery(longitude, latitude, altitude, radius, F_GROW)
+	query, err := comm.NewQuery(longitude, latitude, altitude, radius, F_GROW, &geometry.GdalCircleApproximator{})
 	if err != nil {
 		log.Fatalf("❌ building query: %v\n", err)
 	}
