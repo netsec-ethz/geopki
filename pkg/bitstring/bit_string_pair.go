@@ -694,7 +694,8 @@ func PolygonsTo2DBitStrings(polygons []*s2.Loop, fGrow float64) ([]RawXYBitStrin
 			// mark as visited
 			visited.Add(xyBitStringPair)
 
-			// check for intersection. always take the first area
+			// check for intersection
+			// TODO: once a library is available for computing intersections on the WGS84 ellipsoid rather than a spherical approximation, this should be changed
 			if !(voxel.Loop().Intersects(polygon)) {
 				continue
 			}
@@ -809,7 +810,7 @@ func PolygonsTo2DBitStrings(polygons []*s2.Loop, fGrow float64) ([]RawXYBitStrin
 //
 // Using this radius, the circle is then approximated as a
 // `4 * quadSegs` sided polygon.
-func ApproximateSphere(longitude, latitude float64, radiusM uint8, quadSegs uint8) *s2.Loop {
+func ApproximateCircle(longitude, latitude float64, radiusM uint8, quadSegs uint8) *s2.Loop {
 	center := geo.NewPoint(latitude, longitude)
 	radiusKm := float64(radiusM) / 1000
 

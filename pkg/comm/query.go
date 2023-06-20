@@ -55,7 +55,7 @@ func NewQuery(
 		return nil, fmt.Errorf("invalid radius value, must be smaller than %d", int(math.Floor(float64(255/RADIUS_ERROR_FACTOR))))
 	}
 
-	sphere := bitstring.ApproximateSphere(
+	sphere := bitstring.ApproximateCircle(
 		longitude,
 		latitude,
 		uint8(radius),
