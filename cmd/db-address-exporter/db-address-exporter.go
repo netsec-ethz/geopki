@@ -121,21 +121,21 @@ const jsonSchema = `
       ]
     },
     {
-      "Tag": "name=surface_geodetic_altitude_aster_30, type=DOUBLE, repetitiontype=OPTIONAL"
+      "Tag": "name=surface_altitude_aster_30, type=DOUBLE, repetitiontype=OPTIONAL"
     }
   ]
 }`
 
 type CertificateRow struct {
-	Certificate_id                     *string
-	List_of_multipolygons              *[]*MultiPolygon
-	List_of_levels                     *[]*string
-	Domain                             *string
-	Min_building_level                 *string
-	Max_building_level                 *string
-	Parents                            *[]*string
-	Children                           *[]*string
-	Surface_geodetic_altitude_aster_30 *float64
+	Certificate_id            *string
+	List_of_multipolygons     *[]*MultiPolygon
+	List_of_levels            *[]*string
+	Domain                    *string
+	Min_building_level        *string
+	Max_building_level        *string
+	Parents                   *[]*string
+	Children                  *[]*string
+	Surface_altitude_aster_30 *float64
 }
 
 func (r *CertificateRow) NotValidAfter() string {
@@ -146,8 +146,8 @@ func (r *CertificateRow) Certificate() (*crypto.GeoCertificate, error) {
 	listOfAltitudes := make([]([2]float64), len(*r.List_of_levels))
 
 	surfaceAltitude := 0.0
-	if r.Surface_geodetic_altitude_aster_30 != nil {
-		surfaceAltitude = *r.Surface_geodetic_altitude_aster_30
+	if r.Surface_altitude_aster_30 != nil {
+		surfaceAltitude = *r.Surface_altitude_aster_30
 	}
 
 	for i, level := range *r.List_of_levels {
