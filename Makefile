@@ -1,4 +1,4 @@
-all: client server wasm-client demo bitstring-performance db-address-exporter
+all: client server wasm-client demo db-address-exporter bitstring-performance client-performance client-throughput
 
 client: ./cmd/geopki-client/geopki-client.go $(wildcard pkg/**/*)
 	go build -o ./dist/geopki-client ./cmd/geopki-client
