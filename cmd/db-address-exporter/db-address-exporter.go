@@ -392,11 +392,6 @@ func main() {
 
 		bitstringPairs, err := geometry.CertificateToBitStrings(certificate, F_GROW)
 		if err != nil {
-			if strings.Contains(err.Error(), "invalid loop") || strings.Contains(err.Error(), "duplicate vertices") {
-				// if the geometry is invalid, ignore the certificate
-				progressBar.Add(1)
-				continue
-			}
 			// fmt.Printf("==%s== \n", *r.Certificate_id)
 			log.Fatalf("failed converting to bit string pairs: %v", err)
 		}

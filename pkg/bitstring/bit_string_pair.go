@@ -643,10 +643,9 @@ func (bitString *ZBitString) GrowZ(steps uint8) error {
 		return fmt.Errorf("cannot grow further in the altitude")
 	}
 
-	// clear all bits starting from yPrecision to yPrecision + yBitsToClear
-	zBitMask := uint16(math.MaxUint16) << (Z_BITS - bitString.ZPrecision - steps)
-	bitString.ZMin &= zBitMask
+	// clear all bits starting from after the new precision (bitString.ZPrecision - steps)
 	bitString.ZPrecision -= steps
+	bitString.ZMin = bitString.ZMin & (uint16(math.MaxUint16) << (Z_BITS - bitString.ZPrecision))
 
 	return nil
 }
@@ -874,9 +873,9 @@ func SmallestEnclosingZBitString(altitudeMin, altitudeMax float64) (*ZBitString,
 		return nil, err
 	}
 
-	altitudeMaxRange := altitudeMax - altitudeMin + 1
+	altitudeMinRange := altitudeMax - UndiscretizeZ(bitString.ZMin) + 1
 	currentAltitudeRange := float64(bitString.ZMax() - bitString.ZMin)
-	growSteps := math.Ceil(math.Log2(altitudeMaxRange / currentAltitudeRange))
+	growSteps := math.Ceil(math.Log2(altitudeMinRange / currentAltitudeRange))
 
 	if growSteps < 0 {
 		// no shrinking
