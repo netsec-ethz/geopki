@@ -105,7 +105,11 @@ func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa
 				child, ok := bitStringMap[childBitString]
 
 				if ok {
-					node.SetXYLeftChild(child)
+					err := node.SetXYLeftChild(child)
+
+					if err != nil {
+						return nil, err
+					}
 				}
 
 				// else: response did not contain child nor child hash
@@ -122,7 +126,10 @@ func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa
 				child, ok := bitStringMap[childBitString]
 
 				if ok {
-					node.SetXYRightChild(child)
+					err := node.SetXYRightChild(child)
+					if err != nil {
+						return nil, err
+					}
 				}
 
 				// else: response did not contain child nor child hash
@@ -135,7 +142,10 @@ func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa
 			child, ok := bitStringMap[node.ZLeftChildPair()]
 
 			if ok {
-				node.SetZLeftChild(child)
+				err := node.SetZLeftChild(child)
+				if err != nil {
+					return nil, err
+				}
 			}
 
 			// else: response did not contain child nor child hash
@@ -147,7 +157,10 @@ func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa
 			child, ok := bitStringMap[node.ZRightChildPair()]
 
 			if ok {
-				node.SetZRightChild(child)
+				err := node.SetZRightChild(child)
+				if err != nil {
+					return nil, err
+				}
 			}
 
 			// else: response did not contain child nor child hash
