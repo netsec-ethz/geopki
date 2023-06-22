@@ -92,6 +92,8 @@ func NewQuery(
 			err,
 		)
 	}
+	// free sphere memory, no longer needed
+	sphere.Destroy()
 
 	altitudeInt := int16(altitude)
 

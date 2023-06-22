@@ -75,6 +75,8 @@ type BitStringPair struct {
 type Geometry2D interface {
 	Intersects(bitstring *XYBitString) bool
 	InitialXYBitString(fGrow float64) (*XYBitString, error)
+	// some implementations might have to be freeded manually
+	Destroy()
 }
 
 // the s2 implementation of the 'Geometry2D' interface
@@ -117,6 +119,10 @@ func (g *S2Geometry2D) InitialXYBitString(fGrow float64) (*XYBitString, error) {
 	}
 
 	return initialBitString, nil
+}
+
+func (g *S2Geometry2D) Destroy() {
+	// just a go object, no need to manually free
 }
 
 // Creates a new bit string pair instance and ensures the passed values represent

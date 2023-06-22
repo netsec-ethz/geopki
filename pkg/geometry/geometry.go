@@ -17,7 +17,11 @@ type GdalGeometry2D struct {
 }
 
 func (g *GdalGeometry2D) Intersects(xyBitstring *bitstring.XYBitString) bool {
-	return g.Geometry.Intersects(*LoopToGdalGeometry(xyBitstring.Loop()))
+	geom := BitStringToGdalGeometry(xyBitstring)
+	r := g.Geometry.Intersects(*geom)
+
+	geom.Destroy()
+	return r
 }
 
 func (g *GdalGeometry2D) InitialXYBitString(fGrow float64) (*bitstring.XYBitString, error) {
@@ -36,7 +40,10 @@ func (g *GdalGeometry2D) InitialXYBitString(fGrow float64) (*bitstring.XYBitStri
 
 	// grow initial bitstring to 'maxArea'
 	maxArea := polygon.Area() * fGrow
-	currentArea := LoopToGdalGeometry(initialBitString.Loop()).Area()
+
+	initialGeometry := BitStringToGdalGeometry(initialBitString)
+	currentArea := initialGeometry.Area()
+	initialGeometry.Destroy()
 
 	growSteps := math.Log2(maxArea / currentArea)
 
@@ -52,6 +59,10 @@ func (g *GdalGeometry2D) InitialXYBitString(fGrow float64) (*bitstring.XYBitStri
 	}
 
 	return initialBitString, nil
+}
+
+func (g *GdalGeometry2D) Destroy() {
+	g.Geometry.Destroy()
 }
 
 type GdalCircleApproximator struct{}
@@ -93,15 +104,36 @@ func BitStringToGdalGeometry(bitString *bitstring.XYBitString) *gdal.Geometry {
 }
 
 func CertificateToGeometries(area *crypto.GeoCertArea) ([]bitstring.Geometry2D, error) {
-	loops, err := area.Loops()
-	if err != nil {
-		return nil, err
+	if area.Type != "MultiPolygon" {
+		return nil, fmt.Errorf("area.Type must be equal to 'MultiPolygon'")
 	}
 
-	geometries := make([]bitstring.Geometry2D, len(loops))
-	for i, loop := range loops {
+	WGS84 := getWGS84()
+	exteriorRing := area.Coordinates[0]
+
+	geometries := make([]bitstring.Geometry2D, len(exteriorRing))
+	for i, polygon := range exteriorRing {
+
+		wkt := "POLYGON (("
+		// array of ccw order points of the loop
+		for i, pt := range polygon {
+			if i > 0 {
+				wkt += ","
+			}
+			wkt += fmt.Sprintf("%f %f", pt[0], pt[1])
+		}
+		wkt += "))"
+
+		geometry, err := gdal.CreateFromWKT(wkt, WGS84)
+		if err != nil {
+			println(wkt)
+			return nil, err
+		}
+
+		geometry.SetSpatialReference(WGS84)
+
 		geometries[i] = &GdalGeometry2D{
-			Geometry: LoopToGdalGeometry(loop),
+			Geometry: &geometry,
 		}
 	}
 
@@ -125,6 +157,10 @@ func CertificateToBitStrings(cert *crypto.GeoCertificate, fGrow float64) ([]*bit
 		bs, err := bitstring.ExtrudedPolygonsToBitStringPairs(geometries, altitudeMin, altitudeMax, fGrow)
 		if err != nil {
 			return nil, err
+		}
+
+		for _, g := range geometries {
+			g.Destroy()
 		}
 
 		bitstrings = append(bitstrings, bs...)
