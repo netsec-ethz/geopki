@@ -508,7 +508,7 @@ func main() {
 
 		zRightChildNode, ok := bitstringPairToNode[bitstring.ZRightChildPair()]
 		if ok {
-			node.SetZLeftChildHash(zRightChildNode.Hash())
+			node.SetZRightChildHash(zRightChildNode.Hash())
 		}
 
 		progressBar.Add(1)
