@@ -462,7 +462,12 @@ func (node *Node) IsComplete(
 	if node.zLeftChild == nil {
 		// the server did not send this node which we requested,
 		// the only valid reason is if that subtree is empty = has a default hash value
-		isComplete = isComplete && (node.zLeftChildHash == nil)
+		// or if it does not intersect with the queried altitude range
+		leftChild := node.RawZBitString.LeftChild().BitString()
+		leftChildMin, leftChildMax := int16(leftChild.ZMin), int16(leftChild.ZMax())
+		noIntersection := minAltitude > leftChildMax || maxAltitude < leftChildMin
+
+		isComplete = isComplete && (node.zLeftChildHash == nil || noIntersection)
 	} else {
 		// check z subtree for completeness
 		isComplete = isComplete && node.zLeftChild.IsZComplete(minAltitude, maxAltitude)
@@ -471,7 +476,13 @@ func (node *Node) IsComplete(
 	if node.zRightChild == nil {
 		// the server did not send this node which we requested,
 		// the only valid reason is if that subtree is empty = has a default hash value
-		isComplete = isComplete && (node.zRightChildHash == nil)
+		// or if it does not intersect with the queried altitude range
+
+		rightChild := node.RawZBitString.RightChild().BitString()
+		rightChildMin, rightChildMax := int16(rightChild.ZMin), int16(rightChild.ZMax())
+		noIntersection := minAltitude > rightChildMin || maxAltitude < rightChildMax
+
+		isComplete = isComplete && (node.zRightChildHash == nil || noIntersection)
 	} else {
 		// check z subtree for completeness
 		isComplete = isComplete && node.zRightChild.IsZComplete(minAltitude, maxAltitude)
