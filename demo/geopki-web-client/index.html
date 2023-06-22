@@ -89,6 +89,24 @@
         <i class="fa-solid fa-map-location-dot"></i>
       </div>
     </div>
+    <div id="altitude-slider" class="overlay">
+      <input
+        type="range"
+        orient="vertical"
+        min="-10000"
+        max="22767"
+        value="0"
+        oninput="onAltitudeInput(this)"
+      />
+      <input
+        type="number"
+        min="-10000"
+        max="22767"
+        value="0"
+        size="6"
+        onchange="onAltitudeInput(this)"
+      />
+    </div>
     <!-- initialize map -->
     <script>
       /* load leaflet map */

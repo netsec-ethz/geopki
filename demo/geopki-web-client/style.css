@@ -2,6 +2,7 @@ body {
   padding: 0;
   margin: 0;
   font-size: 16px;
+  font-family: sans-serif;
 }
 html,
 body,
@@ -53,4 +54,39 @@ body,
 
   display: flex;
   flex-direction: row;
+}
+
+input[type=range][orient=vertical]
+{
+    writing-mode: bt-lr; /* IE */
+    -webkit-appearance: slider-vertical; /* Chromium */
+    appearance: slider-vertical; /* Chromium */
+
+    width: 100%;
+    height: 100%;
+}
+
+#altitude-slider{
+  position: fixed;
+  top: 1rem;
+  bottom: 1rem;
+  right: 1rem;
+
+  width: 1rem;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#altitude-slider input[type=range] {
+  display: inline-block;
+  flex-grow: 1;
+}
+
+#altitude-slider input[type=number] {
+  display: inline-block;
+  margin: 1rem 0;
+  font-size: 1.5rem;
 }

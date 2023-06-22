@@ -29,10 +29,16 @@ async function fetchCertificates(longitude, latitude, altitude, radius) {
       }, 300)
     );
   }
+
+  console.log(
+    `query for (${longitude}, ${latitude}, ${altitude}) with radius=${radius}m`
+  );
+
   const certificates = await window
     // set manually to e.g. http://server.tyratox.ch:1234 if you want to use a different server
     .getJSONCertificates(
-      location.protocol + "//" + location.host,
+      "http://server.tyratox.ch:1234",
+      // location.protocol + "//" + location.host,
       longitude,
       latitude,
       altitude,
@@ -129,10 +135,24 @@ async function fetchCertificatesForCurrentMapLocation() {
   const center = map.getCenter();
   const radius = DEFAULT_QUERY_RADIUS;
 
+  const longitude = center.lng;
+  const latitude = center.lat;
+
+  let altitude;
+
+  // check if a manual value was set
+  if (window.altitude) {
+    // if yes, use that
+    altitude = window.altitude;
+  } else {
+    // if not, use some default value
+    altitude = 0;
+  }
+
   const certificates = await fetchCertificates(
-    center.lng,
-    center.lat,
-    0,
+    longitude,
+    latitude,
+    altitude,
     radius
   );
 
@@ -196,4 +216,12 @@ async function onLocationFound(e) {
 
 function onLocationError(e) {
   alert(e.message);
+}
+
+function onAltitudeInput(slider) {
+  window.altitude = parseFloat(slider.value);
+  document.querySelector("#altitude-slider input[type='range']").value =
+    window.altitude;
+  document.querySelector("#altitude-slider input[type='number']").value =
+    window.altitude;
 }
