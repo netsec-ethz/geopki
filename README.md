@@ -76,7 +76,7 @@ Go Files, relevant for the server and client implementation
 ```
 .
 ├── cmd                           # the go programs
-|   └── bitstring-performance         # program for measuring the performance of the bit string computations given a volume
+|   └── bitstring                     # program for measuring the performance of the bit string computations given a volume
 |
 └── performance
     └── bitstring-performance         # measures the performance for approximating a sphere using bitstrings
@@ -92,7 +92,8 @@ Go Files, relevant for the server and client implementation
 
 ```
 database/scripts/input
-├── db-address-exporter.py        # generates SQL INSERT files based the output of the 'location-correlation'
+├── db-address-exporter.py        # generates SQL INSERT files based the output of the 'location-correlation',
+                                  # *requires a lot of RAM*, worked with 64GB
 ├── db-input-analyzer.py          # plots the number of bit strings used for DBs with and without z subtrees
 ├── db-sanity-check-generator.py  # generates sql files for a dummy table to verify the measurements
 └── graph-db-address-exporter.py  # generates CSV files that can be imported into neo4j 
