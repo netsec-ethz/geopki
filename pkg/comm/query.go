@@ -49,6 +49,20 @@ func (s *S2CircleApproximator) ApproximateCircle(longitude, latitude float64, ra
 	}
 }
 
+func min(a, b int64) int64 {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 func NewQuery(
 	longitude, latitude, altitude float64,
 	radius uint64,
@@ -95,12 +109,13 @@ func NewQuery(
 	// free sphere memory, no longer needed
 	sphere.Destroy()
 
-	altitudeInt := int16(altitude)
+	minAltitude := int64(altitude) - int64(bitstring.D) - int64(radius)
+	maxAltitude := int64(altitude) - int64(bitstring.D) + int64(radius)
 
 	query := &Query{
 		XYBitStrings: bitStrings,
-		MinAltitude:  altitudeInt - bitstring.D - int16(radius),
-		MaxAltitude:  altitudeInt - bitstring.D + int16(radius),
+		MinAltitude:  int16(max(minAltitude, 0)),
+		MaxAltitude:  int16(min(maxAltitude, int64(bitstring.C_Z))),
 	}
 
 	return query, nil
