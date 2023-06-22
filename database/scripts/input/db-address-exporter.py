@@ -190,11 +190,11 @@ def level_to_altitude(
     min_level: Optional[str],
     max_level: Optional[str],
     level: str,
-    surface_geodetic_altitude: Optional[float]
+    surface_altitude: Optional[float]
 ) -> Tuple[float, float]:
 
     # if surface_geodetic_altitude is None -> 0
-    surface_geodetic_altitude = 0 if surface_geodetic_altitude is None else surface_geodetic_altitude
+    surface_altitude = 0 if surface_altitude is None else surface_altitude
 
     if level == "@":
         # is a node
@@ -224,13 +224,13 @@ def level_to_altitude(
             # bound check in case of weirdly formatted data
             return min(
                 max(
-                    surface_geodetic_altitude + min_level * 3,
+                    surface_altitude + min_level * 3,
                     DiscretizedVoxel.D
                 ),
                 DiscretizedVoxel.H
             ), min(
                 max(
-                    surface_geodetic_altitude + (max_level + 1) * 3,
+                    surface_altitude + (max_level + 1) * 3,
                     DiscretizedVoxel.D
                 ),
                 DiscretizedVoxel.H
@@ -249,14 +249,14 @@ def level_to_altitude(
             return (
                 min(
                     max(
-                        surface_geodetic_altitude + level * 3,
+                        surface_altitude + level * 3,
                         DiscretizedVoxel.D
                     ),
                     DiscretizedVoxel.H
                 ),
                 min(
                     max(
-                        surface_geodetic_altitude + (level + 1) * 3,
+                        surface_altitude + (level + 1) * 3,
                         DiscretizedVoxel.D
                     ),
                     DiscretizedVoxel.H
@@ -339,7 +339,7 @@ def main(
         children = row['children']
         min_level = row['min_building_level']
         max_level = row['max_building_level']
-        surface_geodetic_altitude = row['surface_geodetic_altitude_aster_30'] if 'surface_geodetic_altitude_aster_30' in df.columns else None
+        surface_altitude = row['surface_altitude_aster_30'] if 'surface_altitude_aster_30' in df.columns else None
         # fixed expiration date
         not_valid_after = "2030-01-01 00:00:00+00"
 
@@ -353,7 +353,7 @@ def main(
                     min_level,
                     max_level,
                     level,
-                    surface_geodetic_altitude=surface_geodetic_altitude
+                    surface_altitude=surface_altitude
                 )
             except (ValueError, AssertionError):
                 print(row)
