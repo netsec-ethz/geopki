@@ -134,10 +134,8 @@ func main() {
 	}
 
 	queries := make([]*comm.Query, queryCount)
-	for i, q := range querySet {
-		if i >= queryCount-1 {
-			break
-		}
+	for i := range queries {
+		q := querySet[i]
 
 		// set altitude to 0
 		query, err := comm.NewQuery(q.Longitude, q.Latitude, 0, q.Radius, F_GROW, &geometry.GdalCircleApproximator{})
