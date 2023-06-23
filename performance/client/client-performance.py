@@ -15,7 +15,7 @@ QUERY_RADIUS = 10
 # https://www.matecdev.com/posts/random-points-in-polygon.html
 
 
-def sample_point_in_polygon(polygon: Polygon) -> tuple[float, float, float]:
+def sample_point_in_polygon(polygon: Polygon) -> tuple[float, float]:
     minX, minY, maxX, maxY = polygon.bounds
 
     while True:
@@ -23,7 +23,7 @@ def sample_point_in_polygon(polygon: Polygon) -> tuple[float, float, float]:
         sample = Point(np.random.uniform(minX, maxX),
                        np.random.uniform(minY, maxY))
         if polygon.contains(sample):
-            return sample.x, sample.y, 0
+            return sample.x, sample.y
 
 
 @click.command()
@@ -93,7 +93,7 @@ def main(
         f = open(output_path, "a")
     else:
         f = open(output_path, "w")
-        f.write(f"longitude,latitude,altitude,radius,request_size,request_bit_string_count,response_size,response_node_count,certificate_hash_count,consistency_proof_size,time_building_query,time_send_receive,time_verification,time_consistency,time_total\n")
+        f.write(f"longitude,latitude,radius,request_size,request_bit_string_count,response_size,response_node_count,certificate_hash_count,consistency_proof_size,time_building_query,time_send_receive,time_verification,time_consistency,time_total\n")
         f.flush()
 
     # probability 0 if osm_website_element_count == 0
@@ -112,15 +112,15 @@ def main(
     # for each sample, sample a point within the polygon
     sample['sample_point'] = sample['polygon'].apply(sample_point_in_polygon)
     query_locations: list[
-        tuple[float, float, float]
+        tuple[float, float]
     ] = sample['sample_point'].values
 
     total_iterations = len(query_locations) * repetitions
 
-    for i, longitude, latitude, altitude in tqdm(
+    for i, longitude, latitude in tqdm(
         (
-            (i, lon, lat, alt)
-            for (lon, lat, alt) in query_locations
+            (i, lon, lat)
+            for (lon, lat) in query_locations
             for i in range(repetitions)
         ),
         total=total_iterations
@@ -132,7 +132,6 @@ def main(
                 f"--public-key={public_key}",
                 f"--longitude={longitude}",
                 f"--latitude={latitude}",
-                f"--altitude={altitude}",
                 f"--radius={QUERY_RADIUS}",
             ]
             + (["--include-certificates"] if include_certificates else []),

@@ -82,9 +82,10 @@ func NewQuery(
 
 	if altitude < float64(bitstring.D) || altitude > float64(bitstring.H) {
 		return nil, fmt.Errorf(
-			"invalid altitude value, must be in the range [%d, %d]",
+			"invalid altitude value, must be in the range [%d, %d], %f given",
 			bitstring.D,
 			bitstring.H,
+			altitude,
 		)
 	}
 

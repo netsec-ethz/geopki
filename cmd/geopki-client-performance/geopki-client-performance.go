@@ -7,9 +7,9 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math"
 	"time"
 
+	"geopki/pkg/bitstring"
 	"geopki/pkg/comm"
 	"geopki/pkg/crypto"
 	"geopki/pkg/geometry"
@@ -23,7 +23,7 @@ func main() {
 	clientStart := time.Now()
 
 	var address string
-	var longitude, latitude, altitude float64
+	var longitude, latitude float64
 	var radius uint64
 	var includeCertificates bool
 
@@ -32,7 +32,6 @@ func main() {
 	flag.StringVar(&address, "address", "", "The HTTP address of the server to send the request to")
 	flag.Float64Var(&longitude, "longitude", 190, "The longitude to query for")
 	flag.Float64Var(&latitude, "latitude", 100, "The latitude to query for")
-	flag.Float64Var(&altitude, "altitude", math.Inf(0), "The altitude to query for")
 	flag.Uint64Var(&radius, "radius", 10, "The radius for the query in meters")
 	flag.BoolVar(&includeCertificates, "include-certificates", false, "Whether to include the certificates")
 	flag.StringVar(&publicKeyBase64, "public-key", "", "The public key used to verify the signatures.")
@@ -76,10 +75,15 @@ func main() {
 	}
 	start = time.Now()
 
-	query, err := comm.NewQuery(longitude, latitude, altitude, radius, F_GROW, &geometry.GdalCircleApproximator{})
+	// set altitude to 0
+	query, err := comm.NewQuery(longitude, latitude, 0, radius, F_GROW, &geometry.GdalCircleApproximator{})
 	if err != nil {
 		log.Fatalf("❌ building query: %v\n", err)
 	}
+
+	// and then overwrite min and max altitude to cover the full altitude range
+	query.MinAltitude = 0
+	query.MaxAltitude = int16(bitstring.C_Z)
 
 	buildingQuery = time.Since(start)
 	start = time.Now()
@@ -118,10 +122,9 @@ func main() {
 	total = time.Since(clientStart)
 
 	fmt.Printf(
-		"%f,%f,%f,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f\n",
+		"%f,%f,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f\n",
 		longitude,
 		latitude,
-		altitude,
 		radius,
 		requestSize,
 		// query bit strings
