@@ -156,3 +156,5 @@ cython_debug/
 # build artifacts
 dist/
 demo/geopki-web-client/geopki-client.wasm
+
+performance/client/client-performance.csv

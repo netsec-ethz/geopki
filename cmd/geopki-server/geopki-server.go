@@ -238,8 +238,6 @@ func main() {
 
 		consistencyClient: consistencyClient,
 
-		cacheLock:                    sync.RWMutex{},
-		updateLock:                   sync.Mutex{},
 		currentSignedMapHead:         smh,
 		currentSignedConsistencyHead: sch,
 	}
