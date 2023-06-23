@@ -15,7 +15,9 @@ CURRENT_DIR = os.path.dirname(FILE_PATH)
 
 QUERY_RADIUS = 10
 
-TIME_VALUES = [1, 2, 4, 8, 16, 32]
+# TIME_VALUES = [1, 2, 4, 8, 16, 32]
+# THREAD_VALUES = [1, 2, 4, 8, 16, 32, 64]
+TIME_VALUES = [8]
 THREAD_VALUES = [1, 2, 4, 8, 16, 32, 64]
 
 MAX_QUERIES_PER_SECOND = 50
@@ -67,8 +69,7 @@ def sample_point_in_polygon(polygon: Polygon) -> tuple[float, float]:
     '-r',
     'repetitions',
     type=int,
-    # by default do not repeat a single location
-    default=1
+    default=10
 )
 @click.option('--include-certificates', 'include_certificates', flag_value=True, default=False)
 def main(
