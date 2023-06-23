@@ -128,6 +128,10 @@ func main() {
 	}
 
 	queryCount := threads * int(runningTime) * MAX_QUERIES_PER_SECOND
+	if queryCount >= len(querySet) {
+		fmt.Fprintf(os.Stderr, "provided query set is too small, %d required, %d given\n", queryCount, len(querySet))
+		os.Exit(1)
+	}
 
 	queries := make([]*comm.Query, queryCount)
 	for i, q := range querySet {
