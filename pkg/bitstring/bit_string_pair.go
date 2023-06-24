@@ -3,6 +3,7 @@ package bitstring
 import (
 	"fmt"
 	"math"
+	"math/bits"
 	"strconv"
 	"strings"
 
@@ -518,7 +519,7 @@ func (bitString *XYBitString) RawXYBitStringPair() RawXYBitString {
 	}
 }
 
-func (bitString *ZBitString) RawZBitStringPair() RawZBitString {
+func (bitString *ZBitString) RawZBitString() RawZBitString {
 	return RawZBitString{
 		// move the used bits from the end to the start
 		ZBitString:    bitString.ZMin << (16 - Z_BITS),
@@ -529,7 +530,7 @@ func (bitString *ZBitString) RawZBitStringPair() RawZBitString {
 func (pair *BitStringPair) RawBitStringPair() RawBitStringPair {
 	return RawBitStringPair{
 		RawXYBitString: pair.RawXYBitStringPair(),
-		RawZBitString:  pair.RawZBitStringPair(),
+		RawZBitString:  pair.RawZBitString(),
 	}
 }
 
@@ -868,25 +869,24 @@ func ApproximateCircle(longitude, latitude float64, radiusM uint8, quadSegs uint
 // makes the tree sparser. Under the assumption that the altitude
 // is rather sparse this seems to be a good tradeoff.
 func SmallestEnclosingZBitString(altitudeMin, altitudeMax float64) (*ZBitString, error) {
-	bitString, err := ZBitStringFromGeodeticCoordinate(altitudeMin)
+	bitStringMin, err := ZBitStringFromGeodeticCoordinate(altitudeMin)
 	if err != nil {
 		return nil, err
 	}
 
-	altitudeMinRange := altitudeMax - UndiscretizeZ(bitString.ZMin) + 1
-	currentAltitudeRange := float64(bitString.ZMax() - bitString.ZMin)
-	growSteps := math.Ceil(math.Log2(altitudeMinRange / currentAltitudeRange))
-
-	if growSteps < 0 {
-		// no shrinking
-		return bitString, nil
-	} else if growSteps > float64(Z_BITS) {
-		return nil, fmt.Errorf("something seems off, cannot grow larger than the whole world")
+	bitStringMax, err := ZBitStringFromGeodeticCoordinate(altitudeMax)
+	if err != nil {
+		return nil, err
 	}
 
-	err = bitString.GrowZ(uint8(growSteps))
+	rawBitStringMin := bitStringMin.RawZBitString()
+	rawBitStringMax := bitStringMax.RawZBitString()
 
-	return bitString, err
+	matchingPrefixLength := bits.LeadingZeros16(rawBitStringMin.ZBitString ^ rawBitStringMax.ZBitString)
+
+	err = bitStringMin.GrowZ(bitStringMin.ZPrecision - uint8(matchingPrefixLength))
+
+	return bitStringMin, err
 }
 
 // Returns the cross product of `PolygonsTo2DBitStrings` and
@@ -920,7 +920,7 @@ func ExtrudedPolygonsToBitStringPairs(
 	for i, xyBitString := range xyBitStrings {
 		bitStringPairs[i] = &RawBitStringPair{
 			RawXYBitString: xyBitString,
-			RawZBitString:  zBitString.RawZBitStringPair(),
+			RawZBitString:  zBitString.RawZBitString(),
 		}
 	}
 
