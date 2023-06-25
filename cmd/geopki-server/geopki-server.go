@@ -34,6 +34,8 @@ import (
 const (
 	// maximum merge delay in seconds
 	MAXIMUM_MERGE_DELAY = 5
+	// the f factor for new certificates
+	F_GROW = 0.1
 )
 
 type EndpointHandlerEnv struct {
@@ -853,7 +855,7 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 
 	smh, err := database.UpdateTree(
 		[]*crypto.GeoCertificate{cert},
-		1.0,
+		F_GROW,
 		time.Now(),
 		tx,
 		// TODO: set the set of covered log servers for instance by storing that in the db and retrieving it here

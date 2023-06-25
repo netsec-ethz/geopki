@@ -883,6 +883,9 @@ func SmallestEnclosingZBitString(altitudeMin, altitudeMax float64) (*ZBitString,
 	rawBitStringMax := bitStringMax.RawZBitString()
 
 	matchingPrefixLength := bits.LeadingZeros16(rawBitStringMin.ZBitString ^ rawBitStringMax.ZBitString)
+	if matchingPrefixLength > int(Z_BITS) {
+		matchingPrefixLength = int(Z_BITS)
+	}
 
 	err = bitStringMin.GrowZ(bitStringMin.ZPrecision - uint8(matchingPrefixLength))
 
