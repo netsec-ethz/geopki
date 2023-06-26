@@ -38,6 +38,8 @@ const (
 	F_GROW = 0.1
 )
 
+var TRUSTED_PROXIES = []string{"localhost"}
+
 type EndpointHandlerEnv struct {
 	dbPool *pgxpool.Pool
 	// key used to sign cryptographic statements
@@ -245,12 +247,15 @@ func main() {
 	}
 
 	// setup web server
-	r := gin.Default()
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.New()
 
 	// configure gin engine
+	r.SetTrustedProxies(TRUSTED_PROXIES)
 
 	// setup middlewares
-	r.Use(gzip.Gzip(gzip.BestCompression))
+	r.Use(gin.Recovery())
+	r.Use(gzip.Gzip(gzip.DefaultCompression))
 	r.Use(cors.New(cors.Config{
 		AllowAllOrigins:  true,
 		AllowMethods:     []string{"GET", "POST", "HEAD"},
