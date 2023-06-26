@@ -59,6 +59,8 @@ type EndpointHandlerEnv struct {
 	currentSignedMapHead *crypto.SignedMapHead
 	// caches the most recent SCH value
 	currentSignedConsistencyHead *crypto.SignedConsistencyHead
+	// caches the inclusion proof for the latest SCH value
+	schInclusionProof []byte
 }
 
 func main() {
@@ -232,6 +234,18 @@ func main() {
 		os.Exit(17)
 	}
 
+	proof, err := consistencyClient.ProveSignedMapHeadInclusion(context.Background(), sch.Size, smh)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "obtaining a proof of inclusion for consistency tree failed: %v\n", err)
+		os.Exit(18)
+	}
+
+	inclusionProof, err := proto.Marshal(proof)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed marshaling inclusion proof: %v\n", err)
+		os.Exit(19)
+	}
+
 	fmt.Printf("Serving data with SMH:\n%s\n\n", smh.String())
 
 	// create handler environment for shared data
@@ -244,6 +258,7 @@ func main() {
 
 		currentSignedMapHead:         smh,
 		currentSignedConsistencyHead: sch,
+		schInclusionProof:            inclusionProof,
 	}
 
 	// setup web server
@@ -395,30 +410,13 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 	env.cacheLock.RLock()
 	sch := env.currentSignedConsistencyHead
 	smh := env.currentSignedMapHead
+	inclusionProof := env.schInclusionProof
 	env.cacheLock.RUnlock()
-
-	proof, err := env.consistencyClient.ProveSignedMapHeadInclusion(c.Request.Context(), sch.Size, smh)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "obtaining a proof of inclusion for consistency tree failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "obtaining a proof of inclusion for consistency tree failed, check the server logs",
-		})
-		return
-	}
-
-	marshaledProof, err := proto.Marshal(proof)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed marshaling inclusion proof: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed marshaling inclusion proof, check the server logs",
-		})
-		return
-	}
 
 	response, err := proto.Marshal(&comm.Response{
 		SignedConsistencyHead: sch.Proto(),
 		SignedMapHead:         smh.Proto(),
-		InclusionProof:        marshaledProof,
+		InclusionProof:        inclusionProof,
 		Nodes:                 nodes,
 
 		Certificates: certificates,
@@ -897,10 +895,29 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		return
 	}
 
+	proof, err := env.consistencyClient.ProveSignedMapHeadInclusion(c.Request.Context(), sch.Size, smh)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "obtaining a proof of inclusion for consistency tree failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "obtaining a proof of inclusion for consistency tree failed, check the server logs",
+		})
+		return
+	}
+
+	marshaledProof, err := proto.Marshal(proof)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed marshaling inclusion proof: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed marshaling inclusion proof, check the server logs",
+		})
+		return
+	}
+
 	// update cached smh and sch, acquire lock to ensure all reads are consistent
 	env.cacheLock.Lock()
 	env.currentSignedMapHead = smh
 	env.currentSignedConsistencyHead = sch
+	env.schInclusionProof = marshaledProof
 	env.cacheLock.Unlock()
 	env.updateLock.Unlock()
 
