@@ -147,13 +147,17 @@ func RowsToNodesAndRootHash(
 	var rootHash crypto.SHA256Hash
 	certificateStringHashes := mapset.NewSet[string]()
 
+	var dbXYBitString pgtype.Bits
+	var dbZBitString pgtype.Bits
+	// use a pointer to a byte array to allow for null values
+	var dbXYLeftChildHash, dbXYRightChildHash, dbZLeftChildHash, dbZRightChildHash []byte
+	var dbCertificateHashes pgtype.Array[[]byte]
+
+	XYBitString := make([]byte, 8)
+	ZBitString := make([]byte, 2)
+
 	// Iterate through the result set
 	for rows.Next() {
-		var dbXYBitString pgtype.Bits
-		var dbZBitString pgtype.Bits
-		// use a pointer to a byte array to allow for null values
-		var dbXYLeftChildHash, dbXYRightChildHash, dbZLeftChildHash, dbZRightChildHash []byte
-		var dbCertificateHashes pgtype.Array[[]byte]
 
 		err := rows.Scan(
 			&dbXYBitString,
@@ -170,12 +174,16 @@ func RowsToNodesAndRootHash(
 		}
 
 		// grow bit strings to 8 and 2 byte arrays respectively
-		// by allocating a 8 and a 2 byte array and copy the contents
-		XYBitString := make([]byte, 8)
+		// by copy the contents and clearing the remaining bytes
 		copy(XYBitString, dbXYBitString.Bytes)
+		for i := len(dbXYBitString.Bytes); i < len(XYBitString); i++ {
+			XYBitString[i] = 0
+		}
 
-		ZBitString := make([]byte, 2)
 		copy(ZBitString, dbZBitString.Bytes)
+		for i := len(dbZBitString.Bytes); i < len(ZBitString); i++ {
+			ZBitString[i] = 0
+		}
 
 		// create new node instance from loaded data
 		node := crypto.NewNode(
@@ -288,10 +296,10 @@ func RowsToCertificates(
 ) ([][]byte, error) {
 	certificates := make([][]byte, 0, expectedResults)
 
+	var dbCertificate []byte
+
 	// Iterate through the result set
 	for rows.Next() {
-		var dbCertificate []byte
-
 		err := rows.Scan(
 			&dbCertificate,
 		)
