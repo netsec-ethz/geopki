@@ -338,8 +338,7 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 
 	defer rows.Close()
 
-	// at least allocate a capacity of 'len(bit_strings)', then let
-	// the go standard libary handle growth
+	// allocate slice with capacity of 'len(bit_strings)' and let go handle slice growth
 	nodes, rootHash, certificateStringHashes, err := database.RowsToNodesAndRootHash(rows, len(requestBitStringPairs))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "scanning node rows failed: %v\n", err)
@@ -382,8 +381,7 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 
 		defer rows.Close()
 
-		// at least allocate a capacity of 'len(bit_strings)', then let
-		// the go standard libary handle growth
+		// allocate slice with capacity of 'certificateStringHashes.Cardinality()', let go handle slice growth
 		certificates, err = database.RowsToCertificates(rows, certificateStringHashes.Cardinality())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "scanning certificate rows failed: %v\n", err)
