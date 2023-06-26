@@ -24,7 +24,6 @@ import (
 	"geopki/pkg/database"
 
 	"github.com/gin-contrib/cors"
-	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -264,9 +263,6 @@ func main() {
 	// setup web server
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
-
-	// use profiler
-	pprof.Register(r)
 
 	// configure gin engine
 	r.SetTrustedProxies(TRUSTED_PROXIES)
