@@ -21,8 +21,8 @@ import (
 
 const (
 	F_GROW                   = 0.1
-	CERTIFICATE_WRITE_BUFFER = 10000
-	NODE_WRITE_BUFFER        = 10000
+	CERTIFICATE_WRITE_BUFFER = 1000
+	NODE_WRITE_BUFFER        = 1000
 	MAX_FILE_SIZE            = 300 * 1000 * 1000 // 300 MB
 	INSERT_INTO_NODES_STR    = "INSERT INTO nodes(bit_string_51,bit_string_51_int,bit_string_15,altitude_min,altitude_max,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes) VALUES\n"
 	INSERT_INTO_CERTS_STR    = "INSERT INTO certificates(certificate_hash,certificate,not_valid_after) VALUES\n"
