@@ -20,10 +20,12 @@ import (
 )
 
 const (
-	F_GROW                = 1
-	MAX_FILE_SIZE         = 300 * 1000 * 1000 // 300 MB
-	INSERT_INTO_NODES_STR = "INSERT INTO nodes(bit_string_51,bit_string_51_int,bit_string_15,altitude_min,altitude_max,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes) VALUES\n"
-	INSERT_INTO_CERTS_STR = "INSERT INTO certificates(certificate_hash,certificate,not_valid_after) VALUES\n"
+	F_GROW                   = 0.1
+	CERTIFICATE_WRITE_BUFFER = 10000
+	NODE_WRITE_BUFFER        = 10000
+	MAX_FILE_SIZE            = 300 * 1000 * 1000 // 300 MB
+	INSERT_INTO_NODES_STR    = "INSERT INTO nodes(bit_string_51,bit_string_51_int,bit_string_15,altitude_min,altitude_max,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes) VALUES\n"
+	INSERT_INTO_CERTS_STR    = "INSERT INTO certificates(certificate_hash,certificate,not_valid_after) VALUES\n"
 )
 
 type Coordinate struct {
@@ -334,6 +336,178 @@ func encodeHashForDatabase(hash crypto.SHA256Hash) string {
 	}
 }
 
+func certificateWriter(
+	certificatesOutputPath string,
+	certificates chan *crypto.GeoCertificate,
+	done chan bool,
+) {
+	fileIndex := 0
+	fileName := fmt.Sprintf("%s/part-%d.sql", certificatesOutputPath, fileIndex)
+	size := 0
+	isFirstLine := true
+	file, err := os.Create(fileName)
+	if err != nil {
+		log.Fatalf("failed opening file %s: %v", fileName, err)
+	}
+
+	for certificate := range certificates {
+		var n int
+		var err error
+
+		if isFirstLine {
+			// write insert statement
+			n, err = file.Write([]byte(INSERT_INTO_CERTS_STR))
+			isFirstLine = false
+		} else {
+			// insert line break
+			n, err = file.Write([]byte(",\n"))
+		}
+		if err != nil {
+			log.Fatalf("failed writing to file %s: %v", fileName, err)
+		}
+		size += n
+
+		// write certificate row
+		n, err = file.Write(
+			[]byte(
+				fmt.Sprintf(
+					"(%s, %s, '%s')",
+					encodeHashForDatabase(certificate.Hash()),
+					encodeHashForDatabase(certificate.MarshaledCert),
+					certificate.NotValidAfter,
+				),
+			),
+		)
+		if err != nil {
+			log.Fatalf("failed writing to file %s: %v", fileName, err)
+		}
+		size += n
+
+		if size > MAX_FILE_SIZE {
+			_, err = file.Write([]byte("\nON CONFLICT (certificate_hash) DO NOTHING"))
+			if err != nil {
+				log.Fatalf("failed writing to file %s: %v", fileName, err)
+			}
+
+			err = file.Close()
+			if err != nil {
+				log.Fatalf("failed closing file %s: %v", fileName, err)
+			}
+
+			fileIndex += 1
+			fileName := fmt.Sprintf("%s/part-%d.sql", certificatesOutputPath, fileIndex)
+			file, err = os.Create(fileName)
+			if err != nil {
+				log.Fatalf("failed opening file %s: %v", fileName, err)
+			}
+
+			size = 0
+			isFirstLine = true
+		}
+	}
+
+	_, err = file.Write([]byte("\nON CONFLICT (certificate_hash) DO NOTHING"))
+	if err != nil {
+		log.Fatalf("failed writing to file %s: %v", fileName, err)
+	}
+
+	err = file.Close()
+	if err != nil {
+		log.Fatalf("failed closing file %s: %v", fileName, err)
+	}
+
+	done <- true
+}
+
+func nodeWriter(
+	nodesOutputPath string,
+	nodes chan *crypto.Node,
+	done chan bool,
+) {
+	// write output
+	fileIndex := 0
+	fileName := fmt.Sprintf("%s/part-%d.sql", nodesOutputPath, fileIndex)
+	size := 0
+	isFirstLine := true
+
+	file, err := os.Create(fileName)
+	if err != nil {
+		log.Fatalf("failed opening file %s: %v", fileName, err)
+	}
+
+	for node := range nodes {
+		var n int
+		var err error
+
+		if isFirstLine {
+			// write insert statement
+			n, err = file.Write([]byte(INSERT_INTO_NODES_STR))
+			isFirstLine = false
+		} else {
+			// insert line break
+			n, err = file.Write([]byte(",\n"))
+		}
+		if err != nil {
+			log.Fatalf("failed writing to file %s: %v", fileName, err)
+		}
+		size += n
+
+		certificateHashes := make([]string, len(node.CertificateHashes))
+		for i, certificateHash := range node.SortedCertificateHashes() {
+			certificateHashes[i] = encodeHashForDatabase(certificateHash)
+		}
+		certificateHashArray := "ARRAY[" + strings.Join(certificateHashes, ",") + "]::bytea[]"
+
+		// write node row
+		n, err = file.Write(
+			[]byte(
+				fmt.Sprintf(
+					"(b'%s', %d, b'%s', %d, %d, %s, %s, %s, %s, %s)",
+					node.RawXYBitString.BitString().String(),
+					node.XYBitString>>(64-51),
+					node.RawZBitString.BitString().String(),
+					node.RawZBitString.BitString().ZMin,
+					// .ZMax() returns the exclusive maximum but the DB stores the inclusive maximum
+					node.RawZBitString.BitString().ZMax()-1,
+					encodeHashForDatabase(node.XYLeftChildHash(false)),
+					encodeHashForDatabase(node.XYRightChildHash(false)),
+					encodeHashForDatabase(node.ZLeftChildHash(false)),
+					encodeHashForDatabase(node.ZRightChildHash(false)),
+					certificateHashArray,
+				),
+			),
+		)
+		if err != nil {
+			log.Fatalf("failed writing to file %s: %v", fileName, err)
+		}
+		size += n
+
+		if size > MAX_FILE_SIZE {
+			err = file.Close()
+			if err != nil {
+				log.Fatalf("failed closing file %s: %v", fileName, err)
+			}
+
+			fileIndex += 1
+			fileName := fmt.Sprintf("%s/part-%d.sql", nodesOutputPath, fileIndex)
+			file, err = os.Create(fileName)
+			if err != nil {
+				log.Fatalf("failed opening file %s: %v", fileName, err)
+			}
+
+			size = 0
+			isFirstLine = true
+		}
+	}
+
+	err = file.Close()
+	if err != nil {
+		log.Fatalf("failed closing file %s: %v", fileName, err)
+	}
+
+	done <- true
+}
+
 func main() {
 	var inputPath string
 	var nodesOutputPath string
@@ -370,7 +544,16 @@ func main() {
 	num := int(pr.GetNumRows())
 	progressBar := progressbar.Default(int64(num), "locate certificates")
 
-	certificates := make([]*crypto.GeoCertificate, 0, num)
+	// setup channels for concurrently writing certificates to disk
+	certificates := make(chan *crypto.GeoCertificate, CERTIFICATE_WRITE_BUFFER)
+	certificatesFinishedWriting := make(chan bool)
+	// start writer routine
+	go certificateWriter(
+		certificatesOutputPath,
+		certificates,
+		certificatesFinishedWriting,
+	)
+
 	bitstringPairToNode := make(map[bitstring.RawBitStringPair]*crypto.Node)
 
 	for i := 0; i < num; i++ {
@@ -459,12 +642,16 @@ func main() {
 			}
 		}
 
-		certificates = append(certificates, certificate)
+		certificates <- certificate
 		progressBar.Add(1)
 	}
+	// tell certificate writer that it has all certificates
+	close(certificates)
 	progressBar.Exit()
 
 	// compute child hashes
+
+	// create slice of the map's keys
 	bitstrings := make([]bitstring.RawBitStringPair, 0, len(bitstringPairToNode))
 	for bitstringPair := range bitstringPairToNode {
 		bitstrings = append(bitstrings, bitstringPair)
@@ -475,6 +662,16 @@ func main() {
 		// must return true if i is smaller than j (smaller = has longer bit strings)
 		return ((bitstrings[i].XYBitStringLen > bitstrings[j].XYBitStringLen) || (bitstrings[i].XYBitStringLen == bitstrings[j].XYBitStringLen && bitstrings[i].ZBitStringLen > bitstrings[j].ZBitStringLen))
 	})
+
+	// setup channels for concurrently writing nodes to disk
+	nodes := make(chan *crypto.Node, NODE_WRITE_BUFFER)
+	nodesFinishedWriting := make(chan bool)
+	// start writer routine
+	go nodeWriter(
+		nodesOutputPath,
+		nodes,
+		nodesFinishedWriting,
+	)
 
 	progressBar = progressbar.Default(int64(len(bitstrings)), "compute hashes")
 
@@ -511,173 +708,18 @@ func main() {
 			node.SetZRightChildHash(zRightChildNode.Hash())
 		}
 
+		nodes <- node
 		progressBar.Add(1)
 	}
+	// tell the nodes writer no further data will arrive
+	close(nodes)
 	progressBar.Exit()
 
-	// write output
-	fileIndex := 0
-	fileName := fmt.Sprintf("%s/part-%d.sql", nodesOutputPath, fileIndex)
-	size := 0
-	isFirstLine := true
+	fmt.Printf("Waiting until all certificates are written to disk..\n")
+	<-certificatesFinishedWriting
+	fmt.Printf("Donen!\n")
 
-	file, err := os.Create(fileName)
-	if err != nil {
-		log.Fatalf("failed opening file %s: %v", fileName, err)
-	}
-
-	progressBar = progressbar.Default(int64(len(bitstrings)), "write nodes")
-	for _, bitstring := range bitstrings {
-		var n int
-		var err error
-
-		node := bitstringPairToNode[bitstring]
-
-		if isFirstLine {
-			// write insert statement
-			n, err = file.Write([]byte(INSERT_INTO_NODES_STR))
-			isFirstLine = false
-		} else {
-			// insert line break
-			n, err = file.Write([]byte(",\n"))
-		}
-		if err != nil {
-			log.Fatalf("failed writing to file %s: %v", fileName, err)
-		}
-		size += n
-
-		certificateHashes := make([]string, len(node.CertificateHashes))
-		for i, certificateHash := range node.SortedCertificateHashes() {
-			certificateHashes[i] = encodeHashForDatabase(certificateHash)
-		}
-		certificateHashArray := "ARRAY[" + strings.Join(certificateHashes, ",") + "]::bytea[]"
-
-		// write node row
-		n, err = file.Write(
-			[]byte(
-				fmt.Sprintf(
-					"(b'%s', %d, b'%s', %d, %d, %s, %s, %s, %s, %s)",
-					node.RawXYBitString.BitString().String(),
-					node.XYBitString>>(64-51),
-					node.RawZBitString.BitString().String(),
-					node.RawZBitString.BitString().ZMin,
-					// .ZMax() returns the exclusive maximum but the DB stores the inclusive maximum
-					node.RawZBitString.BitString().ZMax()-1,
-					encodeHashForDatabase(node.XYLeftChildHash(false)),
-					encodeHashForDatabase(node.XYRightChildHash(false)),
-					encodeHashForDatabase(node.ZLeftChildHash(false)),
-					encodeHashForDatabase(node.ZRightChildHash(false)),
-					certificateHashArray,
-				),
-			),
-		)
-		if err != nil {
-			log.Fatalf("failed writing to file %s: %v", fileName, err)
-		}
-		size += n
-
-		if size > MAX_FILE_SIZE {
-			err = file.Close()
-			if err != nil {
-				log.Fatalf("failed closing file %s: %v", fileName, err)
-			}
-
-			fileIndex += 1
-			fileName := fmt.Sprintf("%s/part-%d.sql", nodesOutputPath, fileIndex)
-			file, err = os.Create(fileName)
-			if err != nil {
-				log.Fatalf("failed opening file %s: %v", fileName, err)
-			}
-
-			size = 0
-			isFirstLine = true
-		}
-
-		progressBar.Add(1)
-	}
-	progressBar.Exit()
-
-	err = file.Close()
-	if err != nil {
-		log.Fatalf("failed closing file %s: %v", fileName, err)
-	}
-
-	fileIndex = 0
-	fileName = fmt.Sprintf("%s/part-%d.sql", certificatesOutputPath, fileIndex)
-	size = 0
-	isFirstLine = true
-	file, err = os.Create(fileName)
-	if err != nil {
-		log.Fatalf("failed opening file %s: %v", fileName, err)
-	}
-
-	progressBar = progressbar.Default(int64(len(certificates)), "write certificates")
-	for _, certificate := range certificates {
-		var n int
-		var err error
-
-		if isFirstLine {
-			// write insert statement
-			n, err = file.Write([]byte(INSERT_INTO_CERTS_STR))
-			isFirstLine = false
-		} else {
-			// insert line break
-			n, err = file.Write([]byte(",\n"))
-		}
-		if err != nil {
-			log.Fatalf("failed writing to file %s: %v", fileName, err)
-		}
-		size += n
-
-		// write certificate row
-		n, err = file.Write(
-			[]byte(
-				fmt.Sprintf(
-					"(%s, %s, '%s')",
-					encodeHashForDatabase(certificate.Hash()),
-					encodeHashForDatabase(certificate.MarshaledCert),
-					certificate.NotValidAfter,
-				),
-			),
-		)
-		if err != nil {
-			log.Fatalf("failed writing to file %s: %v", fileName, err)
-		}
-		size += n
-
-		if size > MAX_FILE_SIZE {
-			_, err = file.Write([]byte("\nON CONFLICT (certificate_hash) DO NOTHING"))
-			if err != nil {
-				log.Fatalf("failed writing to file %s: %v", fileName, err)
-			}
-
-			err = file.Close()
-			if err != nil {
-				log.Fatalf("failed closing file %s: %v", fileName, err)
-			}
-
-			fileIndex += 1
-			fileName := fmt.Sprintf("%s/part-%d.sql", certificatesOutputPath, fileIndex)
-			file, err = os.Create(fileName)
-			if err != nil {
-				log.Fatalf("failed opening file %s: %v", fileName, err)
-			}
-
-			size = 0
-			isFirstLine = true
-		}
-
-		progressBar.Add(1)
-	}
-	progressBar.Exit()
-
-	_, err = file.Write([]byte("\nON CONFLICT (certificate_hash) DO NOTHING"))
-	if err != nil {
-		log.Fatalf("failed writing to file %s: %v", fileName, err)
-	}
-
-	err = file.Close()
-	if err != nil {
-		log.Fatalf("failed closing file %s: %v", fileName, err)
-	}
+	fmt.Printf("Waiting until all nodes are written to disk..\n")
+	<-nodesFinishedWriting
+	fmt.Printf("Donen!\n")
 }
