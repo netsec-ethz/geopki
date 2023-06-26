@@ -24,7 +24,6 @@ import (
 	"geopki/pkg/database"
 
 	"github.com/gin-contrib/cors"
-	"github.com/gin-contrib/gzip"
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
@@ -274,7 +273,8 @@ func main() {
 
 	// setup middlewares
 	r.Use(gin.Recovery())
-	r.Use(gzip.Gzip(gzip.DefaultCompression))
+	// do not use compression, lowers the throughput
+	// r.Use(gzip.Gzip(gzip.DefaultCompression))
 	r.Use(cors.New(cors.Config{
 		AllowAllOrigins:  true,
 		AllowMethods:     []string{"GET", "POST", "HEAD"},
