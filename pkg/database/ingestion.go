@@ -213,6 +213,7 @@ func AddCertificates(
 // adds new certificates and removes expired ones
 // returns an SMH *WITHOUT* signature, call .Sign() on it
 // and insert the result into the consistency tree
+// pass time.Time{} do not remove any certificates
 func UpdateTree(
 	newCertificates []*crypto.GeoCertificate,
 	fGrow float64,
@@ -222,10 +223,18 @@ func UpdateTree(
 	ctx context.Context,
 ) (*crypto.SignedMapHead, error) {
 
-	// remove certificates & compute the set of bit strings / nodes that must change
-	certificatesToRemove, err := RemoveExpiredCertificates(t, transaction, ctx)
-	if err != nil {
-		return nil, err
+	var certificatesToRemove map[bitstring.RawBitStringPair]([]crypto.SHA256Hash)
+	var err error
+
+	if t.IsZero() {
+		// no certificates could have expired, skip removal
+		certificatesToRemove = make(map[bitstring.RawBitStringPair]([]crypto.SHA256Hash))
+	} else {
+		// remove certificates & compute the set of bit strings / nodes that must change
+		certificatesToRemove, err = RemoveExpiredCertificates(t, transaction, ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// add certificates & compute the set of bit strings / nodes that must change
@@ -272,22 +281,16 @@ func UpdateTree(
 		// use null for the hashes if inserted new since it can only be a new sparse leaf
 		// if it is new
 		query := fmt.Sprintf(
-			"INSERT INTO nodes(bit_string_51,bit_string_51_int,bit_string_15,altitude_min,altitude_max,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes) "+
-				"VALUES(b'%s',%d,b'%s',%d,LEAST(%d,32767),NULL,NULL,NULL,NULL,%s) "+
+			"INSERT INTO nodes(bit_string_51,bit_string_15,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes) "+
+				"VALUES(b'%s',b'%s',NULL,NULL,NULL,NULL,%s) "+
 				"ON CONFLICT(bit_string_51,bit_string_15) DO UPDATE SET certificate_hashes=%s",
-			// 1 = xy bit string
+			// xy bit string
 			bitStringPair.RawXYBitString.BitString().String(),
-			// 2 = integer xy bit string = integer padded with zeros to the right until 51 bits
-			bitStringPair.RawXYBitString.XYBitString>>(64-51),
-			// 3 = y bit string
+			// z bit string
 			bitStringPair.RawZBitString.BitString().String(),
-			// 4 = min altitude
-			bitStringPair.RawZBitString.BitString().ZMin,
-			// 5 = max altitude
-			bitStringPair.RawZBitString.BitString().ZMax(),
-			// 6 = set of new certificates
+			// set of new certificates
 			bytesSliceToPostgresArray(addSet),
-			// 7 = for conflict update statement
+			// for conflict update statement
 			hashes,
 		)
 
@@ -324,15 +327,11 @@ func UpdateTree(
 		// try to insert bit strings, do nothing if they are already there
 		// can just use NULL for the hashes since they will be recomputed right after
 		query := fmt.Sprintf(
-			"INSERT INTO nodes(bit_string_51,bit_string_51_int,bit_string_15,altitude_min,altitude_max,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes) "+
-				"VALUES (b'%s',%d,b'%s',%d,LEAST(%d,32767),NULL,NULL,NULL,NULL,ARRAY[]::bytea[]) "+
+			"INSERT INTO nodes(bit_string_51,bit_string_15,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes) "+
+				"VALUES (b'%s',b'%s',NULL,NULL,NULL,NULL,ARRAY[]::bytea[]) "+
 				"ON CONFLICT DO NOTHING",
 			bitStringPair.RawXYBitString.BitString().String(),
-			// integer padded with zeros to the right until 51 bits
-			bitStringPair.RawXYBitString.XYBitString>>(64-51),
 			bitStringPair.RawZBitString.BitString().String(),
-			bitStringPair.RawZBitString.BitString().ZMin,
-			bitStringPair.RawZBitString.BitString().ZMax(),
 		)
 
 		_, err := transaction.Exec(ctx, query)

@@ -24,7 +24,7 @@ const (
 	CERTIFICATE_WRITE_BUFFER = 1000
 	NODE_WRITE_BUFFER        = 1000
 	MAX_FILE_SIZE            = 300 * 1000 * 1000 // 300 MB
-	INSERT_INTO_NODES_STR    = "INSERT INTO nodes(bit_string_51,bit_string_51_int,bit_string_15,altitude_min,altitude_max,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes) VALUES\n"
+	INSERT_INTO_NODES_STR    = "INSERT INTO nodes(bit_string_51,bit_string_15,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes) VALUES\n"
 	INSERT_INTO_CERTS_STR    = "INSERT INTO certificates(certificate_hash,certificate,not_valid_after) VALUES\n"
 )
 
@@ -462,13 +462,9 @@ func nodeWriter(
 		n, err = file.Write(
 			[]byte(
 				fmt.Sprintf(
-					"(b'%s', %d, b'%s', %d, %d, %s, %s, %s, %s, %s)",
+					"(b'%s', b'%s', %s, %s, %s, %s, %s)",
 					node.RawXYBitString.BitString().String(),
-					node.XYBitString>>(64-51),
 					node.RawZBitString.BitString().String(),
-					node.RawZBitString.BitString().ZMin,
-					// .ZMax() returns the exclusive maximum but the DB stores the inclusive maximum
-					node.RawZBitString.BitString().ZMax()-1,
 					encodeHashForDatabase(node.XYLeftChildHash(false)),
 					encodeHashForDatabase(node.XYRightChildHash(false)),
 					encodeHashForDatabase(node.ZLeftChildHash(false)),

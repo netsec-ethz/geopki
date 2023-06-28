@@ -5,10 +5,10 @@
 CREATE TABLE IF NOT EXISTS nodes
 (
     bit_string_51 bit varying(51) NOT NULL,
-    bit_string_51_int bigint NOT NULL,
+    bit_string_51_int GENERATED ALWAYS AS rpad(SUBSTRING(bit_string_51 FROM 1 FOR 51)::text,51,'0')::bit(51)::bigint STORED,
     bit_string_15 bit varying(15) NOT NULL,
-    altitude_min smallint NOT NULL DEFAULT 0,
-    altitude_max smallint NOT NULL DEFAULT 32767,
+    altitude_min GENERATED ALWAYS AS min_altitude_of_bit_string(bit_string_15) STORED,
+    altitude_max GENERATED ALWAYS AS max_altitude_of_bit_string(bit_string_15) STORED,
     xy_left_child_hash bytea,
     xy_right_child_hash bytea,
     z_left_child_hash bytea,
@@ -25,6 +25,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS bit_string_bit_idx
 CREATE INDEX IF NOT EXISTS bit_string_integer_idx
     ON nodes USING btree
     (bit_string_51_int ASC NULLS LAST);
+
+CREATE INDEX bit_string_len ON nodes (LENGTH(bit_string_51), LENGTH(bit_string_15));
 
 ALTER TABLE IF EXISTS nodes
     CLUSTER ON bit_string_integer_idx;

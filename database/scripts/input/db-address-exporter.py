@@ -45,10 +45,7 @@ INSERT_INTO_NODES_BITSTRING_INT_Z_SUBTREES_STR = (
     f"INSERT INTO nodes (" +
     ",".join([
         "bit_string_51",
-        "bit_string_51_int",
         "bit_string_15",
-        "altitude_min",
-        "altitude_max",
         "xy_left_child_hash",
         "xy_right_child_hash",
         "z_left_child_hash",
@@ -619,7 +616,7 @@ def main(
             altitude_max = int(bit_string_tuple[1].ljust(15, "1"), 2) + 1
 
             size += f.write(
-                f"(b'{bit_string_tuple[0]}', {bit_string_51_int}, b'{bit_string_tuple[1]}', {altitude_min}, {altitude_max}, {xy_left_child_hash}, {xy_right_child_hash}, {z_left_child_hash}, {z_right_child_hash}, {certificate_hash_array})"
+                f"(b'{bit_string_tuple[0]}', b'{bit_string_tuple[1]}', {xy_left_child_hash}, {xy_right_child_hash}, {z_left_child_hash}, {z_right_child_hash}, {certificate_hash_array})"
             )
         else:
             size += f.write(
