@@ -854,6 +854,8 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		return
 	}
 
+	defer tx.Rollback(c.Request.Context())
+
 	smh, err := database.UpdateTree(
 		[]*crypto.GeoCertificate{cert},
 		F_GROW,
@@ -863,7 +865,6 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		[]crypto.CTLogServer{},
 		c.Request.Context(),
 	)
-	defer tx.Rollback(c.Request.Context())
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed updating SMT: %v\n", err)
