@@ -13,8 +13,8 @@ import (
 )
 
 type CTLogServer struct {
-	// the http(-s) url of the log
-	Url string
+	// the id of the log
+	LogId []byte
 
 	// the latest version of the log that is covered
 	SignedTreeHead []byte
@@ -49,7 +49,7 @@ func (smh *MapHead) TBSBytes() []byte {
 	tbsBytes = append(tbsBytes, timestampBytes...)
 
 	for _, coveredCTLogServers := range smh.CoveredCTLogServers {
-		tbsBytes = append(tbsBytes, []byte(coveredCTLogServers.Url)...)
+		tbsBytes = append(tbsBytes, coveredCTLogServers.LogId...)
 		tbsBytes = append(tbsBytes, coveredCTLogServers.SignedTreeHead...)
 	}
 
@@ -77,7 +77,7 @@ func (smh *SignedMapHead) Proto() *comm.SignedMapHead {
 	coveredCTLogServers := make([]*comm.CTLogServer, len(smh.CoveredCTLogServers))
 	for i, coveredCTLogServer := range smh.CoveredCTLogServers {
 		coveredCTLogServers[i] = &comm.CTLogServer{
-			Url:            coveredCTLogServer.Url,
+			LogId:          coveredCTLogServer.LogId,
 			SignedTreeHead: coveredCTLogServer.SignedTreeHead,
 		}
 	}
@@ -100,7 +100,7 @@ func (smh *MapHead) String() string {
 	s += fmt.Sprintf("%s at %d\n", base64.StdEncoding.EncodeToString(smh.RootHash), smh.Timestamp)
 
 	for _, coveredCTLogServers := range smh.CoveredCTLogServers {
-		s += fmt.Sprintf("    %s, %s\n", coveredCTLogServers.Url, base64.StdEncoding.EncodeToString(coveredCTLogServers.SignedTreeHead))
+		s += fmt.Sprintf("    %s, %s\n", base64.StdEncoding.EncodeToString(coveredCTLogServers.LogId), base64.StdEncoding.EncodeToString(coveredCTLogServers.SignedTreeHead))
 	}
 
 	return s
@@ -112,7 +112,7 @@ func NewSMHFromCommSMH(smh *comm.SignedMapHead) *SignedMapHead {
 	coveredCTLogServers := make([]CTLogServer, len(smh.GetCoveredCTLogServers()))
 	for i, coveredCTLogServer := range smh.GetCoveredCTLogServers() {
 		coveredCTLogServers[i] = CTLogServer{
-			Url:            coveredCTLogServer.GetUrl(),
+			LogId:          coveredCTLogServer.GetLogId(),
 			SignedTreeHead: coveredCTLogServer.GetSignedTreeHead(),
 		}
 	}

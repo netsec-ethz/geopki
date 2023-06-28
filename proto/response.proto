@@ -4,7 +4,7 @@ package geopki;
 option go_package = "pkg/comm";
 
 message CTLogServer {
-  string Url = 1;
+  bytes LogId = 1;
   bytes SignedTreeHead = 2;
 }
 
