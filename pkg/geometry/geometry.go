@@ -6,6 +6,8 @@ import (
 	"geopki/pkg/crypto"
 	"log"
 	"math"
+	"strings"
+	"sync"
 
 	"github.com/golang/geo/s2"
 	"github.com/lukeroth/gdal"
@@ -103,6 +105,15 @@ func BitStringToGdalGeometry(bitString *bitstring.XYBitString) *gdal.Geometry {
 	return LoopToGdalGeometry(bitString.Loop())
 }
 
+var stringBuilderPool = sync.Pool{
+	New: func() any {
+		// The Pool's New function should generally only return pointer
+		// types, since a pointer can be put into the return interface
+		// value without an allocation:
+		return new(strings.Builder)
+	},
+}
+
 func CertificateToGeometries(area *crypto.GeoCertArea) ([]bitstring.Geometry2D, error) {
 	if area.Type != "MultiPolygon" {
 		return nil, fmt.Errorf("area.Type must be equal to 'MultiPolygon'")
@@ -114,17 +125,23 @@ func CertificateToGeometries(area *crypto.GeoCertArea) ([]bitstring.Geometry2D, 
 	geometries := make([]bitstring.Geometry2D, len(exteriorRing))
 	for i, polygon := range exteriorRing {
 
-		wkt := "POLYGON (("
+		wkt := stringBuilderPool.Get().(*strings.Builder)
+		defer func() {
+			wkt.Reset()
+			stringBuilderPool.Put(wkt)
+		}()
+
+		wkt.WriteString("POLYGON ((")
 		// array of ccw order points of the loop
 		for i, pt := range polygon {
 			if i > 0 {
-				wkt += ","
+				wkt.WriteString(",")
 			}
-			wkt += fmt.Sprintf("%f %f", pt[0], pt[1])
+			wkt.WriteString(fmt.Sprintf("%f %f", pt[0], pt[1]))
 		}
-		wkt += "))"
+		wkt.WriteString("))")
 
-		geometry, err := gdal.CreateFromWKT(wkt, WGS84)
+		geometry, err := gdal.CreateFromWKT(wkt.String(), WGS84)
 		if err != nil {
 			println(wkt)
 			return nil, err
