@@ -696,7 +696,7 @@ func PolygonsTo2DBitStrings(polygons []Geometry2D, fGrow float64) ([]RawXYBitStr
 		intersectingAreas := mapset.NewSet[RawXYBitString]()
 
 		// perform the BFS
-		visited := mapset.NewSet[RawXYBitString]()
+		visited := make(map[RawXYBitString]struct{})
 		q := make([]*XYBitString, 0, 1)
 
 		initialBitString, err := polygon.InitialXYBitString(fGrow)
@@ -713,11 +713,12 @@ func PolygonsTo2DBitStrings(polygons []Geometry2D, fGrow float64) ([]RawXYBitStr
 
 			xyBitStringPair := voxel.RawXYBitStringPair()
 
-			if visited.Contains(xyBitStringPair) {
+			_, didVisited := visited[xyBitStringPair]
+			if didVisited {
 				continue
 			}
 			// mark as visited
-			visited.Add(xyBitStringPair)
+			visited[xyBitStringPair] = struct{}{}
 
 			// check for intersection
 			if !(polygon.Intersects(voxel)) {
