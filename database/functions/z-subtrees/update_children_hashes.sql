@@ -54,25 +54,25 @@ IF LENGTH(input_bit_string_15) = 0 THEN
     FROM
       nodes
       -- left child in the 2D tree
-      FULL OUTER JOIN nodes as xy_left_child
+      LEFT JOIN nodes as xy_left_child
         ON (
           xy_left_child.bit_string_51 = nodes.bit_string_51 || b'0' AND
           xy_left_child.bit_string_15 = nodes.bit_string_15  -- b''
         )
       -- right child in the 2D tree
-      FULL OUTER JOIN nodes as xy_right_child
+      LEFT JOIN nodes as xy_right_child
         ON (
           xy_right_child.bit_string_51 = nodes.bit_string_51 || b'1' AND
           xy_right_child.bit_string_15 = nodes.bit_string_15  -- b''
         )
       -- left child in the z subtree
-      FULL OUTER JOIN nodes as z_left_child
+      LEFT JOIN nodes as z_left_child
         ON (
           z_left_child.bit_string_51 = nodes.bit_string_51 AND
           z_left_child.bit_string_15 = nodes.bit_string_15 || b'0'
         )
       -- right child in the z subtree
-      FULL OUTER JOIN nodes as z_right_child
+      LEFT JOIN nodes as z_right_child
         ON (
           z_right_child.bit_string_51 = nodes.bit_string_51 AND
           z_right_child.bit_string_15 = nodes.bit_string_15 || b'1'
@@ -122,13 +122,13 @@ ELSE
     FROM
       nodes
       -- left child in the z subtree
-      FULL OUTER JOIN nodes as z_left_child
+      LEFT JOIN nodes as z_left_child
         ON (
           z_left_child.bit_string_51 = nodes.bit_string_51 AND
           z_left_child.bit_string_15 = nodes.bit_string_15 || b'0'
         )
       -- right child in the z subtree
-      FULL OUTER JOIN nodes as z_right_child
+      LEFT JOIN nodes as z_right_child
         ON (
           z_right_child.bit_string_51 = nodes.bit_string_51 AND
           z_right_child.bit_string_15 = nodes.bit_string_15 || b'1'

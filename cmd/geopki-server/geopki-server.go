@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -289,6 +290,7 @@ func main() {
 	r.GET("/v1/get-entries", env.getEntries)
 	r.GET("/v1/get-entry-and-proof", env.getEntryAndProof)
 	r.POST("/v1/insert", env.postInsert)
+	r.POST("/v1/recompute-hashes", env.getRecomputeHashes)
 
 	// install demo endpoint
 	r.Static("/demo", "./demo/geopki-web-client")
@@ -814,6 +816,11 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		}
 	}
 
+	// by default the hashes and smh is updated, can be turned off for partial insertions
+	// such as for initially filling the DB
+	isPartialUpdate := c.DefaultQuery("is-partial", "none") != "none"
+	removeExpired := c.DefaultQuery("remove-expired", "none") != "none"
+
 	// read request body
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -824,11 +831,12 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		return
 	}
 
-	cert, err := crypto.UnmarshalGeoCertificate(body)
+	var certificates []*crypto.GeoCertificate
+	err = json.Unmarshal(body, &certificates)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf(
-				"Supplied invalid certificate, %v",
+				"Supplied invalid certificates, %v",
 				err,
 			),
 		})
@@ -843,6 +851,9 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		return
 	}
 
+	// unlock after returning
+	defer env.updateLock.Unlock()
+
 	tx, err := env.dbPool.BeginTx(c.Request.Context(), pgx.TxOptions{
 		IsoLevel: pgx.Serializable,
 	})
@@ -856,13 +867,24 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 
 	defer tx.Rollback(c.Request.Context())
 
-	smh, err := database.UpdateTree(
-		[]*crypto.GeoCertificate{cert},
+	var t time.Time
+	if removeExpired {
+		// remove all certificates expired before the current time
+		t = time.Now()
+	} else {
+		// remove no certificates, only add new ones, is faster
+		t = time.Time{}
+	}
+
+	err = database.UpdateTree(
+		certificates,
 		F_GROW,
-		time.Now(),
+		t,
 		tx,
 		// TODO: set the set of covered log servers for instance by storing that in the db and retrieving it here
 		[]crypto.CTLogServer{},
+		// update hashes if it is *not* a partial update
+		!isPartialUpdate,
 		c.Request.Context(),
 	)
 
@@ -874,6 +896,14 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		return
 	}
 
+	smh, err := env.updateSMH(tx, c.Request.Context())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "updating SMH failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "updating SMH failed, check the server logs",
+		})
+	}
+
 	err = tx.Commit(c.Request.Context())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "commiting transaction failed: %v\n", err)
@@ -883,35 +913,161 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		return
 	}
 
-	// sign SMH
-	smh.Sign(env.privateKey)
+	if isPartialUpdate {
+		// for partial updates no new SMH / SCH is created
+		c.Data(
+			http.StatusOK,
+			"application/json",
+			[]byte("{\"success\":true}"),
+		)
 
-	// insert it into the consistency tree
-	sch, err := env.consistencyClient.AppendSignedMapHead(c.Request.Context(), smh)
+		return
+	}
+
+	// update sch if transaction committed
+	sch, err := env.updateSCH(smh, c.Request.Context())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed updating the consistency tree: %v\n", err)
+		fmt.Fprintf(os.Stderr, "updating SCH failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "updating consistency tree failed, check the server logs",
+			"error": "updating SCH failed, check the server logs",
+		})
+	}
+
+	c.Data(
+		http.StatusOK,
+		"application/json",
+		[]byte(fmt.Sprintf("{\"success\":true, \"new_tree_size\":%d}", sch.Size)),
+	)
+}
+
+func (env *EndpointHandlerEnv) getRecomputeHashes(c *gin.Context) {
+	key := c.DefaultQuery("key", "???")
+	keyHash := sha256.Sum256([]byte(key))
+
+	// compare hashes, avoids timing side channel since the strings are of the same length
+	if !bytes.Equal(keyHash[:], env.certificateInsertionKeyHash) {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "invalid key",
 		})
 		return
 	}
 
-	proof, err := env.consistencyClient.ProveSignedMapHeadInclusion(c.Request.Context(), sch.Size, smh)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "obtaining a proof of inclusion for consistency tree failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "obtaining a proof of inclusion for consistency tree failed, check the server logs",
+	didLock := env.updateLock.TryLock()
+	if !didLock {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Update is already in progress, try again later",
 		})
 		return
+	}
+
+	// unlock after returning
+	defer env.updateLock.Unlock()
+
+	tx, err := env.dbPool.BeginTx(c.Request.Context(), pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "starting transaction failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "starting transaction failed, check the server logs",
+		})
+		return
+	}
+
+	defer tx.Rollback(c.Request.Context())
+
+	// re-compute all hashes
+	_, err = tx.Exec(c.Request.Context(), "SELECT compute_hashes()")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "updating hashes failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "updating hashes failed, check the server logs",
+		})
+	}
+
+	smh, err := env.updateSMH(tx, c.Request.Context())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "updating SMH failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "updating SMH failed, check the server logs",
+		})
+	}
+
+	err = tx.Commit(c.Request.Context())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "commiting transaction failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "commiting transaction failed, check the server logs",
+		})
+		return
+	}
+
+	// update sch if transaction committed
+	sch, err := env.updateSCH(smh, c.Request.Context())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "updating SCH failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "updating SCH failed, check the server logs",
+		})
+	}
+
+	c.Data(
+		http.StatusOK,
+		"application/json",
+		[]byte(fmt.Sprintf("{\"success\":true, \"new_tree_size\":%d}", sch.Size)),
+	)
+}
+
+func (env *EndpointHandlerEnv) updateSMH(
+	tx pgx.Tx,
+	ctx context.Context,
+) (
+	*crypto.SignedMapHead,
+	error,
+) {
+
+	rootHash, err := database.QueryRootHash(tx, ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not fetch root hash: %v", err)
+	}
+
+	// create new SMH *WITHOUT* signature
+	smh := &crypto.SignedMapHead{
+		MapHead: crypto.MapHead{
+			RootHash:  rootHash,
+			Timestamp: uint64(time.Now().UnixNano()),
+			// TODO: set the set of covered log servers for instance by storing that in the db and retrieving it here
+			CoveredCTLogServers: []crypto.CTLogServer{},
+		},
+	}
+
+	// sign SMH
+	smh.Sign(env.privateKey)
+
+	return smh, nil
+}
+
+func (env *EndpointHandlerEnv) updateSCH(
+	smh *crypto.SignedMapHead,
+	ctx context.Context,
+) (
+	*crypto.SignedConsistencyHead,
+	error,
+) {
+	// insert it into the consistency tree
+	sch, err := env.consistencyClient.AppendSignedMapHead(ctx, smh)
+	if err != nil {
+		return nil, fmt.Errorf("failed updating the consistency tree: %v", err)
+	}
+
+	proof, err := env.consistencyClient.ProveSignedMapHeadInclusion(ctx, sch.Size, smh)
+	if err != nil {
+		return nil, fmt.Errorf("obtaining a proof of inclusion for consistency tree failed: %v", err)
 	}
 
 	marshaledProof, err := proto.Marshal(proof)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed marshaling inclusion proof: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed marshaling inclusion proof, check the server logs",
-		})
-		return
+		return nil, fmt.Errorf("failed marshaling inclusion proof: %v", err)
 	}
 
 	// update cached smh and sch, acquire lock to ensure all reads are consistent
@@ -920,11 +1076,6 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 	env.currentSignedConsistencyHead = sch
 	env.schInclusionProof = marshaledProof
 	env.cacheLock.Unlock()
-	env.updateLock.Unlock()
 
-	c.Data(
-		http.StatusOK,
-		"application/json",
-		[]byte(fmt.Sprintf("{\"success\":true, \"new_tree_size\":%d}", sch.Size)),
-	)
+	return sch, nil
 }

@@ -220,8 +220,9 @@ func UpdateTree(
 	t time.Time,
 	transaction pgx.Tx,
 	coveredCTLogServers []crypto.CTLogServer,
+	updateHashes bool,
 	ctx context.Context,
-) (*crypto.SignedMapHead, error) {
+) error {
 
 	var certificatesToRemove map[bitstring.RawBitStringPair]([]crypto.SHA256Hash)
 	var err error
@@ -233,14 +234,14 @@ func UpdateTree(
 		// remove certificates & compute the set of bit strings / nodes that must change
 		certificatesToRemove, err = RemoveExpiredCertificates(t, transaction, ctx)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	// add certificates & compute the set of bit strings / nodes that must change
 	certificatesToAdd, err := AddCertificates(newCertificates, fGrow, transaction, ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	changeSet := mapset.NewSet[bitstring.RawBitStringPair]()
@@ -297,7 +298,7 @@ func UpdateTree(
 		// execute the row update
 		_, err := transaction.Exec(ctx, query)
 		if err != nil {
-			return nil, fmt.Errorf("failed updating certificate hashes: %v", err)
+			return fmt.Errorf("failed updating certificate hashes: %v", err)
 		}
 	}
 
@@ -336,38 +337,26 @@ func UpdateTree(
 
 		_, err := transaction.Exec(ctx, query)
 		if err != nil {
-			return nil, fmt.Errorf("failed inserting possibly non-existent ancestor: %v", err)
+			return fmt.Errorf("failed inserting possibly non-existent ancestor: %v", err)
 		}
 
-		// requires an 'update_children_hashes' function to be defined
-		query = fmt.Sprintf(
-			"SELECT update_children_hashes(b'%s', b'%s')",
-			bitStringPair.RawXYBitString.BitString().String(),
-			bitStringPair.RawZBitString.BitString().String(),
-		)
+		if updateHashes {
 
-		// execute the row update
-		_, err = transaction.Exec(ctx, query)
-		if err != nil {
-			return nil, fmt.Errorf("failed updating children hashes for ancestor: %v", err)
+			// requires an 'update_children_hashes' function to be defined
+			query = fmt.Sprintf(
+				"SELECT update_children_hashes(b'%s', b'%s')",
+				bitStringPair.RawXYBitString.BitString().String(),
+				bitStringPair.RawZBitString.BitString().String(),
+			)
+
+			// execute the row update
+			_, err = transaction.Exec(ctx, query)
+			if err != nil {
+				return fmt.Errorf("failed updating children hashes for ancestor: %v", err)
+			}
+
 		}
 	}
 
-	// updated database, create new SMH and SCH
-
-	rootHash, err := QueryRootHash(transaction, ctx)
-	if err != nil {
-		return nil, nil
-	}
-
-	// create new SMH *WITHOUT* signature
-	smh := &crypto.SignedMapHead{
-		MapHead: crypto.MapHead{
-			RootHash:            rootHash,
-			Timestamp:           uint64(time.Now().UnixNano()),
-			CoveredCTLogServers: coveredCTLogServers,
-		},
-	}
-
-	return smh, nil
+	return nil
 }
