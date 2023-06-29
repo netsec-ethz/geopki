@@ -926,12 +926,17 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		return
 	}
 
-	smh, err := env.updateSMH(tx, c.Request.Context())
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "updating SMH failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "updating SMH failed, check the server logs",
-		})
+	var smh *crypto.SignedMapHead
+
+	if !isPartialUpdate {
+		// only need a new smh if it is a full update
+		smh, err = env.updateSMH(tx, c.Request.Context())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "updating SMH failed: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "updating SMH failed, check the server logs",
+			})
+		}
 	}
 
 	err = tx.Commit(c.Request.Context())
