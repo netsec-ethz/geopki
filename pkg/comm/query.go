@@ -30,12 +30,12 @@ type Query struct {
 // generalized approximator interface which allows any 2d geometry to be returned
 // allows the wasm client to use S2 and the rest GDAL for computing polygon intersections
 type CircleApproximator interface {
-	ApproximateCircle(longitude, latitude float64, radiusM uint8) bitstring.Geometry2D
+	ApproximateCircle(longitude, latitude float64, radiusM uint8) (bitstring.Geometry2D, error)
 }
 
 type S2CircleApproximator struct{}
 
-func (s *S2CircleApproximator) ApproximateCircle(longitude, latitude float64, radiusM uint8) bitstring.Geometry2D {
+func (s *S2CircleApproximator) ApproximateCircle(longitude, latitude float64, radiusM uint8) (bitstring.Geometry2D, error) {
 	sphere := bitstring.ApproximateCircle(
 		longitude,
 		latitude,
@@ -46,7 +46,7 @@ func (s *S2CircleApproximator) ApproximateCircle(longitude, latitude float64, ra
 
 	return &bitstring.S2Geometry2D{
 		Loop: sphere,
-	}
+	}, nil
 }
 
 func min(a, b int64) int64 {
@@ -95,7 +95,10 @@ func NewQuery(
 		return nil, fmt.Errorf("invalid radius value, must be smaller than %d", int(math.Floor(float64(255/RADIUS_ERROR_FACTOR))))
 	}
 
-	sphere := circleApproximator.ApproximateCircle(longitude, latitude, uint8(radius))
+	sphere, err := circleApproximator.ApproximateCircle(longitude, latitude, uint8(radius))
+	if err != nil {
+		return nil, fmt.Errorf("failed approximating circle: %v", err)
+	}
 
 	bitStrings, err := bitstring.PolygonsTo2DBitStrings(
 		[]bitstring.Geometry2D{sphere},

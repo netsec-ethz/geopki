@@ -18,12 +18,16 @@ type GdalGeometry2D struct {
 	Geometry *gdal.Geometry
 }
 
-func (g *GdalGeometry2D) Intersects(xyBitstring *bitstring.XYBitString) bool {
-	geom := BitStringToGdalGeometry(xyBitstring)
+func (g *GdalGeometry2D) Intersects(xyBitstring *bitstring.XYBitString) (bool, error) {
+	geom, err := BitStringToGdalGeometry(xyBitstring)
+	if err != nil {
+		return false, err
+	}
+
 	r := g.Geometry.Intersects(*geom)
 
 	geom.Destroy()
-	return r
+	return r, nil
 }
 
 func (g *GdalGeometry2D) InitialXYBitString(fGrow float64) (*bitstring.XYBitString, error) {
@@ -43,7 +47,11 @@ func (g *GdalGeometry2D) InitialXYBitString(fGrow float64) (*bitstring.XYBitStri
 	// grow initial bitstring to 'maxArea'
 	maxArea := polygon.Area() * fGrow
 
-	initialGeometry := BitStringToGdalGeometry(initialBitString)
+	initialGeometry, err := BitStringToGdalGeometry(initialBitString)
+	if err != nil {
+		return nil, fmt.Errorf("could not convert bit string to gdal geometry: %v", err)
+	}
+
 	currentArea := initialGeometry.Area()
 	initialGeometry.Destroy()
 
@@ -69,7 +77,7 @@ func (g *GdalGeometry2D) Destroy() {
 
 type GdalCircleApproximator struct{}
 
-func (s *GdalCircleApproximator) ApproximateCircle(longitude, latitude float64, radiusM uint8) bitstring.Geometry2D {
+func (s *GdalCircleApproximator) ApproximateCircle(longitude, latitude float64, radiusM uint8) (bitstring.Geometry2D, error) {
 	sphere := bitstring.ApproximateCircle(
 		longitude,
 		latitude,
@@ -78,9 +86,14 @@ func (s *GdalCircleApproximator) ApproximateCircle(longitude, latitude float64, 
 		16,
 	)
 
-	return &GdalGeometry2D{
-		Geometry: LoopToGdalGeometry(sphere),
+	g, err := LoopToGdalGeometry(sphere)
+	if err != nil {
+		return nil, fmt.Errorf("could not convert bit string to gdal geometry: %v", err)
 	}
+
+	return &GdalGeometry2D{
+		Geometry: g,
+	}, nil
 }
 
 // https://epsg.io/4326
@@ -94,17 +107,6 @@ func getWGS84() gdal.SpatialReference {
 	return WGS84
 }
 
-func LoopToGdalGeometry(loop *s2.Loop) *gdal.Geometry {
-	g := gdal.CreateFromJson(bitstring.LoopToGeoPolygon(loop))
-	g.SetSpatialReference(getWGS84())
-
-	return &g
-}
-
-func BitStringToGdalGeometry(bitString *bitstring.XYBitString) *gdal.Geometry {
-	return LoopToGdalGeometry(bitString.Loop())
-}
-
 var stringBuilderPool = sync.Pool{
 	New: func() any {
 		// The Pool's New function should generally only return pointer
@@ -112,6 +114,44 @@ var stringBuilderPool = sync.Pool{
 		// value without an allocation:
 		return new(strings.Builder)
 	},
+}
+
+func LoopToGdalGeometry(loop *s2.Loop) (*gdal.Geometry, error) {
+
+	vertices := loop.Vertices()
+
+	wkt := stringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		wkt.Reset()
+		stringBuilderPool.Put(wkt)
+	}()
+
+	wkt.WriteString("POLYGON ((")
+	// array of ccw order points of the loop
+	for i, vertex := range vertices {
+		coordinate := s2.LatLngFromPoint(vertex)
+
+		if i > 0 {
+			wkt.WriteString(",")
+		}
+		wkt.WriteString(fmt.Sprintf("%f %f", coordinate.Lng.Degrees(), coordinate.Lat.Degrees()))
+	}
+
+	// end with coordinates of first point
+	coordinate := s2.LatLngFromPoint(vertices[0])
+	wkt.WriteString(fmt.Sprintf(",%f %f))", coordinate.Lng.Degrees(), coordinate.Lat.Degrees()))
+
+	geometry, err := gdal.CreateFromWKT(wkt.String(), getWGS84())
+	if err != nil {
+		println(wkt.String())
+		return nil, err
+	}
+
+	return &geometry, nil
+}
+
+func BitStringToGdalGeometry(bitString *bitstring.XYBitString) (*gdal.Geometry, error) {
+	return LoopToGdalGeometry(bitString.Loop())
 }
 
 func CertificateToGeometries(area *crypto.GeoCertArea) ([]bitstring.Geometry2D, error) {
@@ -143,11 +183,9 @@ func CertificateToGeometries(area *crypto.GeoCertArea) ([]bitstring.Geometry2D, 
 
 		geometry, err := gdal.CreateFromWKT(wkt.String(), WGS84)
 		if err != nil {
-			println(wkt)
+			println(wkt.String())
 			return nil, err
 		}
-
-		geometry.SetSpatialReference(WGS84)
 
 		geometries[i] = &GdalGeometry2D{
 			Geometry: &geometry,

@@ -73,7 +73,7 @@ type BitStringPair struct {
 // generic interface for computing intersections
 // allows the dual use of gdal and s2 for the web demo
 type Geometry2D interface {
-	Intersects(bitstring *XYBitString) bool
+	Intersects(bitstring *XYBitString) (bool, error)
 	InitialXYBitString(fGrow float64) (*XYBitString, error)
 	// some implementations might have to be freeded manually
 	Destroy()
@@ -84,8 +84,8 @@ type S2Geometry2D struct {
 	Loop *s2.Loop
 }
 
-func (g *S2Geometry2D) Intersects(xyBitstring *XYBitString) bool {
-	return g.Loop.Intersects(xyBitstring.Loop())
+func (g *S2Geometry2D) Intersects(xyBitstring *XYBitString) (bool, error) {
+	return g.Loop.Intersects(xyBitstring.Loop()), nil
 }
 
 func (g *S2Geometry2D) InitialXYBitString(fGrow float64) (*XYBitString, error) {
@@ -719,7 +719,11 @@ func PolygonsTo2DBitStrings(polygons []Geometry2D, fGrow float64) ([]RawXYBitStr
 			visited.Add(xyBitStringPair)
 
 			// check for intersection
-			if !(polygon.Intersects(voxel)) {
+			intersects, err := polygon.Intersects(voxel)
+			if err != nil {
+				return nil, fmt.Errorf("could not convert bit string to gdal geometry: %v", err)
+			}
+			if !intersects {
 				continue
 			}
 
@@ -932,7 +936,7 @@ func ExtrudedPolygonsToBitStringPairs(
 }
 
 func LoopToGeoPolygon(loop *s2.Loop) string {
-	vertices := (loop.Vertices())
+	vertices := loop.Vertices()
 	coordinates := make([]string, len(vertices)+1)
 	for i, vertex := range vertices {
 		coordinate := s2.LatLngFromPoint(vertex)
