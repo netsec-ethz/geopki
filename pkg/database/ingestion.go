@@ -149,6 +149,15 @@ func RemoveExpiredCertificates(
 	return nil
 }
 
+var addCertificatesQueryStringBuilderPool = sync.Pool{
+	New: func() any {
+		// The Pool's New function should generally only return pointer
+		// types, since a pointer can be put into the return interface
+		// value without an allocation:
+		return new(strings.Builder)
+	},
+}
+
 // returns a map from bit strings to the set of certificates that has to be added to the respective node
 func AddCertificates(
 	certificates []*crypto.GeoCertificate,
@@ -163,7 +172,11 @@ func AddCertificates(
 	}
 
 	// start building insetion query
-	var query strings.Builder
+	query := addCertificatesQueryStringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		query.Reset()
+		addCertificatesQueryStringBuilderPool.Put(query)
+	}()
 	query.WriteString("INSERT INTO certificates (certificate_hash, certificate, not_valid_after) VALUES ")
 
 	for i, certificate := range certificates {
