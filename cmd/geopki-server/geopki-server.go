@@ -193,8 +193,8 @@ func main() {
 
 		rootHash, err := database.QueryRootHash(tx, ctx)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "unable to query root hash: %v\n", err)
-			os.Exit(13)
+			// root hash does not exist -> is sparse
+			rootHash = crypto.DEFAULT_HASH
 		}
 
 		err = tx.Commit(ctx)
