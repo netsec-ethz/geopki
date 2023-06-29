@@ -836,17 +836,31 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf(
-				"Supplied invalid certificates, %v",
+				"supplied invalid certificates, %v",
 				err,
 			),
 		})
 		return
 	}
 
+	for _, certificate := range certificates {
+		marshaledCert, err := json.Marshal(certificate)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf(
+					"supplied marshaling certificates, %v",
+					err,
+				),
+			})
+			return
+		}
+		certificate.MarshaledCert = marshaledCert
+	}
+
 	didLock := env.updateLock.TryLock()
 	if !didLock {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Update is already in progress, try again later",
+			"error": "update is already in progress, try again later",
 		})
 		return
 	}
