@@ -10,7 +10,6 @@ import (
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/golang/geo/s2"
 	geo "github.com/kellydunn/golang-geo"
-	"golang.org/x/exp/slices"
 )
 
 const (
@@ -791,8 +790,10 @@ func PolygonsTo2DBitStrings(polygons []Geometry2D, fGrow float64) ([]RawXYBitStr
 		skip := false
 		// iterate over all prefixes of that bitstring from largest/shortest to smallest/longest
 		for i := uint8(1); i <= bitString.XYBitStringLen; i++ {
-			// check if any of its prefixes (larger areas) is also part of intersectingAreasAllPolygonsList
-			if slices.Contains(intersectingAreasAllPolygonsList, bitString.Ancestor(i)) {
+			// check if any of its prefixes (larger areas) is also part of intersectingAreasAllPolygons
+			// do not need to check updated list after merging neighbors because the covered "area"
+			// does not change, it could only be a ancestor further up in the tree
+			if intersectingAreasAllPolygons.Contains(bitString.Ancestor(i)) {
 				// if it is, ignore this one as the certificate will be included in the larger/shorter
 				// prefix
 				skip = true
