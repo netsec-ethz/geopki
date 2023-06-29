@@ -383,6 +383,8 @@ func certificateImporter(
 	batch := make([]*crypto.GeoCertificate, 0, CERTIFICATE_IMPORT_BATCH_SIZE)
 
 	for certificate := range certificates {
+		batch = append(batch, certificate)
+
 		if len(batch) >= CERTIFICATE_IMPORT_BATCH_SIZE {
 			// import batch
 			err := importBatch(address, insertionKey, batch)
@@ -394,8 +396,6 @@ func certificateImporter(
 			progressBar.Add(len(batch))
 			// keep allocated memory but empty slice
 			batch = batch[:0]
-		} else {
-			batch = append(batch, certificate)
 		}
 	}
 
