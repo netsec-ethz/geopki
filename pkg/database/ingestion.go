@@ -163,7 +163,8 @@ func AddCertificates(
 	}
 
 	// start building insetion query
-	query := "INSERT INTO certificates (certificate_hash, certificate, not_valid_after) VALUES "
+	var query strings.Builder
+	query.WriteString("INSERT INTO certificates (certificate_hash, certificate, not_valid_after) VALUES ")
 
 	for i, certificate := range certificates {
 
@@ -173,13 +174,15 @@ func AddCertificates(
 
 		// if not first, seperate by comma
 		if i > 0 {
-			query += ","
+			query.WriteString(",")
 		}
-		query += fmt.Sprintf(
-			"(%s, %s, %s)",
-			fmt.Sprintf("E'\\\\x%s'", hex.EncodeToString(certificateHash)),
-			fmt.Sprintf("E'\\\\x%s'", hex.EncodeToString(certificate.Marshal())),
-			fmt.Sprintf("'%s'", certificate.NotValidAfter),
+		query.WriteString(
+			fmt.Sprintf(
+				"(%s, %s, %s)",
+				fmt.Sprintf("E'\\\\x%s'", hex.EncodeToString(certificateHash)),
+				fmt.Sprintf("E'\\\\x%s'", hex.EncodeToString(certificate.Marshal())),
+				fmt.Sprintf("'%s'", certificate.NotValidAfter),
+			),
 		)
 
 		// compute affected bit strings
@@ -197,9 +200,9 @@ func AddCertificates(
 	}
 
 	// ignore duplicate certificates
-	query += " ON CONFLICT (certificate_hash) DO NOTHING"
+	query.WriteString(" ON CONFLICT (certificate_hash) DO NOTHING")
 
-	_, err := transaction.Exec(ctx, query)
+	_, err := transaction.Exec(ctx, query.String())
 	if err != nil {
 		return fmt.Errorf("failed inserting new certificates: %v", err)
 	}
