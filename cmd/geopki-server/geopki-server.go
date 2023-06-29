@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -822,11 +823,28 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 	removeExpired := c.DefaultQuery("remove-expired", "none") != "none"
 
 	// read request body
-	body, err := io.ReadAll(c.Request.Body)
+	zr, err := gzip.NewReader(c.Request.Body)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "reading request body failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "creating gzip reader failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "creating gzip reader, check the server logs",
+		})
+		return
+	}
+
+	body, err := io.ReadAll(zr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "reading gzipped request body failed: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
+		})
+		return
+	}
+
+	if err := zr.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "closing gzip reader failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "closing gzip reader, check the server logs",
 		})
 		return
 	}
@@ -846,11 +864,9 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 	for _, certificate := range certificates {
 		marshaledCert, err := json.Marshal(certificate)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "marshaling certificate failed: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf(
-					"supplied marshaling certificates, %v",
-					err,
-				),
+				"error": "marshaling certificates failed, check the server logs",
 			})
 			return
 		}

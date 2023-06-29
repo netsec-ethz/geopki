@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -21,8 +22,8 @@ import (
 
 const (
 	F_GROW                        = 1
-	CERTIFICATE_IMPORT_BUFFER     = 5000
-	CERTIFICATE_IMPORT_BATCH_SIZE = 500
+	CERTIFICATE_IMPORT_BUFFER     = 50000
+	CERTIFICATE_IMPORT_BATCH_SIZE = 10000
 )
 
 type Coordinate struct {
@@ -335,10 +336,25 @@ func importBatch(
 		return fmt.Errorf("failed marshalling certificates: %v", err)
 	}
 
+	var buf bytes.Buffer
+	zw, err := gzip.NewWriterLevel(&buf, gzip.BestCompression)
+	if err != nil {
+		return fmt.Errorf("failed creating gzip writer: %v", err)
+	}
+
+	_, err = zw.Write(certificatesJson)
+	if err != nil {
+		return fmt.Errorf("failed compressing certificates: %v", err)
+	}
+
+	if err := zw.Close(); err != nil {
+		return fmt.Errorf("failed closing gzip writer: %v", err)
+	}
+
 	plainResponse, err := http.Post(
 		fmt.Sprintf("%s/v1/insert?key=%s&is-partial=true", address, insertionKey),
 		"application/json",
-		bytes.NewBuffer([]byte(certificatesJson)),
+		bytes.NewBuffer([]byte(buf.Bytes())),
 	)
 	if err != nil {
 		return fmt.Errorf("failed sending HTTP POST request to %s: %v", address, err)
