@@ -353,8 +353,6 @@ func importBatch(
 		return fmt.Errorf("server replied with %s", string(body))
 	}
 
-	log.Fatalf("done did first batch of %d: '%s'\n", len(batch), certificatesJson)
-
 	return nil
 }
 
