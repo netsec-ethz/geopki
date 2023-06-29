@@ -197,7 +197,7 @@ func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa
 
 	// first compute the set of all certificate hashes
 	// unfortunately in string form since []byte is not comparable
-	certificateStringHashes := mapset.NewSet[string]()
+	certificateStringHashes := mapset.NewThreadUnsafeSet[string]()
 	for _, node := range ns {
 		for _, certificateHash := range node.CertificateHashes {
 			certificateStringHashes.Add(base64.RawURLEncoding.EncodeToString(certificateHash))

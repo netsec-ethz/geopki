@@ -142,10 +142,10 @@ func RowsToNodesAndRootHash(
 	nodes := make([]*crypto.Node, 0, expectedResults)
 
 	// create a set of bit string pairs
-	bitStringSet := mapset.NewSet[bitstring.RawBitStringPair]()
+	bitStringSet := mapset.NewThreadUnsafeSet[bitstring.RawBitStringPair]()
 
 	var rootHash crypto.SHA256Hash
-	certificateStringHashes := mapset.NewSet[string]()
+	certificateStringHashes := mapset.NewThreadUnsafeSet[string]()
 
 	var dbXYBitString pgtype.Bits
 	var dbZBitString pgtype.Bits

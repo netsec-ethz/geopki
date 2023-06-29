@@ -37,7 +37,7 @@ func (area *GeoCertArea) Loops() ([]*s2.Loop, error) {
 		// array of ccw order points of the loop
 		pts := make([]s2.Point, 0, len(polygon))
 		// also keep a set of the points to check for duplicate vertices
-		certificateStringHashes := mapset.NewSet[s2.Point]()
+		certificateStringHashes := mapset.NewThreadUnsafeSet[s2.Point]()
 
 		for i, pt := range polygon {
 			// geojson is (longitude, latitude), see https://datatracker.ietf.org/doc/html/rfc7946#section-3.1.1

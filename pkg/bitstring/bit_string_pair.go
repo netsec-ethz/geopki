@@ -688,15 +688,15 @@ func (bitString *ZBitString) GrowZToLength(altitudeMaxRange float64) error {
 // By setting `f_grow = 0`, the best possible approximation is computed,
 // resulting in more bit strings.
 func PolygonsTo2DBitStrings(polygons []Geometry2D, fGrow float64) ([]RawXYBitString, error) {
-	intersectingAreasAllPolygons := mapset.NewSet[RawXYBitString]()
+	intersectingAreasAllPolygons := mapset.NewThreadUnsafeSet[RawXYBitString]()
 
 	for _, polygon := range polygons {
 
 		// this will be the list of bitstrings of the chosen size for 'polygon'
-		intersectingAreas := mapset.NewSet[RawXYBitString]()
+		intersectingAreas := mapset.NewThreadUnsafeSet[RawXYBitString]()
 
 		// perform the BFS
-		visited := mapset.NewSet[RawXYBitString]()
+		visited := mapset.NewThreadUnsafeSet[RawXYBitString]()
 		q := make([]*XYBitString, 0, 1)
 
 		initialBitString, err := polygon.InitialXYBitString(fGrow)
