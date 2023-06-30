@@ -10,6 +10,7 @@ import (
 	"geopki/pkg/geometry"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	mapset "github.com/deckarep/golang-set/v2"
@@ -148,6 +149,15 @@ func findAndRemoveExpiredCertificates(
 	return nil
 }
 
+var addCertificatesQueryStringBuilderPool = sync.Pool{
+	New: func() any {
+		// The Pool's New function should generally only return pointer
+		// types, since a pointer can be put into the return interface
+		// value without an allocation:
+		return new(strings.Builder)
+	},
+}
+
 // returns a map from bit strings to the set of certificates that has to be added to the respective node
 func insertCertificates(
 	certificates []*crypto.GeoCertificate,
@@ -162,7 +172,11 @@ func insertCertificates(
 	}
 
 	// start building insetion query
-	var query strings.Builder
+	query := addCertificatesQueryStringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		query.Reset()
+		addCertificatesQueryStringBuilderPool.Put(query)
+	}()
 	query.WriteString("INSERT INTO certificates (certificate_hash, certificate, not_valid_after) VALUES ")
 
 	for i, certificate := range certificates {
@@ -209,6 +223,42 @@ func insertCertificates(
 	return nil
 }
 
+var certificatesToAddPool = sync.Pool{
+	New: func() any {
+		// The Pool's New function should generally only return pointer
+		// types, since a pointer can be put into the return interface
+		// value without an allocation:
+		return make(map[bitstring.RawBitStringPair]([]crypto.SHA256Hash))
+	},
+}
+
+var certificatesToRemovePool = sync.Pool{
+	New: func() any {
+		// The Pool's New function should generally only return pointer
+		// types, since a pointer can be put into the return interface
+		// value without an allocation:
+		return make(map[bitstring.RawBitStringPair]([]crypto.SHA256Hash))
+	},
+}
+
+var changeSetPool = sync.Pool{
+	New: func() any {
+		// The Pool's New function should generally only return pointer
+		// types, since a pointer can be put into the return interface
+		// value without an allocation:
+		return mapset.NewThreadUnsafeSet[bitstring.RawBitStringPair]()
+	},
+}
+
+var ancestorSetPool = sync.Pool{
+	New: func() any {
+		// The Pool's New function should generally only return pointer
+		// types, since a pointer can be put into the return interface
+		// value without an allocation:
+		return mapset.NewThreadUnsafeSet[bitstring.RawBitStringPair]()
+	},
+}
+
 // adds new certificates to the db
 func AddNewCertificates(
 	newCertificates []*crypto.GeoCertificate,
@@ -219,10 +269,21 @@ func AddNewCertificates(
 	ctx context.Context,
 ) error {
 
-	certificatesToAdd := make(map[bitstring.RawBitStringPair]([]crypto.SHA256Hash))
+	certificatesToAdd := certificatesToAddPool.Get().(map[bitstring.RawBitStringPair]([]crypto.SHA256Hash))
+	var err error
+
+	defer func() {
+		// empty map
+		for key := range certificatesToAdd {
+			delete(certificatesToAdd, key)
+		}
+
+		// give it back to the memory pool
+		certificatesToAddPool.Put(certificatesToAdd)
+	}()
 
 	// add certificates & compute the set of bit strings / nodes that must change
-	err := insertCertificates(
+	err = insertCertificates(
 		newCertificates,
 		certificatesToAdd,
 		fGrow,
@@ -273,7 +334,11 @@ func AddNewCertificates(
 
 	// now all certificate updates have been performed, we need to recompute the hashes of all parents
 	// compute the set of all parents
-	ancestorSet := mapset.NewThreadUnsafeSet[bitstring.RawBitStringPair]()
+	ancestorSet := changeSetPool.Get().(mapset.Set[bitstring.RawBitStringPair])
+	defer func() {
+		ancestorSet.Clear()
+		ancestorSetPool.Put(ancestorSet)
+	}()
 	// the root node always has to be updated if there are changes
 	ancestorSet.Add(bitstring.ROOT_NODE)
 
@@ -337,8 +402,18 @@ func RemoveExpiredCertificates(
 	ctx context.Context,
 ) error {
 
-	certificatesToRemove := make(map[bitstring.RawBitStringPair]([]crypto.SHA256Hash))
+	certificatesToRemove := certificatesToRemovePool.Get().(map[bitstring.RawBitStringPair]([]crypto.SHA256Hash))
 	var err error
+
+	defer func() {
+		// empty map
+		for key := range certificatesToRemove {
+			delete(certificatesToRemove, key)
+		}
+
+		// give it back to the memory pool
+		certificatesToRemovePool.Put(certificatesToRemove)
+	}()
 
 	// remove certificates & compute the set of bit strings / nodes that must change
 	err = findAndRemoveExpiredCertificates(certificatesToRemove, t, transaction, ctx)
@@ -383,7 +458,11 @@ func RemoveExpiredCertificates(
 
 	// now all certificate updates have been performed, we need to recompute the hashes of all parents
 	// compute the set of all parents
-	ancestorSet := mapset.NewThreadUnsafeSet[bitstring.RawBitStringPair]()
+	ancestorSet := changeSetPool.Get().(mapset.Set[bitstring.RawBitStringPair])
+	defer func() {
+		ancestorSet.Clear()
+		ancestorSetPool.Put(ancestorSet)
+	}()
 	// the root node always has to be updated if there are changes
 	ancestorSet.Add(bitstring.ROOT_NODE)
 
