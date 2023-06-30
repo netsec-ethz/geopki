@@ -1028,16 +1028,14 @@ func (env *EndpointHandlerEnv) getDropIndices(c *gin.Context) {
 		"DROP INDEX IF EXISTS bit_string_bit_idx;"+
 			"DROP INDEX IF EXISTS bit_string_len;"+
 			"DROP INDEX IF EXISTS bit_string_integer_idx;"+
-			"ALTER TABLE nodes DROP CONSTRAINT nodes_pkey;"+
 			// certificates table
 			"DROP INDEX IF EXISTS certificate_hash;"+
-			"DROP INDEX IF EXISTS certificate_not_valid_after;"+
-			"ALTER TABLE certificates DROP CONSTRAINT certificates_pkey;",
+			"DROP INDEX IF EXISTS certificate_not_valid_after;",
 	)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "dropping indices and constraints failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "dropping indices failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "dropping indices and constraints failed",
+			"error": "dropping indices failed",
 		})
 		return
 	}
@@ -1126,13 +1124,11 @@ func (env *EndpointHandlerEnv) getFinishPartial(c *gin.Context) {
 			"ALTER TABLE IF EXISTS nodes CLUSTER ON bit_string_integer_idx;"+
 			"CLUSTER nodes USING bit_string_integer_idx;"+
 			"VACUUM FULL nodes;"+
-			"ALTER TABLE nodes ADD CONSTRAINT nodes_pkey PRIMARY KEY (bit_string_51, bit_string_15);"+
 			// certificates table
 			"CREATE UNIQUE INDEX IF NOT EXISTS certificate_hash ON certificates USING hash (certificate_hash);"+
 			"CREATE INDEX IF NOT EXISTS certificate_not_valid_after ON certificates USING btree (not_valid_after);"+
 			"ALTER TABLE IF EXISTS certificates CLUSTER ON certificate_not_valid_after;"+
-			"CLUSTER certificates USING certificate_not_valid_after;"+
-			"ALTER TABLE certificates ADD CONSTRAINT certificates_pkey PRIMARY KEY (certificate_hash);",
+			"CLUSTER certificates USING certificate_not_valid_after;",
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "creating indices and constraints failed: %v\n", err)
