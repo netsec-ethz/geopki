@@ -72,7 +72,7 @@ func ExpiredCertificateHashes(
 
 // removes the set of expired certificates and returns the list of bit strings that
 // need updating
-func RemoveExpiredCertificates(
+func findAndRemoveExpiredCertificates(
 	certificatesToRemove map[bitstring.RawBitStringPair]([]crypto.SHA256Hash),
 	t time.Time,
 	transaction pgx.Tx,
@@ -159,7 +159,7 @@ var addCertificatesQueryStringBuilderPool = sync.Pool{
 }
 
 // returns a map from bit strings to the set of certificates that has to be added to the respective node
-func AddCertificates(
+func insertCertificates(
 	certificates []*crypto.GeoCertificate,
 	certificatesToAdd map[bitstring.RawBitStringPair]([]crypto.SHA256Hash),
 	fGrow float64,
@@ -259,51 +259,31 @@ var ancestorSetPool = sync.Pool{
 	},
 }
 
-// adds new certificates and removes expired ones
-// returns an SMH *WITHOUT* signature, call .Sign() on it
-// and insert the result into the consistency tree
-// pass time.Time{} do not remove any certificates
-func UpdateTree(
+// adds new certificates to the db
+func AddNewCertificates(
 	newCertificates []*crypto.GeoCertificate,
 	fGrow float64,
-	t time.Time,
 	transaction pgx.Tx,
 	coveredCTLogServers []crypto.CTLogServer,
 	updateHashes bool,
 	ctx context.Context,
 ) error {
 
-	certificatesToRemove := certificatesToRemovePool.Get().(map[bitstring.RawBitStringPair]([]crypto.SHA256Hash))
 	certificatesToAdd := certificatesToAddPool.Get().(map[bitstring.RawBitStringPair]([]crypto.SHA256Hash))
 	var err error
 
 	defer func() {
-		// empty maps
-		for key := range certificatesToRemove {
-			delete(certificatesToRemove, key)
-		}
-
+		// empty map
 		for key := range certificatesToAdd {
 			delete(certificatesToAdd, key)
 		}
 
-		// give them back to the memory pool
-		certificatesToRemovePool.Put(certificatesToRemove)
+		// give it back to the memory pool
 		certificatesToAddPool.Put(certificatesToAdd)
 	}()
 
-	if t.IsZero() {
-		// no certificates could have expired, skip removal
-	} else {
-		// remove certificates & compute the set of bit strings / nodes that must change
-		err = RemoveExpiredCertificates(certificatesToRemove, t, transaction, ctx)
-		if err != nil {
-			return err
-		}
-	}
-
 	// add certificates & compute the set of bit strings / nodes that must change
-	err = AddCertificates(
+	err = insertCertificates(
 		newCertificates,
 		certificatesToAdd,
 		fGrow,
@@ -314,35 +294,10 @@ func UpdateTree(
 		return err
 	}
 
-	changeSet := changeSetPool.Get().(mapset.Set[bitstring.RawBitStringPair])
-	defer func() {
-		changeSet.Clear()
-		changeSetPool.Put(changeSet)
-	}()
-
-	for b := range certificatesToRemove {
-		changeSet.Add(b)
-	}
-	for b := range certificatesToAdd {
-		changeSet.Add(b)
-	}
-
-	for _, bitStringPair := range changeSet.ToSlice() {
+	for bitStringPair := range certificatesToAdd {
 
 		hashes := "nodes.certificate_hashes"
-
-		removeSet, hasCertificatesToRemove := certificatesToRemove[bitStringPair]
 		addSet, hasCertificatesToAdd := certificatesToAdd[bitStringPair]
-
-		if hasCertificatesToRemove {
-			// requires an 'array_difference' function to be defined
-			hashes = fmt.Sprintf(
-				// removes the 'removeSet' from 'hashes'
-				"array_difference(%s,%s)",
-				hashes,
-				bytesSliceToPostgresArray(removeSet),
-			)
-		}
 
 		if hasCertificatesToAdd {
 			// requires an 'array_union' function to be defined
@@ -387,7 +342,7 @@ func UpdateTree(
 	// the root node always has to be updated if there are changes
 	ancestorSet.Add(bitstring.ROOT_NODE)
 
-	for _, bitStringPair := range changeSet.ToSlice() {
+	for bitStringPair := range certificatesToAdd {
 		// compute all ancestors up to the root
 		for ancestor := bitStringPair.ParentPair(); !ancestor.IsRoot(); ancestor = ancestor.ParentPair() {
 			ancestorSet.Add(ancestor)
@@ -434,6 +389,113 @@ func UpdateTree(
 				return fmt.Errorf("failed updating children hashes for ancestor: %v", err)
 			}
 
+		}
+	}
+
+	return nil
+}
+
+// removes expired certificates
+func RemoveExpiredCertificates(
+	t time.Time,
+	transaction pgx.Tx,
+	ctx context.Context,
+) error {
+
+	certificatesToRemove := certificatesToRemovePool.Get().(map[bitstring.RawBitStringPair]([]crypto.SHA256Hash))
+	var err error
+
+	defer func() {
+		// empty map
+		for key := range certificatesToRemove {
+			delete(certificatesToRemove, key)
+		}
+
+		// give it back to the memory pool
+		certificatesToRemovePool.Put(certificatesToRemove)
+	}()
+
+	// remove certificates & compute the set of bit strings / nodes that must change
+	err = findAndRemoveExpiredCertificates(certificatesToRemove, t, transaction, ctx)
+	if err != nil {
+		return err
+	}
+
+	for bitStringPair := range certificatesToRemove {
+
+		hashes := "nodes.certificate_hashes"
+
+		removeSet, hasCertificatesToRemove := certificatesToRemove[bitStringPair]
+
+		if hasCertificatesToRemove {
+			// requires an 'array_difference' function to be defined
+			hashes = fmt.Sprintf(
+				// removes the 'removeSet' from 'hashes'
+				"array_difference(%s,%s)",
+				hashes,
+				bytesSliceToPostgresArray(removeSet),
+			)
+		}
+
+		// use null for the hashes if inserted new since it can only be a new sparse leaf
+		// if it is new
+		query := fmt.Sprintf(
+			"UPDATE nodes SET certificate_hashes=%s WHERE bit_string_51=%s AND bit_string_15=%s",
+			// for conflict update statement
+			hashes,
+			// xy bit string
+			bitStringPair.RawXYBitString.BitString().String(),
+			// z bit string
+			bitStringPair.RawZBitString.BitString().String(),
+		)
+
+		// execute the row update
+		_, err := transaction.Exec(ctx, query)
+		if err != nil {
+			return fmt.Errorf("failed updating certificate hashes: %v", err)
+		}
+	}
+
+	// now all certificate updates have been performed, we need to recompute the hashes of all parents
+	// compute the set of all parents
+	ancestorSet := changeSetPool.Get().(mapset.Set[bitstring.RawBitStringPair])
+	defer func() {
+		ancestorSet.Clear()
+		ancestorSetPool.Put(ancestorSet)
+	}()
+	// the root node always has to be updated if there are changes
+	ancestorSet.Add(bitstring.ROOT_NODE)
+
+	for bitStringPair := range certificatesToRemove {
+		// compute all ancestors up to the root
+		for ancestor := bitStringPair.ParentPair(); !ancestor.IsRoot(); ancestor = ancestor.ParentPair() {
+			ancestorSet.Add(ancestor)
+		}
+	}
+
+	ancestors := ancestorSet.ToSlice()
+
+	sort.Slice(ancestors, func(i, j int) bool {
+		// must return true if i is smaller than j (smaller = has longer bit strings)
+		return ((ancestors[i].XYBitStringLen > ancestors[j].XYBitStringLen) || (ancestors[i].XYBitStringLen == ancestors[j].XYBitStringLen && ancestors[i].ZBitStringLen > ancestors[j].ZBitStringLen))
+	})
+
+	// sort the bit strings in ascending order (children to the root)
+	for _, bitStringPair := range ancestors {
+
+		// node must already be in the db, all ancestors are created on insertion
+
+		// requires an 'update_children_hashes' function to be defined
+		query := fmt.Sprintf(
+			"SELECT update_children_hashes(b'%s', b'%s')",
+			bitStringPair.RawXYBitString.BitString().String(),
+			bitStringPair.RawZBitString.BitString().String(),
+		)
+
+		// execute the row update
+		_, err = transaction.Exec(ctx, query)
+		if err != nil {
+			return fmt.Errorf("failed updating children hashes for ancestor: %v", err)
 		}
 	}
 

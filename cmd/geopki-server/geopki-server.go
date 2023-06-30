@@ -38,6 +38,8 @@ const (
 	MAXIMUM_MERGE_DELAY = 5
 	// the f factor for new certificates
 	F_GROW = 0.1
+
+	DATABASE_STATE_KEY_DIRTY = "dirty"
 )
 
 var TRUSTED_PROXIES = []string{"localhost"}
@@ -52,8 +54,9 @@ type EndpointHandlerEnv struct {
 	// client for accessing the consistency tree
 	consistencyClient *crypto.ConsistencyTreeClient
 
-	// lock for accessing cached SMH / SCH
-	cacheLock sync.RWMutex
+	// lock for accessing cached data or state data, not required for values defined
+	// above since they never change
+	sharedDataLock sync.RWMutex
 	// lock for updating the DB
 	updateLock sync.Mutex
 
@@ -63,6 +66,10 @@ type EndpointHandlerEnv struct {
 	currentSignedConsistencyHead *crypto.SignedConsistencyHead
 	// caches the inclusion proof for the latest SCH value
 	schInclusionProof []byte
+
+	// persistent state
+	// whether the database contents are dirty and no valid data can be returned
+	isDirty bool
 }
 
 func main() {
@@ -163,11 +170,33 @@ func main() {
 
 	defer dbPool.Close()
 
+	// load presistent state
+
+	tx, err := dbPool.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "unable to start transaction: %v\n", err)
+		os.Exit(10)
+	}
+
+	dirty, err := database.QueryState(DATABASE_STATE_KEY_DIRTY, tx, ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "unable to query persistent database state '%s': %v\n", DATABASE_STATE_KEY_DIRTY, err)
+		os.Exit(11)
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "unable to commit transaction: %v\n", err)
+		os.Exit(12)
+	}
+
 	// ensure the existence of a consistency tree service
 	consistencyClient, err := crypto.NewConsistencyTreeClient(trillianAddress, consistencyLogId, privateKey, MAXIMUM_MERGE_DELAY)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to create consistency client: %v\n", err)
-		os.Exit(10)
+		os.Exit(13)
 	}
 
 	sch, err := consistencyClient.LatestSignedConsistencyHead(ctx)
@@ -178,19 +207,19 @@ func main() {
 		if err2 != nil {
 			fmt.Fprintf(os.Stderr, "unable to obtain latest consistency head: %v\n", err)
 			fmt.Fprintf(os.Stderr, "unable to initialize log server: %v\n", err2)
-			os.Exit(11)
+			os.Exit(14)
 		}
 	}
 
 	// if the log was newly initialized, add the current SMH
 	if err != nil || sch.Size == 0 {
-		// query the current root hash
+		// query the current root hash and db state
 		tx, err := dbPool.BeginTx(ctx, pgx.TxOptions{
 			IsoLevel: pgx.Serializable,
 		})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to start transaction: %v\n", err)
-			os.Exit(12)
+			os.Exit(15)
 		}
 
 		rootHash, err := database.QueryRootHash(tx, ctx)
@@ -202,7 +231,7 @@ func main() {
 		err = tx.Commit(ctx)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to commit transaction: %v\n", err)
-			os.Exit(14)
+			os.Exit(16)
 		}
 
 		// create new SMH
@@ -220,7 +249,7 @@ func main() {
 		sch, err = consistencyClient.AppendSignedMapHead(ctx, smh)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to append new SMH: %v\n", err)
-			os.Exit(15)
+			os.Exit(17)
 		}
 	}
 
@@ -228,24 +257,24 @@ func main() {
 	smh, err := consistencyClient.LatestSignedMapHead(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to obtain latest signed map head: %v\n", err)
-		os.Exit(16)
+		os.Exit(18)
 	}
 
 	if !smh.Verify(&privateKey.PublicKey) {
 		fmt.Fprintf(os.Stderr, "cannot verify the signature on the latest SMH, did the private key change?\n")
-		os.Exit(17)
+		os.Exit(19)
 	}
 
 	proof, err := consistencyClient.ProveSignedMapHeadInclusion(context.Background(), sch.Size, smh)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "obtaining a proof of inclusion for consistency tree failed: %v\n", err)
-		os.Exit(18)
+		os.Exit(20)
 	}
 
 	inclusionProof, err := proto.Marshal(proof)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed marshaling inclusion proof: %v\n", err)
-		os.Exit(19)
+		os.Exit(21)
 	}
 
 	fmt.Printf("Serving data with SMH:\n%s\n\n", smh.String())
@@ -261,6 +290,8 @@ func main() {
 		currentSignedMapHead:         smh,
 		currentSignedConsistencyHead: sch,
 		schInclusionProof:            inclusionProof,
+
+		isDirty: dirty == "true",
 	}
 
 	// setup web server
@@ -305,6 +336,21 @@ func main() {
 
 // handler for the /query endpoint
 func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
+
+	// acquire read lock on cache for the duration of the query to guarantee
+	// the cached data is consistent with the data retrieved from the db
+	env.sharedDataLock.RLock()
+	defer env.sharedDataLock.RUnlock()
+
+	if env.isDirty {
+		// display an error to the user
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "The database is being updated, try to query later again",
+		})
+
+		return
+	}
+
 	// check the content type request header
 	contentTypeHeaders, ok := c.Request.Header["Content-Type"]
 	if ok {
@@ -413,11 +459,9 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 		}
 	}
 
-	env.cacheLock.RLock()
 	sch := env.currentSignedConsistencyHead
 	smh := env.currentSignedMapHead
 	inclusionProof := env.schInclusionProof
-	env.cacheLock.RUnlock()
 
 	response, err := proto.Marshal(&comm.Response{
 		SignedConsistencyHead: sch.Proto(),
@@ -440,7 +484,6 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 		"application/octet-stream",
 		response,
 	)
-
 }
 
 // handler for the /certificates endpoint
@@ -546,9 +589,9 @@ func (env *EndpointHandlerEnv) getPublicKey(c *gin.Context) {
 }
 
 func (env *EndpointHandlerEnv) getSignedConsistencyHead(c *gin.Context) {
-	env.cacheLock.RLock()
+	env.sharedDataLock.RLock()
 	sch := env.currentSignedConsistencyHead
-	env.cacheLock.RUnlock()
+	env.sharedDataLock.RUnlock()
 
 	response, err := proto.Marshal(sch.Proto())
 	if err != nil {
@@ -567,9 +610,9 @@ func (env *EndpointHandlerEnv) getSignedConsistencyHead(c *gin.Context) {
 }
 
 func (env *EndpointHandlerEnv) getSignedMapHead(c *gin.Context) {
-	env.cacheLock.RLock()
+	env.sharedDataLock.RLock()
 	smh := env.currentSignedMapHead
-	env.cacheLock.RUnlock()
+	env.sharedDataLock.RUnlock()
 
 	response, err := proto.Marshal(smh.Proto())
 	if err != nil {
@@ -820,10 +863,9 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		}
 	}
 
-	// by default the hashes and smh is updated, can be turned off for partial insertions
-	// such as for initially filling the DB
+	// by default the hashes are updated, can be turned off for partial insertions,
+	// especially the initial insertion where hashes are computed over and over again otherwise
 	isPartialUpdate := c.DefaultQuery("is-partial", "none") != "none"
-	removeExpired := c.DefaultQuery("remove-expired", "none") != "none"
 
 	// read request body
 	zr, err := gzip.NewReader(c.Request.Body)
@@ -900,19 +942,9 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 
 	defer tx.Rollback(c.Request.Context())
 
-	var t time.Time
-	if removeExpired {
-		// remove all certificates expired before the current time
-		t = time.Now()
-	} else {
-		// remove no certificates, only add new ones, is faster
-		t = time.Time{}
-	}
-
-	err = database.UpdateTree(
+	err = database.AddNewCertificates(
 		certificates,
 		F_GROW,
-		t,
 		tx,
 		// TODO: set the set of covered log servers for instance by storing that in the db and retrieving it here
 		[]crypto.CTLogServer{},
@@ -929,17 +961,20 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		return
 	}
 
-	var smh *crypto.SignedMapHead
-
-	if !isPartialUpdate {
-		// only need a new smh if it is a full update
-		smh, err = env.updateSMH(tx, c.Request.Context())
+	if isPartialUpdate {
+		// if set to false, set to true, noop if already true
+		_, err := database.UpdateState(DATABASE_STATE_KEY_DIRTY, "false", "true", tx, c.Request.Context())
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "updating SMH failed: %v\n", err)
+			fmt.Fprintf(os.Stderr, "updating state '%s' failed: %v\n", DATABASE_STATE_KEY_DIRTY, err)
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "updating SMH failed, check the server logs",
+				"error": "updating internal state failed, check the server logs",
 			})
+			return
 		}
+
+		// before transaction is commited, acquire lock on shared data
+		env.sharedDataLock.Lock()
+		defer env.sharedDataLock.Unlock()
 	}
 
 	err = tx.Commit(c.Request.Context())
@@ -952,29 +987,14 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 	}
 
 	if isPartialUpdate {
-		// for partial updates no new SMH / SCH is created
-		c.Data(
-			http.StatusOK,
-			"application/json",
-			[]byte("{\"success\":true}"),
-		)
-
-		return
-	}
-
-	// update sch if transaction committed
-	sch, err := env.updateSCH(smh, c.Request.Context())
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "updating SCH failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "updating SCH failed, check the server logs",
-		})
+		// update was persisted and we acquired a lock, update the shared state
+		env.isDirty = true
 	}
 
 	c.Data(
 		http.StatusOK,
 		"application/json",
-		[]byte(fmt.Sprintf("{\"success\":true, \"new_tree_size\":%d}", sch.Size)),
+		[]byte("{\"success\":true}"),
 	)
 }
 
@@ -1021,15 +1041,32 @@ func (env *EndpointHandlerEnv) getRecomputeHashes(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "updating hashes failed, check the server logs",
 		})
+		return
 	}
 
-	smh, err := env.updateSMH(tx, c.Request.Context())
+	smh, err := env.createNewSMH(tx, c.Request.Context())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "updating SMH failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "updating SMH failed, check the server logs",
 		})
+		return
 	}
+
+	// update persistent state, no longer dirty
+	_, err = database.UpdateState(DATABASE_STATE_KEY_DIRTY, "true", "false", tx, c.Request.Context())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "updating state '%s' failed: %v\n", DATABASE_STATE_KEY_DIRTY, err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "updating internal state failed, check the server logs",
+		})
+		return
+	}
+
+	// before the data appears in the db, acquire a lock on the cached data
+	// otherwise a reader might observe inconsistent data
+	env.sharedDataLock.Lock()
+	defer env.sharedDataLock.Unlock()
 
 	err = tx.Commit(c.Request.Context())
 	if err != nil {
@@ -1040,6 +1077,10 @@ func (env *EndpointHandlerEnv) getRecomputeHashes(c *gin.Context) {
 		return
 	}
 
+	// after sucessful commitment, update shared state
+	// we already acquired the lock
+	env.isDirty = false
+
 	// update sch if transaction committed
 	sch, err := env.updateSCH(smh, c.Request.Context())
 	if err != nil {
@@ -1047,6 +1088,7 @@ func (env *EndpointHandlerEnv) getRecomputeHashes(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "updating SCH failed, check the server logs",
 		})
+		return
 	}
 
 	c.Data(
@@ -1056,7 +1098,7 @@ func (env *EndpointHandlerEnv) getRecomputeHashes(c *gin.Context) {
 	)
 }
 
-func (env *EndpointHandlerEnv) updateSMH(
+func (env *EndpointHandlerEnv) createNewSMH(
 	tx pgx.Tx,
 	ctx context.Context,
 ) (
@@ -1085,6 +1127,7 @@ func (env *EndpointHandlerEnv) updateSMH(
 	return smh, nil
 }
 
+// creates a new sch and updates the cached values in env, the caller must ensure a lock is held
 func (env *EndpointHandlerEnv) updateSCH(
 	smh *crypto.SignedMapHead,
 	ctx context.Context,
@@ -1109,11 +1152,9 @@ func (env *EndpointHandlerEnv) updateSCH(
 	}
 
 	// update cached smh and sch, acquire lock to ensure all reads are consistent
-	env.cacheLock.Lock()
 	env.currentSignedMapHead = smh
 	env.currentSignedConsistencyHead = sch
 	env.schInclusionProof = marshaledProof
-	env.cacheLock.Unlock()
 
 	return sch, nil
 }
