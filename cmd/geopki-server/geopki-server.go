@@ -17,6 +17,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"sync"
 	"time"
@@ -990,6 +991,8 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		"application/json",
 		[]byte("{\"success\":true}"),
 	)
+
+	debug.FreeOSMemory()
 }
 
 func (env *EndpointHandlerEnv) getDropIndices(c *gin.Context) {
