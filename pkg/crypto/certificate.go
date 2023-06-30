@@ -123,3 +123,34 @@ func (cert *GeoCertificate) Hash() SHA256Hash {
 	hash := sha256.Sum256(cert.MarshaledCert)
 	return hash[:]
 }
+
+func (cert *GeoCertificate) BitStrings(fGrow float64) ([]*bitstring.RawBitStringPair, error) {
+	bitstrings := make([]*bitstring.RawBitStringPair, 0)
+
+	for i, area := range cert.Areas {
+		altitude := cert.AreasAltitude[i]
+		altitudeMin := altitude[0]
+		altitudeMax := altitude[1]
+
+		loops, err := area.Loops()
+		if err != nil {
+			return nil, err
+		}
+
+		polygons := make([]bitstring.Geometry2D, len(loops))
+		for i, loop := range loops {
+			polygons[i] = &bitstring.S2Geometry2D{
+				Loop: loop,
+			}
+		}
+
+		bs, err := bitstring.ExtrudedPolygonsToBitStringPairs(polygons, altitudeMin, altitudeMax, fGrow)
+		if err != nil {
+			return nil, err
+		}
+
+		bitstrings = append(bitstrings, bs...)
+	}
+
+	return bitstrings, nil
+}
