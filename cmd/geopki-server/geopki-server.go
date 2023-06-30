@@ -1025,13 +1025,13 @@ func (env *EndpointHandlerEnv) getDropIndices(c *gin.Context) {
 	_, err = tx.Exec(
 		c.Request.Context(),
 		// nodes table
-		"DROP INDEX bit_string_bit_idx ON nodes;"+
-			"DROP INDEX bit_string_len ON nodes;"+
-			"DROP INDEX bit_string_integer_idx ON nodes;"+
+		"DROP INDEX bit_string_bit_idx;"+
+			"DROP INDEX bit_string_len;"+
+			"DROP INDEX bit_string_integer_idx;"+
 			"ALTER TABLE nodes DROP CONSTRAINT nodes_pkey;"+
 			// certificates table
-			"DROP INDEX certificate_hash ON certificates;"+
-			"DROP INDEX certificate_not_valid_after ON certificates;"+
+			"DROP INDEX certificate_hash;"+
+			"DROP INDEX certificate_not_valid_after;"+
 			"ALTER TABLE certificates DROP CONSTRAINT certificates_pkey;",
 	)
 	if err != nil {
