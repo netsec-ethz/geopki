@@ -7,6 +7,16 @@ CREATE TABLE IF NOT EXISTS certificates
 );
 
 CREATE INDEX certificate_hash
-    ON public.certificates USING hash
+    ON certificates USING hash
     (certificate_hash)
 ;
+
+CREATE INDEX certificate_not_valid_after
+    ON certificates USING btree
+    (not_valid_after)
+;
+
+ALTER TABLE IF EXISTS certificates
+    CLUSTER ON certificate_not_valid_after;
+
+CLUSTER certificates USING certificate_not_valid_after;
