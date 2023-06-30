@@ -325,7 +325,8 @@ func main() {
 	r.GET("/v1/get-entries", env.getEntries)
 	r.GET("/v1/get-entry-and-proof", env.getEntryAndProof)
 	r.POST("/v1/insert", env.postInsert)
-	r.POST("/v1/recompute-hashes", env.getRecomputeHashes)
+	r.POST("/v1/drop-indices", env.getDropIndices)
+	r.POST("/v1/finish-partial", env.getFinishPartial)
 
 	// install demo endpoint
 	r.Static("/demo", "./demo/geopki-web-client")
@@ -834,14 +835,7 @@ func (env *EndpointHandlerEnv) getEntryAndProof(c *gin.Context) {
 }
 
 func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
-	key := c.DefaultQuery("key", "???")
-	keyHash := sha256.Sum256([]byte(key))
-
-	// compare hashes, avoids timing side channel since the strings are of the same length
-	if !bytes.Equal(keyHash[:], env.certificateInsertionKeyHash) {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "invalid key",
-		})
+	if !env.receivedValidInsertionKey(c) {
 		return
 	}
 
@@ -998,15 +992,93 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 	)
 }
 
-func (env *EndpointHandlerEnv) getRecomputeHashes(c *gin.Context) {
-	key := c.DefaultQuery("key", "???")
-	keyHash := sha256.Sum256([]byte(key))
+func (env *EndpointHandlerEnv) getDropIndices(c *gin.Context) {
+	if !env.receivedValidInsertionKey(c) {
+		return
+	}
 
-	// compare hashes, avoids timing side channel since the strings are of the same length
-	if !bytes.Equal(keyHash[:], env.certificateInsertionKeyHash) {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "invalid key",
+	didLock := env.updateLock.TryLock()
+	if !didLock {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Update is already in progress, try again later",
 		})
+		return
+	}
+
+	// unlock after returning
+	defer env.updateLock.Unlock()
+
+	tx, err := env.dbPool.BeginTx(c.Request.Context(), pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "starting transaction failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "starting transaction failed, check the server logs",
+		})
+		return
+	}
+
+	defer tx.Rollback(c.Request.Context())
+
+	// drop indices for faster insertion
+	_, err = tx.Exec(
+		c.Request.Context(),
+		// nodes table
+		"DROP INDEX bit_string_bit_idx ON nodes;"+
+			"DROP INDEX bit_string_len ON nodes;"+
+			"DROP INDEX bit_string_integer_idx ON nodes;"+
+			"ALTER TABLE nodes DROP CONSTRAINT nodes_pkey;"+
+			// certificates table
+			"DROP INDEX certificate_hash ON certificates;"+
+			"DROP INDEX certificate_not_valid_after ON certificates;"+
+			"ALTER TABLE certificates DROP CONSTRAINT certificates_pkey;",
+	)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "dropping indices and constraints failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "dropping indices and constraints failed",
+		})
+		return
+	}
+
+	// update persistent state to dirty
+	_, err = database.UpdateState(DATABASE_STATE_KEY_DIRTY, "false", "true", tx, c.Request.Context())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "updating state '%s' failed: %v\n", DATABASE_STATE_KEY_DIRTY, err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "updating internal state failed, check the server logs",
+		})
+		return
+	}
+
+	// before the data appears in the db, acquire a lock on the cached data
+	// otherwise a reader might observe inconsistent data
+	env.sharedDataLock.Lock()
+	defer env.sharedDataLock.Unlock()
+
+	err = tx.Commit(c.Request.Context())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "commiting transaction failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "commiting transaction failed, check the server logs",
+		})
+		return
+	}
+
+	// after sucessful commitment, update shared state
+	// we already acquired the lock
+	env.isDirty = true
+
+	c.Data(
+		http.StatusOK,
+		"application/json",
+		[]byte("{\"success\":true}"),
+	)
+}
+
+func (env *EndpointHandlerEnv) getFinishPartial(c *gin.Context) {
+	if !env.receivedValidInsertionKey(c) {
 		return
 	}
 
@@ -1040,6 +1112,32 @@ func (env *EndpointHandlerEnv) getRecomputeHashes(c *gin.Context) {
 		fmt.Fprintf(os.Stderr, "updating hashes failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "updating hashes failed, check the server logs",
+		})
+		return
+	}
+
+	// re-create indices
+	_, err = tx.Exec(
+		c.Request.Context(),
+		// nodes table
+		"CREATE UNIQUE INDEX IF NOT EXISTS bit_string_bit_idx ON nodes USING btree (bit_string_51 ASC NULLS LAST, bit_string_15 ASC NULLS LAST);"+
+			"CREATE INDEX IF NOT EXISTS bit_string_len ON nodes (LENGTH(bit_string_51), LENGTH(bit_string_15));"+
+			"CREATE INDEX IF NOT EXISTS bit_string_integer_idx ON nodes USING btree (bit_string_51_int ASC NULLS LAST);"+
+			"ALTER TABLE IF EXISTS nodes CLUSTER ON bit_string_integer_idx;"+
+			"CLUSTER nodes USING bit_string_integer_idx;"+
+			"VACUUM FULL nodes;"+
+			"ALTER TABLE nodes ADD CONSTRAINT nodes_pkey PRIMARY KEY (bit_string_51, bit_string_15);"+
+			// certificates table
+			"CREATE UNIQUE INDEX IF NOT EXISTS certificate_hash ON certificates USING hash (certificate_hash);"+
+			"CREATE INDEX IF NOT EXISTS certificate_not_valid_after ON certificates USING btree (not_valid_after);"+
+			"ALTER TABLE IF EXISTS certificates CLUSTER ON certificate_not_valid_after;"+
+			"CLUSTER certificates USING certificate_not_valid_after;"+
+			"ALTER TABLE certificates ADD CONSTRAINT certificates_pkey PRIMARY KEY (certificate_hash);",
+	)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "creating indices and constraints failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "creating indices and constraints failed",
 		})
 		return
 	}
@@ -1096,6 +1194,21 @@ func (env *EndpointHandlerEnv) getRecomputeHashes(c *gin.Context) {
 		"application/json",
 		[]byte(fmt.Sprintf("{\"success\":true, \"new_tree_size\":%d}", sch.Size)),
 	)
+}
+
+func (env *EndpointHandlerEnv) receivedValidInsertionKey(c *gin.Context) bool {
+	key := c.DefaultQuery("key", "???")
+	keyHash := sha256.Sum256([]byte(key))
+
+	// compare hashes, avoids timing side channel since the strings are of the same length
+	if !bytes.Equal(keyHash[:], env.certificateInsertionKeyHash) {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "invalid key",
+		})
+		return false
+	}
+
+	return true
 }
 
 func (env *EndpointHandlerEnv) createNewSMH(

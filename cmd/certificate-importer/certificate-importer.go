@@ -21,9 +21,8 @@ import (
 )
 
 const (
-	F_GROW                        = 1
-	CERTIFICATE_IMPORT_BUFFER     = 50000
-	CERTIFICATE_IMPORT_BATCH_SIZE = 10000
+	CERTIFICATE_IMPORT_BUFFER     = 10000
+	CERTIFICATE_IMPORT_BATCH_SIZE = 1000
 )
 
 type Coordinate struct {
@@ -448,6 +447,8 @@ func main() {
 	num := int(pr.GetNumRows())
 	progressBar := progressbar.Default(int64(num), "locate certificates")
 
+	certificateCount := 0
+
 	// setup channels for concurrently writing certificates to disk
 	certificates := make(chan *crypto.GeoCertificate, CERTIFICATE_IMPORT_BUFFER)
 	certificatesFinishedImporting := make(chan bool)
@@ -460,6 +461,29 @@ func main() {
 		progressBar,
 	)
 
+	fmt.Printf("Dropping all indices..")
+	plainResponse, err := http.Get(
+		fmt.Sprintf("%s/v1/drop-indices?key=%s", address, insertionKey),
+	)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed sending HTTP GET request to %s: %v", address, err)
+		os.Exit(1)
+	}
+
+	body, err := io.ReadAll(plainResponse.Body)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "reading response body failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	if plainResponse.StatusCode != 200 {
+		fmt.Fprintf(os.Stderr, "server replied with %s", string(body))
+		os.Exit(1)
+	}
+
+	fmt.Printf("Done!")
+
+	start := time.Now()
 	for i := 0; i < num; i++ {
 		rows := make([]CertificateRow, 1)
 		if err = pr.Read(&rows); err != nil {
@@ -477,6 +501,7 @@ func main() {
 			log.Fatalf("failed converting to a certificate: %v", err)
 		}
 
+		certificateCount++
 		certificates <- certificate
 	}
 	// tell certificate importer that it has all certificates
@@ -484,20 +509,22 @@ func main() {
 
 	// wait for the importer to finish
 	<-certificatesFinishedImporting
-	fmt.Printf("Imported all certificates, recompute hashes now.\n")
+	fmt.Printf("Imported all %d certificates in %f minutes, recompute hashes now.\n", certificateCount, time.Since(start).Minutes())
 
-	start := time.Now()
+	//return
+
+	start = time.Now()
 	fmt.Printf("This can take quite some time..\n")
 
-	plainResponse, err := http.Get(
-		fmt.Sprintf("%s/v1/recompute-hashes", address),
+	plainResponse, err = http.Get(
+		fmt.Sprintf("%s/v1/finish-partial?key=%s", address, insertionKey),
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed sending HTTP GET request to %s: %v", address, err)
 		os.Exit(1)
 	}
 
-	body, err := io.ReadAll(plainResponse.Body)
+	body, err = io.ReadAll(plainResponse.Body)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "reading response body failed: %v\n", err)
 		os.Exit(1)
