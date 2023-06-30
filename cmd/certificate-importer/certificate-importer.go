@@ -462,8 +462,10 @@ func main() {
 	)
 
 	fmt.Printf("Dropping all indices..\n")
-	plainResponse, err := http.Get(
+	plainResponse, err := http.Post(
 		fmt.Sprintf("%s/v1/drop-indices?key=%s", address, insertionKey),
+		"application/json",
+		nil,
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed sending HTTP GET request to %s: %v\n", address, err)
@@ -511,13 +513,15 @@ func main() {
 	<-certificatesFinishedImporting
 	fmt.Printf("Imported all %d certificates in %f minutes, recompute hashes now.\n", certificateCount, time.Since(start).Minutes())
 
-	//return
+	// return
 
 	start = time.Now()
 	fmt.Printf("This can take quite some time..\n")
 
-	plainResponse, err = http.Get(
+	plainResponse, err = http.Post(
 		fmt.Sprintf("%s/v1/finish-partial?key=%s", address, insertionKey),
+		"application/json",
+		nil,
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed sending HTTP GET request to %s: %v\n", address, err)

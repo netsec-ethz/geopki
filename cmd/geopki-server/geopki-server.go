@@ -325,8 +325,8 @@ func main() {
 	r.GET("/v1/get-entries", env.getEntries)
 	r.GET("/v1/get-entry-and-proof", env.getEntryAndProof)
 	r.POST("/v1/insert", env.postInsert)
-	r.GET("/v1/drop-indices", env.getDropIndices)
-	r.GET("/v1/finish-partial", env.getFinishPartial)
+	r.POST("/v1/drop-indices", env.getDropIndices)
+	r.POST("/v1/finish-partial", env.getFinishPartial)
 
 	// install demo endpoint
 	r.Static("/demo", "./demo/geopki-web-client")
