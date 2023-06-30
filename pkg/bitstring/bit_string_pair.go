@@ -111,11 +111,12 @@ func (g *S2Geometry2D) InitialXYBitString(fGrow float64) (*XYBitString, error) {
 		// no shrinking is done so do nothing
 	} else if growSteps > float64(initialBitString.XPrecision+initialBitString.YPrecision) {
 		return nil, fmt.Errorf("something seems off, cannot grow larger than the whole world (%f / %f = %f > %d;)", maxArea, currentArea, growSteps, initialBitString.XPrecision+initialBitString.YPrecision)
-	}
+	} else {
 
-	err = initialBitString.Grow2D(uint8(growSteps))
-	if err != nil {
-		return nil, err
+		err = initialBitString.Grow2D(uint8(growSteps))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return initialBitString, nil
