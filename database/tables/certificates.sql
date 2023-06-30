@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS certificates
     CONSTRAINT certificates_pkey PRIMARY KEY (certificate_hash)
 );
 
-CREATE INDEX certificate_hash
+CREATE UNIQUE INDEX certificate_hash
     ON certificates USING hash
     (certificate_hash)
 ;
