@@ -461,12 +461,12 @@ func main() {
 		progressBar,
 	)
 
-	fmt.Printf("Dropping all indices..")
+	fmt.Printf("Dropping all indices..\n")
 	plainResponse, err := http.Get(
 		fmt.Sprintf("%s/v1/drop-indices?key=%s", address, insertionKey),
 	)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed sending HTTP GET request to %s: %v", address, err)
+		fmt.Fprintf(os.Stderr, "failed sending HTTP GET request to %s: %v\n", address, err)
 		os.Exit(1)
 	}
 
@@ -477,11 +477,11 @@ func main() {
 	}
 
 	if plainResponse.StatusCode != 200 {
-		fmt.Fprintf(os.Stderr, "server replied with %s", string(body))
+		fmt.Fprintf(os.Stderr, "server replied with %s\n", string(body))
 		os.Exit(1)
 	}
 
-	fmt.Printf("Done!")
+	fmt.Printf("Done!\n")
 
 	start := time.Now()
 	for i := 0; i < num; i++ {
@@ -520,7 +520,7 @@ func main() {
 		fmt.Sprintf("%s/v1/finish-partial?key=%s", address, insertionKey),
 	)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed sending HTTP GET request to %s: %v", address, err)
+		fmt.Fprintf(os.Stderr, "failed sending HTTP GET request to %s: %v\n", address, err)
 		os.Exit(1)
 	}
 
@@ -531,7 +531,7 @@ func main() {
 	}
 
 	if plainResponse.StatusCode != 200 {
-		fmt.Fprintf(os.Stderr, "server replied with %s", string(body))
+		fmt.Fprintf(os.Stderr, "server replied with %s\n", string(body))
 		os.Exit(1)
 	}
 
