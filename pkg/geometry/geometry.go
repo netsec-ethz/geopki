@@ -7,7 +7,6 @@ import (
 	"log"
 	"math"
 	"strings"
-	"sync"
 
 	"github.com/golang/geo/s2"
 	"github.com/lukeroth/gdal"
@@ -107,24 +106,11 @@ func getWGS84() gdal.SpatialReference {
 	return WGS84
 }
 
-var stringBuilderPool = sync.Pool{
-	New: func() any {
-		// The Pool's New function should generally only return pointer
-		// types, since a pointer can be put into the return interface
-		// value without an allocation:
-		return new(strings.Builder)
-	},
-}
-
 func LoopToGdalGeometry(loop *s2.Loop) (*gdal.Geometry, error) {
 
 	vertices := loop.Vertices()
 
-	wkt := stringBuilderPool.Get().(*strings.Builder)
-	defer func() {
-		wkt.Reset()
-		stringBuilderPool.Put(wkt)
-	}()
+	var wkt strings.Builder
 
 	wkt.WriteString("POLYGON ((")
 	// array of ccw order points of the loop
@@ -163,13 +149,10 @@ func CertificateToGeometries(area *crypto.GeoCertArea) ([]bitstring.Geometry2D, 
 	exteriorRing := area.Coordinates[0]
 
 	geometries := make([]bitstring.Geometry2D, len(exteriorRing))
-	for i, polygon := range exteriorRing {
+	var wkt strings.Builder
 
-		wkt := stringBuilderPool.Get().(*strings.Builder)
-		defer func() {
-			wkt.Reset()
-			stringBuilderPool.Put(wkt)
-		}()
+	for i, polygon := range exteriorRing {
+		wkt.Reset()
 
 		wkt.WriteString("POLYGON ((")
 		// array of ccw order points of the loop
