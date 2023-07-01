@@ -486,8 +486,6 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 		"application/octet-stream",
 		response,
 	)
-
-	fmt.Printf("counter: %d\n", geometry.Counter)
 }
 
 // handler for the /certificates endpoint
@@ -993,6 +991,8 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		"application/json",
 		[]byte("{\"success\":true}"),
 	)
+
+	fmt.Printf("counter: %d\n", geometry.Counter)
 }
 
 func (env *EndpointHandlerEnv) getDropIndices(c *gin.Context) {
