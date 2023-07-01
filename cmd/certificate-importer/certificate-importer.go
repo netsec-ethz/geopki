@@ -537,5 +537,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Done, re-computed all hashes in %f minutes.\n", time.Since(start).Minutes())
+	fmt.Printf("Done, built indices and computed hashes in %f minutes.\n", time.Since(start).Minutes())
 }
