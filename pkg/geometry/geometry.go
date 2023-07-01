@@ -13,6 +13,8 @@ import (
 	"github.com/lukeroth/gdal"
 )
 
+var Counter int = 0
+
 // the gdal implementation of the 'Geometry2D' interface
 type GdalGeometry2D struct {
 	Geometry *gdal.Geometry
@@ -26,7 +28,10 @@ func (g *GdalGeometry2D) Intersects(xyBitstring *bitstring.XYBitString) (bool, e
 
 	r := g.Geometry.Intersects(*geom)
 
+	// free memory
 	geom.Destroy()
+	Counter--
+
 	return r, nil
 }
 
@@ -53,7 +58,10 @@ func (g *GdalGeometry2D) InitialXYBitString(fGrow float64) (*bitstring.XYBitStri
 	}
 
 	currentArea := initialGeometry.Area()
+
+	// free memory
 	initialGeometry.Destroy()
+	Counter--
 
 	growSteps := math.Log2(maxArea / currentArea)
 
@@ -146,6 +154,7 @@ func LoopToGdalGeometry(loop *s2.Loop) (*gdal.Geometry, error) {
 		println(wkt.String())
 		return nil, err
 	}
+	Counter++
 
 	return &geometry, nil
 }
@@ -186,6 +195,7 @@ func CertificateToGeometries(area *crypto.GeoCertArea) ([]bitstring.Geometry2D, 
 			println(wkt.String())
 			return nil, err
 		}
+		Counter++
 
 		geometries[i] = &GdalGeometry2D{
 			Geometry: &geometry,
@@ -214,8 +224,10 @@ func CertificateToBitStrings(cert *crypto.GeoCertificate, fGrow float64) ([]*bit
 			return nil, err
 		}
 
+		// free memory
 		for _, g := range geometries {
 			g.Destroy()
+			Counter--
 		}
 
 		bitstrings = append(bitstrings, bs...)

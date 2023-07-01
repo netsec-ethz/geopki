@@ -17,8 +17,6 @@ import (
 	"math"
 	"net/http"
 	"os"
-	"runtime"
-	"runtime/debug"
 	"strconv"
 	"sync"
 	"time"
@@ -26,6 +24,7 @@ import (
 	"geopki/pkg/comm"
 	"geopki/pkg/crypto"
 	"geopki/pkg/database"
+	"geopki/pkg/geometry"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/pprof"
@@ -333,22 +332,6 @@ func main() {
 	// install demo endpoint
 	r.Static("/demo", "./demo/geopki-web-client")
 
-	go func() {
-		for {
-			var m runtime.MemStats
-			runtime.ReadMemStats(&m)
-			// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-			fmt.Printf("Alloc=%d GiB", m.Alloc/1024/1024/1024)
-			fmt.Printf("    TotalAlloc=%d GiB", m.TotalAlloc/1024/1024/1024)
-			fmt.Printf("    Sys=%d GiB", m.Sys/1024/1024/1024)
-			fmt.Printf("    NumGC=%d\n", m.NumGC)
-
-			debug.FreeOSMemory()
-
-			time.Sleep(10 * time.Second)
-		}
-	}()
-
 	// start server
 	r.Run(fmt.Sprintf("%s:%d", listenAddress, listenPort))
 }
@@ -503,6 +486,8 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 		"application/octet-stream",
 		response,
 	)
+
+	fmt.Printf("counter: %d\n", geometry.Counter)
 }
 
 // handler for the /certificates endpoint
