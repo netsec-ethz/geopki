@@ -1123,7 +1123,6 @@ func (env *EndpointHandlerEnv) getFinishPartial(c *gin.Context) {
 			"CREATE INDEX IF NOT EXISTS bit_string_integer_idx ON nodes USING btree (bit_string_51_int ASC NULLS LAST);"+
 			"ALTER TABLE IF EXISTS nodes CLUSTER ON bit_string_integer_idx;"+
 			"CLUSTER nodes USING bit_string_integer_idx;"+
-			"VACUUM FULL nodes;"+
 			// certificates table
 			"CREATE UNIQUE INDEX IF NOT EXISTS certificate_hash ON certificates USING hash (certificate_hash);"+
 			"CREATE INDEX IF NOT EXISTS certificate_not_valid_after ON certificates USING btree (not_valid_after);"+
