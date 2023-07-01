@@ -24,7 +24,6 @@ import (
 	"geopki/pkg/comm"
 	"geopki/pkg/crypto"
 	"geopki/pkg/database"
-	"geopki/pkg/geometry"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/pprof"
@@ -991,8 +990,6 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		"application/json",
 		[]byte("{\"success\":true}"),
 	)
-
-	fmt.Printf("counter: %d\n", geometry.Counter)
 }
 
 func (env *EndpointHandlerEnv) getDropIndices(c *gin.Context) {

@@ -13,7 +13,7 @@ import (
 	"github.com/lukeroth/gdal"
 )
 
-var Counter int = 0
+var WGS84 = getWGS84()
 
 // the gdal implementation of the 'Geometry2D' interface
 type GdalGeometry2D struct {
@@ -30,7 +30,6 @@ func (g *GdalGeometry2D) Intersects(xyBitstring *bitstring.XYBitString) (bool, e
 
 	// free memory
 	geom.Destroy()
-	Counter--
 
 	return r, nil
 }
@@ -61,7 +60,6 @@ func (g *GdalGeometry2D) InitialXYBitString(fGrow float64) (*bitstring.XYBitStri
 
 	// free memory
 	initialGeometry.Destroy()
-	Counter--
 
 	growSteps := math.Log2(maxArea / currentArea)
 
@@ -149,12 +147,11 @@ func LoopToGdalGeometry(loop *s2.Loop) (*gdal.Geometry, error) {
 	coordinate := s2.LatLngFromPoint(vertices[0])
 	wkt.WriteString(fmt.Sprintf(",%f %f))", coordinate.Lng.Degrees(), coordinate.Lat.Degrees()))
 
-	geometry, err := gdal.CreateFromWKT(wkt.String(), getWGS84())
+	geometry, err := gdal.CreateFromWKT(wkt.String(), WGS84)
 	if err != nil {
 		println(wkt.String())
 		return nil, err
 	}
-	Counter++
 
 	return &geometry, nil
 }
@@ -168,7 +165,6 @@ func CertificateToGeometries(area *crypto.GeoCertArea) ([]bitstring.Geometry2D, 
 		return nil, fmt.Errorf("area.Type must be equal to 'MultiPolygon'")
 	}
 
-	WGS84 := getWGS84()
 	exteriorRing := area.Coordinates[0]
 
 	geometries := make([]bitstring.Geometry2D, len(exteriorRing))
@@ -195,7 +191,6 @@ func CertificateToGeometries(area *crypto.GeoCertArea) ([]bitstring.Geometry2D, 
 			println(wkt.String())
 			return nil, err
 		}
-		Counter++
 
 		geometries[i] = &GdalGeometry2D{
 			Geometry: &geometry,
@@ -227,7 +222,6 @@ func CertificateToBitStrings(cert *crypto.GeoCertificate, fGrow float64) ([]*bit
 		// free memory
 		for _, g := range geometries {
 			g.Destroy()
-			Counter--
 		}
 
 		bitstrings = append(bitstrings, bs...)
