@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	CERTIFICATE_IMPORT_BUFFER     = 10000
 	CERTIFICATE_IMPORT_BATCH_SIZE = 1000
+	CERTIFICATE_IMPORT_BUFFER     = CERTIFICATE_IMPORT_BATCH_SIZE * 2
 )
 
 type Coordinate struct {
@@ -444,23 +444,6 @@ func main() {
 		return
 	}
 
-	num := int(pr.GetNumRows())
-	progressBar := progressbar.Default(int64(num), "locate certificates")
-
-	certificateCount := 0
-
-	// setup channels for concurrently writing certificates to disk
-	certificates := make(chan *crypto.GeoCertificate, CERTIFICATE_IMPORT_BUFFER)
-	certificatesFinishedImporting := make(chan bool)
-	// start writer routine
-	go certificateImporter(
-		address,
-		insertionKey,
-		certificates,
-		certificatesFinishedImporting,
-		progressBar,
-	)
-
 	fmt.Printf("Dropping all indices..\n")
 	plainResponse, err := http.Post(
 		fmt.Sprintf("%s/v1/drop-indices?key=%s", address, insertionKey),
@@ -484,6 +467,23 @@ func main() {
 	}
 
 	fmt.Printf("Done!\n")
+
+	num := int(pr.GetNumRows())
+	progressBar := progressbar.Default(int64(num), "locate certificates")
+
+	certificateCount := 0
+
+	// setup channels for concurrently writing certificates to disk
+	certificates := make(chan *crypto.GeoCertificate, CERTIFICATE_IMPORT_BUFFER)
+	certificatesFinishedImporting := make(chan bool)
+	// start writer routine
+	go certificateImporter(
+		address,
+		insertionKey,
+		certificates,
+		certificatesFinishedImporting,
+		progressBar,
+	)
 
 	start := time.Now()
 	for i := 0; i < num; i++ {
@@ -511,9 +511,7 @@ func main() {
 
 	// wait for the importer to finish
 	<-certificatesFinishedImporting
-	fmt.Printf("Imported all %d certificates in %f minutes, recompute hashes now.\n", certificateCount, time.Since(start).Minutes())
-
-	// return
+	fmt.Printf("Imported all %d certificates in %f minutes, build indices and compute hashes now.\n", certificateCount, time.Since(start).Minutes())
 
 	start = time.Now()
 	fmt.Printf("This can take quite some time..\n")
