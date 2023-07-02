@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	F_GROW                   = 1
+	F_GROW                   = 0.1
 	CERTIFICATE_WRITE_BUFFER = 1000
 	NODE_WRITE_BUFFER        = 1000
 	MAX_FILE_SIZE            = 300 * 1000 * 1000 // 300 MB
