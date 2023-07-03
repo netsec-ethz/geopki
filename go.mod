@@ -5,7 +5,6 @@ go 1.20
 require (
 	github.com/deckarep/golang-set/v2 v2.3.0
 	github.com/gin-contrib/cors v1.4.0
-	github.com/gin-contrib/pprof v1.4.0
 	github.com/gin-gonic/gin v1.9.0
 	github.com/golang/geo v0.0.0-20230421003525-6adc56603217
 	github.com/google/trillian v1.5.2
