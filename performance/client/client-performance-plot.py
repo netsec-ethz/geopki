@@ -1,9 +1,7 @@
 import click
 import os
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.stats import rv_discrete
 
 FILE_PATH = os.path.realpath(__file__)
 
@@ -12,8 +10,7 @@ def cdf_plot(
     xlabel: str,
     df_column,
     output_filename: str,
-    show_quantile=True,
-    integer_range=True,
+    show_quantile=True
 ):
 
     fig, ax = plt.subplots(dpi=300)
@@ -180,7 +177,6 @@ def main(
         "time to generate query in s",
         df['time_building_query'],
         f"{output_path}/time-build-query-cdf.png",
-        integer_range=False
     )
 
     # time_send_receive
@@ -188,7 +184,6 @@ def main(
     #     "request time in s",
     #     df['time_send_receive'],
     #     f"{output_path}/time-send-receive-cdf.png",
-    #     integer_range=False
     # )
 
     # time_verification
@@ -196,7 +191,6 @@ def main(
         "time to verify response in s",
         df['time_verification'],
         f"{output_path}/time-verification-cdf.png",
-        integer_range=False
     )
 
     # time_consistency
@@ -204,7 +198,6 @@ def main(
     #     "time to verify consistency in s",
     #     df['time_consistency'],
     #     f"{output_path}/time-consistency-cdf.png",
-    #     integer_range=False
     # )
 
     # time_total
@@ -212,7 +205,6 @@ def main(
         "total request time in s",
         df['time_total'],
         f"{output_path}/time-total-cdf.png",
-        integer_range=False
     )
 
 
