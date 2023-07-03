@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,6 +19,8 @@ func StartServer(
 	// setup web server
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
+
+	pprof.Register(r)
 
 	// configure gin engine
 	r.SetTrustedProxies(TRUSTED_PROXIES)
