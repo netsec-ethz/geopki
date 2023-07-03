@@ -53,8 +53,8 @@ func StartServer(
 
 	// ingestion
 	r.POST("/v1/insert", env.postInsert)
-	r.POST("/v1/drop-indices", env.getDropIndices)
-	r.POST("/v1/finish-partial", env.getFinishPartial)
+	r.POST("/v1/drop-indices", env.postDropIndices)
+	r.POST("/v1/finish-partial", env.postFinishPartial)
 
 	// install demo endpoint
 	r.Static("/demo", "./demo/geopki-web-client")

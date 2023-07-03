@@ -171,7 +171,7 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 	)
 }
 
-func (env *EndpointHandlerEnv) getDropIndices(c *gin.Context) {
+func (env *EndpointHandlerEnv) postDropIndices(c *gin.Context) {
 	if !env.receivedValidInsertionKey(c) {
 		return
 	}
@@ -254,7 +254,7 @@ func (env *EndpointHandlerEnv) getDropIndices(c *gin.Context) {
 	)
 }
 
-func (env *EndpointHandlerEnv) getFinishPartial(c *gin.Context) {
+func (env *EndpointHandlerEnv) postFinishPartial(c *gin.Context) {
 	if !env.receivedValidInsertionKey(c) {
 		return
 	}

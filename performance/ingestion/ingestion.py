@@ -10,6 +10,7 @@ import os
 import tempfile
 import json
 import time
+from urllib.request import Request, urlopen
 from datetime import datetime
 from geopy import distance
 
@@ -135,12 +136,14 @@ def sample_random_altitude() -> tuple[float, float]:
     type=int,
     default=10
 )
+@click.option('--drop-indices', 'drop_indices', flag_value=True, default=False)
 def main(
     website_density_path: str,
     output_path: str,
     address: str,
     insertion_key: str,
     repetitions: int,
+    drop_indices: bool,
 ):
 
     if not os.path.isfile(website_density_path):
@@ -170,7 +173,7 @@ def main(
     else:
         f = open(output_path, "w")
         f.write(
-            f"threads,time,include_certificates,successful_requests,failed_requests\n"
+            f"certificate_count,time,success\n"
         )
         f.flush()
 
@@ -183,6 +186,18 @@ def main(
     uid = hashlib.sha256(str(time.time()).encode("ascii")).digest().hex()[:8]
 
     total_iterations = len(CERTIFICATE_BATCH_SIZES) * repetitions
+
+    if drop_indices:
+        input("confirm by pressing enter to drop the indices before starting")
+        request = Request(
+            f"{address}/v1/drop-indices?key={insertion_key}",
+            method="POST"
+        )
+        json = urlopen(request).read().decode()
+
+        if "error" in json:
+            print(json)
+            exit(1)
 
     for i, batch_size in tqdm(
         (
