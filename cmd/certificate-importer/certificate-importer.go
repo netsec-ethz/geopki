@@ -353,7 +353,7 @@ func importBatch(
 	plainResponse, err := http.Post(
 		fmt.Sprintf("%s/v1/insert?key=%s&is-partial=true", address, insertionKey),
 		"application/json",
-		bytes.NewBuffer([]byte(buf.Bytes())),
+		&buf,
 	)
 	if err != nil {
 		return fmt.Errorf("failed sending HTTP POST request to %s: %v", address, err)

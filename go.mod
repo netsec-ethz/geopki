@@ -5,6 +5,7 @@ go 1.20
 require (
 	github.com/deckarep/golang-set/v2 v2.3.0
 	github.com/gin-contrib/cors v1.4.0
+	github.com/gin-contrib/pprof v1.4.0
 	github.com/gin-gonic/gin v1.9.0
 	github.com/golang/geo v0.0.0-20230421003525-6adc56603217
 	github.com/google/trillian v1.5.2
@@ -13,14 +14,12 @@ require (
 	github.com/lukeroth/gdal v0.0.0-20230422025444-05e99f726ff9
 	github.com/transparency-dev/merkle v0.0.2
 	github.com/xitongsys/parquet-go v1.6.2
-	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	google.golang.org/grpc v1.54.0
 	google.golang.org/protobuf v1.30.0
 )
 
 require (
 	github.com/apache/arrow/go/arrow v0.0.0-20200730104253-651201b0f516 // indirect
-	github.com/gin-contrib/pprof v1.4.0 // indirect
 	github.com/klauspost/compress v1.15.9 // indirect
 	github.com/pierrec/lz4/v4 v4.1.8 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
