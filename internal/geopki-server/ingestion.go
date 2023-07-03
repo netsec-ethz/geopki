@@ -134,6 +134,8 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		return
 	}
 
+	var smh *crypto.SignedMapHead
+
 	if isPartialUpdate {
 		// if set to false, set to true, noop if already true
 		_, err := database.UpdateState(DATABASE_STATE_KEY_DIRTY, "false", "true", tx, c.Request.Context())
@@ -144,11 +146,20 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 			})
 			return
 		}
-
-		// before transaction is commited, acquire lock on shared data
-		env.SharedDataLock.Lock()
-		defer env.SharedDataLock.Unlock()
+	} else {
+		smh, err = CreateNewSMH(tx, env.PrivateKey, c.Request.Context())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "updating SMH failed: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "updating SMH failed, check the server logs",
+			})
+			return
+		}
 	}
+
+	// before transaction is commited, acquire lock on shared data
+	env.SharedDataLock.Lock()
+	defer env.SharedDataLock.Unlock()
 
 	err = tx.Commit(c.Request.Context())
 	if err != nil {
@@ -162,6 +173,16 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 	if isPartialUpdate {
 		// update was persisted and we acquired a lock, update the shared state
 		env.IsDirty = true
+	} else {
+		// update sch if transaction committed
+		_, err := env.updateSCH(smh, c.Request.Context())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "updating SCH failed: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "updating SCH failed, check the server logs",
+			})
+			return
+		}
 	}
 
 	c.Data(
