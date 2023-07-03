@@ -193,10 +193,10 @@ def main(
             f"{address}/v1/drop-indices?key={insertion_key}",
             method="POST"
         )
-        json = urlopen(request).read().decode()
+        response = urlopen(request).read().decode()
 
-        if "error" in json:
-            print(json)
+        if "error" in response:
+            print(response)
             exit(1)
 
     for i, batch_size in tqdm(
