@@ -264,7 +264,6 @@ func AddNewCertificates(
 	newCertificates []*crypto.GeoCertificate,
 	fGrow float64,
 	transaction pgx.Tx,
-	coveredCTLogServers []crypto.CTLogServer,
 	updateHashes bool,
 	ctx context.Context,
 ) error {
