@@ -1,4 +1,4 @@
-all: client server wasm-client demo db-address-exporter bitstring-performance client-performance client-throughput
+all: client server wasm-client demo db-address-exporter bitstring-performance client-performance client-throughput client-ingestion
 
 client: ./cmd/geopki-client/geopki-client.go $(wildcard pkg/**/*)
 	go build -o ./dist/geopki-client ./cmd/geopki-client
@@ -24,6 +24,9 @@ client-performance: ./cmd/geopki-client-performance/geopki-client-performance.go
 client-throughput: ./cmd/geopki-client-throughput/geopki-client-throughput.go $(wildcard pkg/**/*)
 	go build -o ./dist/geopki-client-throughput ./cmd/geopki-client-throughput
 
+client-ingestion: ./cmd/geopki-client-ingestion/geopki-client-ingestion.go $(wildcard pkg/**/*)
+	go build -o ./dist/geopki-client-ingestion ./cmd/geopki-client-ingestion
+
 clean:
 	rm -f ./dist/geopki-client
 	rm -f ./dist/geopki-server
@@ -33,3 +36,4 @@ clean:
 	rm -f ./dist/bitstring-performance
 	rm -f ./dist/client-performance
 	rm -f ./dist/bitstring-throughput
+	rm -f ./dist/bitstring-ingestion
