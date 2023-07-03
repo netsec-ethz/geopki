@@ -218,11 +218,6 @@ def main(
         with tempfile.NamedTemporaryFile() as fp:
 
             # write queries to temporary file
-            print(json.dumps([
-                cert.to_cert()
-                for cert in certificates
-            ]))
-
             fp.write(
                 json.dumps([
                     cert.to_cert()
