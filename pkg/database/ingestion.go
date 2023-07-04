@@ -295,18 +295,13 @@ func AddNewCertificates(
 
 	for bitStringPair := range certificatesToAdd {
 
-		hashes := "nodes.certificate_hashes"
-		addSet, hasCertificatesToAdd := certificatesToAdd[bitStringPair]
-
-		if hasCertificatesToAdd {
-			// requires an 'array_union' function to be defined
-			hashes = fmt.Sprintf(
-				// unions with the 'addSet' to 'hashes'
-				"array_union(%s,%s)",
-				hashes,
-				bytesSliceToPostgresArray(addSet),
-			)
-		}
+		addSet := certificatesToAdd[bitStringPair]
+		// requires an 'array_union' function to be defined
+		hashes := fmt.Sprintf(
+			// unions with the 'addSet' to 'hashes'
+			"array_union(nodes.certificate_hashes,%s)",
+			bytesSliceToPostgresArray(addSet),
+		)
 
 		// use null for the hashes if inserted new since it can only be a new sparse leaf
 		// if it is new
