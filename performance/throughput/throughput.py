@@ -15,10 +15,8 @@ CURRENT_DIR = os.path.dirname(FILE_PATH)
 
 QUERY_RADIUS = 10
 
-# TIME_VALUES = [1, 2, 4, 8, 16, 32]
-# THREAD_VALUES = [1, 2, 4, 8, 16, 32, 64]
 TIME_VALUES = [8]
-THREAD_VALUES = [1, 2, 4, 8, 16, 32, 64]
+THREAD_VALUES = [1, 2, 4, 8, 16, 32]
 
 MAX_QUERIES_PER_SECOND = 50
 
@@ -117,51 +115,46 @@ def main(
     # very small probability if osm_website_element_count == 0
     # df['weights'] = df['osm_website_element_count'] + 1
 
-    max_threads = max(THREAD_VALUES)
-    max_time = max(TIME_VALUES)
-    query_count = max_threads * max_time * MAX_QUERIES_PER_SECOND
+    total_iterations = len(TIME_VALUES) * len(THREAD_VALUES) * repetitions
 
-    print(f"Generating {query_count} queries..")
+    for i, time, threads in tqdm(
+        (
+            (i, time, threads)
+            for time in TIME_VALUES
+            for threads in THREAD_VALUES
+            for i in range(repetitions)
+        ),
+        total=total_iterations
+    ):
+        query_count = threads * time * MAX_QUERIES_PER_SECOND
 
-    sample = df.sample(
-        n=query_count,
-        weights='weight',
-        random_state=1,
-        replace=True
-    )
-
-    # for each sample, sample a point within the polygon
-    sample['sample_point'] = sample['polygon'].apply(sample_point_in_polygon)
-    query_locations: list[
-        tuple[float, float]
-    ] = sample['sample_point'].values
-
-    with tempfile.NamedTemporaryFile() as fp:
-
-        # write queries to temporary file
-        fp.write(
-            json.dumps([
-                Query(longitude=longitude, latitude=latitude,
-                      radius=QUERY_RADIUS).to_json()
-                for (longitude, latitude) in query_locations
-            ]).encode("utf-8")
+        sample = df.sample(
+            n=query_count,
+            weights='weight',
+            random_state=1,
+            replace=True
         )
-        # flush to disk
-        fp.flush()
 
-        print("Done.")
+        # for each sample, sample a point within the polygon
+        sample['sample_point'] = sample['polygon'].apply(
+            sample_point_in_polygon)
+        query_locations: list[
+            tuple[float, float]
+        ] = sample['sample_point'].values
 
-        total_iterations = len(TIME_VALUES) * len(THREAD_VALUES) * repetitions
+        with tempfile.NamedTemporaryFile() as fp:
 
-        for i, time, threads in tqdm(
-            (
-                (i, time, threads)
-                for time in TIME_VALUES
-                for threads in THREAD_VALUES
-                for i in range(repetitions)
-            ),
-            total=total_iterations
-        ):
+            # write queries to temporary file
+            fp.write(
+                json.dumps([
+                    Query(longitude=longitude, latitude=latitude,
+                          radius=QUERY_RADIUS).to_json()
+                    for (longitude, latitude) in query_locations
+                ]).encode("utf-8")
+            )
+            # flush to disk
+            fp.flush()
+
             # print(f"go with {time}, {threads}, {fp.name}")
             p = subprocess.Popen(
                 [
@@ -179,7 +172,7 @@ def main(
             f.write(p.stdout.read().decode("ascii"))
             f.flush()
 
-        f.close()
+    f.close()
 
 
 if __name__ == '__main__':
