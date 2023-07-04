@@ -137,6 +137,7 @@ def sample_random_altitude() -> tuple[float, float]:
     default=10
 )
 @click.option('--drop-indices', 'drop_indices', flag_value=True, default=False)
+@click.option('--with-altitude', 'with_altitude', flag_value=True, default=False)
 def main(
     website_density_path: str,
     output_path: str,
@@ -144,6 +145,7 @@ def main(
     insertion_key: str,
     repetitions: int,
     drop_indices: bool,
+    with_altitude: bool,
 ):
 
     if not os.path.isfile(website_density_path):
@@ -225,7 +227,11 @@ def main(
             GeoCertificate(
                 certificate_id=f"ingestion:{date}-{uid}-{batch_size}-{i}",
                 list_of_multipolygons=[MultiPolygon([polygon])],
-                list_of_altitudes=[sample_random_altitude()],
+                list_of_altitudes=[
+                    sample_random_altitude()
+                    if with_altitude else
+                    (MIN_ALTITUDE, MAX_ALTITUDE)
+                ],
             )
             for polygon in certificate_polygons
         ]
