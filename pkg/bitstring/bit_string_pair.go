@@ -818,8 +818,6 @@ BitstringLoop:
 			continue
 		}
 
-		fmt.Printf("%d: (%s | %d, %d)\n", bit_string_idx, bitString.BitString().String(), bitString.XYBitString, bitString.XYBitStringLen)
-
 		// from this point on bit_string is sucessfully taken
 		results = append(results, bitString)
 
