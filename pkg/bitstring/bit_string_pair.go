@@ -787,12 +787,13 @@ func PolygonsTo2DBitStrings(polygons []Geometry2D, fGrow float64) ([]RawXYBitStr
 	// transform set to list
 	intersectingAreasAllPolygonsList := intersectingAreasAllPolygons.ToSlice()
 
+BitstringLoop:
 	for bit_string_idx := 0; bit_string_idx < len(intersectingAreasAllPolygonsList); bit_string_idx++ {
 		bitString := intersectingAreasAllPolygonsList[bit_string_idx]
 
 		// check if this bit string is redundant, i.e. a shorter prefix is also
 		// part of the set
-		skip := false
+
 		// iterate over all prefixes of that bitstring from largest/shortest to smallest/longest
 		for i := uint8(1); i <= bitString.XYBitStringLen; i++ {
 			// check if any of its prefixes (larger areas) is also part of intersectingAreasAllPolygons
@@ -801,14 +802,8 @@ func PolygonsTo2DBitStrings(polygons []Geometry2D, fGrow float64) ([]RawXYBitStr
 			if intersectingAreasAllPolygons.Contains(bitString.Ancestor(i)) {
 				// if it is, ignore this one as the certificate will be included in the larger/shorter
 				// prefix
-				skip = true
-				break
+				continue BitstringLoop
 			}
-		}
-
-		if skip {
-			// ignore by skipping over this index
-			continue
 		}
 
 		// check if area can be merged with neighbor
@@ -816,11 +811,14 @@ func PolygonsTo2DBitStrings(polygons []Geometry2D, fGrow float64) ([]RawXYBitStr
 			// yes it can. ignore current bit_string by skipping (continue)
 			// if the neighbor is visited afterwards it will be skipped because
 			// the list contains a prefix of it
+			intersectingAreasAllPolygons.Add(bitString.Parent())
 
 			// add parent at the end of the list to make sure duplicate test is performed with parent again
 			intersectingAreasAllPolygonsList = append(intersectingAreasAllPolygonsList, bitString.Parent())
 			continue
 		}
+
+		fmt.Printf("%d: (%s | %d, %d)\n", bit_string_idx, bitString.BitString().String(), bitString.XYBitString, bitString.XYBitStringLen)
 
 		// from this point on bit_string is sucessfully taken
 		results = append(results, bitString)
