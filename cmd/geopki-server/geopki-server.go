@@ -105,7 +105,16 @@ func main() {
 	}
 
 	// create a connection pool
-	dbPool, err := pgxpool.New(ctx, databaseUrl)
+	config, err := pgxpool.ParseConfig(databaseUrl)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "unable to parse database url: %v\n", err)
+		os.Exit(8)
+	}
+	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		return nil
+	}
+
+	dbPool, err := pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to create connection pool: %v\n", err)
 		os.Exit(8)

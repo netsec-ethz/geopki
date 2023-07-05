@@ -9,6 +9,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync"
 
 	"geopki/pkg/bitstring"
 	"geopki/pkg/comm"
@@ -19,30 +20,34 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func BuildNodeQueries(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uint16) []string {
+var stringBuilderPool = sync.Pool{
+	New: func() any {
+		// The Pool's New function should generally only return pointer
+		// types, since a pointer can be put into the return interface
+		// value without an allocation:
+		return new(strings.Builder)
+	},
+}
+
+func BuildNodeQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uint16) string {
 	// generate a query for each requested bit string pair
 	// and put them in an slice
-	queries := make([]string, len(bitStrings))
+	query := stringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		query.Reset()
+		stringBuilderPool.Put(query)
+	}()
 
 	for i, bitStringPair := range bitStrings {
 		// compute all prefixes of bitString that are not obtained by removing a trailing zero
-		// 1. convert to string 2. remove trailing zeros, 3. compute all prefixes
+
+		// 1. convert to string
+		s := strconv.FormatUint(bitStringPair.XYBitString, 2)
+		// 2. left pad to full width of 64 bits, 3. remove trailing zeros,
 		trimmedXYBitString := strings.TrimRight(
-			fmt.Sprintf(
-				// left-pad with 0s
-				"%0*s",
-				64,
-				// convert integer to bit string
-				strconv.FormatUint(bitStringPair.XYBitString, 2),
-			),
+			strings.Repeat("0", 64-len(s))+s,
 			"0",
 		)
-
-		pointQueriesCount := len(trimmedXYBitString) + 1
-		pointQueries := make([]string, pointQueriesCount)
-		for i := 0; i < pointQueriesCount; i++ {
-			pointQueries[i] = fmt.Sprintf("b'%s'", trimmedXYBitString[:i])
-		}
 
 		// clear all unused bits, i.e. extend the bit string to 64 bits with zeros
 		// then shift it to the right to only take into account the 51 bits we're interested in
@@ -61,35 +66,32 @@ func BuildNodeQueries(bitStrings []*comm.XYBitString, minAltitude, maxAltitude u
 		// using prepared statements would be an option too but it would have to be generated on
 		// the fly. thus an easier improvement to ensure this stays safe would be to use a
 		// postgres function
-		queries[i] = fmt.Sprintf(
-			"(SELECT bit_string_51, bit_string_15, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash, certificate_hashes "+
-				"FROM nodes "+
-				"WHERE bit_string_51 IN (%s) AND "+
-				"altitude_min <= %d AND "+
-				"altitude_max >= %d"+
-				"UNION ALL"+
-				" "+
-				"SELECT bit_string_51, bit_string_15, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash, certificate_hashes "+
-				"FROM nodes "+
-				"WHERE "+
-				"bit_string_51_int >= %d AND "+
-				"bit_string_51_int <= %d AND "+
-				"altitude_min <= %[2]d AND "+
-				"altitude_max >= %[3]d"+
-				")",
-			strings.Join(pointQueries, ","),
-			maxAltitude,
-			minAltitude,
-			bitStringMinInt,
-			bitStringMaxInt,
-		)
+		if i > 0 {
+			query.WriteString("UNION")
+		}
+		// always query the root node
+		query.WriteString("(SELECT bit_string_51, bit_string_15, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash, certificate_hashes FROM nodes WHERE bit_string_51 IN (''")
+		// add all other prefixes of 'trimmedXYBitString'
+		pointQueriesCount := len(trimmedXYBitString)
+		for i := 1; i < pointQueriesCount; i++ {
+			query.WriteString(",'" + trimmedXYBitString[:i] + "'")
+		}
+		query.WriteString(") AND altitude_min <= ")
+		query.WriteString(strconv.FormatUint(uint64(maxAltitude), 10))
+		query.WriteString(" AND altitude_max >= ")
+		query.WriteString(strconv.FormatUint(uint64(minAltitude), 10))
+		query.WriteString("UNION ALL SELECT bit_string_51, bit_string_15, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash, certificate_hashes FROM nodes WHERE bit_string_51_int >= ")
+		query.WriteString(strconv.FormatUint(bitStringMinInt, 10))
+		query.WriteString(" AND bit_string_51_int <= ")
+		query.WriteString(strconv.FormatUint(bitStringMaxInt, 10))
+		query.WriteString(" AND altitude_min <= ")
+		query.WriteString(strconv.FormatUint(uint64(maxAltitude), 10))
+		query.WriteString(" AND altitude_max >= ")
+		query.WriteString(strconv.FormatUint(uint64(minAltitude), 10))
+		query.WriteString(")")
 	}
 
-	return queries
-}
-
-func BuildNodeQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uint16) string {
-	return strings.Join(BuildNodeQueries(bitStrings, minAltitude, maxAltitude), "UNION")
+	return query.String()
 }
 
 func QueryRootHash(
