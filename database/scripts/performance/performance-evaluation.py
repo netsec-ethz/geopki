@@ -14,6 +14,7 @@ QUERY_RADIUS_VALUES = [10]
 
 
 @click.command()
+@click.argument('website_density_path', type=click.Path(exists=False))
 @click.argument('output_path', type=click.Path(exists=False))
 @click.option(
     '--db-host',
@@ -63,11 +64,11 @@ QUERY_RADIUS_VALUES = [10]
 @click.option('--postgres-spatial', 'mode', flag_value='postgres_spatial', default=None)
 @click.option('--postgres-baseline', 'mode', flag_value="postgres_baseline")
 @click.option('--neo4j', 'mode', flag_value='neo4j')
-@click.option('--z-queries', 'z_queries', flag_value=True, default=False)
 @click.option('--excluding-bit-string-computation', 'excluding_bit_string_computation', flag_value=True, default=False)
 @click.option('--count-only', 'count_only', flag_value=True, default=False)
 @click.option('--batch-size', '-b', 'batch_size', type=int, default=100)
 def main(
+    website_density_path: str,
     output_path: str,
     db_host: str,
     db_port: int,
@@ -77,10 +78,12 @@ def main(
     repetitions: int,
     mode: Optional[str],
     excluding_bit_string_computation: bool,
-    z_queries: bool,
     count_only: bool,
     batch_size: Optional[int],
 ):
+
+    if not os.path.isfile(website_density_path):
+        raise Exception(f"Website density path does not point to a file")
 
     if os.path.isdir(output_path):
         raise Exception(f"Output path has to point to a file")
@@ -133,6 +136,7 @@ def main(
             [
                 f"python3",
                 executable,
+                f"--website-density={website_density_path}",
                 f"--db-host={db_host}",
                 f"--db-port={db_port}",
                 f"--db-name={db_name}",
@@ -153,10 +157,6 @@ def main(
             + (
                 [f"--batch-size={batch_size}"]
                 if not batch_size is None else []
-            )
-            + (
-                [f"--z-queries"]
-                if z_queries else []
             ),
             stdout=subprocess.PIPE,
             cwd=os.path.dirname(FILE_PATH)

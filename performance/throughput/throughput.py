@@ -39,10 +39,9 @@ class Query:
             "radius": self.radius,
         }
 
-# https://www.matecdev.com/posts/random-points-in-polygon.html
-
 
 def sample_point_in_polygon(polygon: Polygon) -> tuple[float, float]:
+    "https://www.matecdev.com/posts/random-points-in-polygon.html"
     minX, minY, maxX, maxY = polygon.bounds
 
     while True:
