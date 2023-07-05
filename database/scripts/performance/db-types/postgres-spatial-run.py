@@ -287,7 +287,7 @@ def main(
                     query_radius=query_radius,
                     batch_size=batch_size,
                     count_only=count_only,
-                    query_set_size=qps_set_size,
+                    query_set_size=int(qps_set_size * time_s / num_threads),
                     start_event=start_event,
                     ready_event=ready_event,
                     stop_event=stop_event,
