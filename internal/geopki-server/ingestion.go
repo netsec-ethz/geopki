@@ -175,6 +175,10 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 	defer tx.Rollback(c.Request.Context())
 
 	t := time.Now()
+
+	fmt.Printf("New release was initiated at %s.\n", t.Format("2006-01-02 15:04:05-07"))
+
+	start := time.Now()
 	err = database.RemoveExpiredCertificates(t, tx, c.Request.Context())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "removing expired certificates failed: %v\n", err)
@@ -184,7 +188,10 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 		return
 	}
 
+	fmt.Printf("Removal of expired certificates took %f minutes.\n", time.Since(start).Minutes())
+
 	// compute all hashes on nodes_next
+	start = time.Now()
 	_, err = tx.Exec(c.Request.Context(), "SELECT compute_hashes()")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "updating hashes failed: %v\n", err)
@@ -194,7 +201,10 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 		return
 	}
 
+	fmt.Printf("Computing of hashes took %f minutes.\n", time.Since(start).Minutes())
+
 	// drop indices on 'nodes' table
+	start = time.Now()
 	_, err = tx.Exec(
 		c.Request.Context(),
 		// nodes table
@@ -210,7 +220,10 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 		return
 	}
 
+	fmt.Printf("Dropping indices took %f minutes.\n", time.Since(start).Minutes())
+
 	// create indices with the same names on 'nodes_next' and cluster the data accordingly
+	start = time.Now()
 	_, err = tx.Exec(
 		c.Request.Context(),
 		"CREATE UNIQUE INDEX IF NOT EXISTS bit_string_bit_idx ON nodes_next USING btree (bit_string_51 ASC NULLS LAST, bit_string_15 ASC NULLS LAST);"+
@@ -227,7 +240,10 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 		return
 	}
 
+	fmt.Printf("Rebuilding indices took %f minutes.\n", time.Since(start).Minutes())
+
 	// swap nodes with nodes_next
+	start = time.Now()
 	_, err = tx.Exec(
 		c.Request.Context(),
 		"ALTER TABLE nodes RENAME TO nodes_old;"+
@@ -242,7 +258,10 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 		return
 	}
 
+	fmt.Printf("Swapping tables took %f minutes.\n", time.Since(start).Minutes())
+
 	// 'nodes_next' contains stale data, truncate and replace with new data from 'nodes'
+	start = time.Now()
 	_, err = tx.Exec(
 		c.Request.Context(),
 		"TRUNCATE nodes_next;"+
@@ -255,6 +274,8 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 		})
 		return
 	}
+
+	fmt.Printf("Preparing table for new insertions took %f minutes.\n", time.Since(start).Minutes())
 
 	// create new SMH based on the new 'nodes' table
 	smh, err := CreateNewSMH(t, tx, env.PrivateKey, c.Request.Context())
