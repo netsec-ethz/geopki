@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	F_GROW = 0.1
+	F_GROW = 1
 )
 
 func main() {

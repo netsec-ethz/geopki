@@ -12,10 +12,6 @@ import (
 	"time"
 )
 
-const (
-	F_GROW = 0.1
-)
-
 func checkValidity(certificatesJson []byte) (int, error) {
 	var certificates []*crypto.GeoCertificate
 	err := json.Unmarshal(certificatesJson, &certificates)
