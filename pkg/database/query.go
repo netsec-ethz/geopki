@@ -38,27 +38,38 @@ func BuildNodeQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uin
 		stringBuilderPool.Put(query)
 	}()
 
-	for i, bitStringPair := range bitStrings {
+	// collect point queries over all bit string pairs
+	point_queries := mapset.NewThreadUnsafeSet[string]()
+
+	query.WriteString("(")
+
+	for i, bitString := range bitStrings {
 		// compute all prefixes of bitString that are not obtained by removing a trailing zero
 
 		// 1. convert to string
-		s := strconv.FormatUint(bitStringPair.XYBitString, 2)
+		s := strconv.FormatUint(bitString.XYBitString, 2)
 		// 2. left pad to full width of 64 bits, 3. remove trailing zeros,
 		trimmedXYBitString := strings.TrimRight(
 			strings.Repeat("0", 64-len(s))+s,
 			"0",
 		)
 
+		// add all proper prefixes of 'trimmedXYBitString' except the empty string
+		pointQueriesCount := len(trimmedXYBitString)
+		for i := 1; i < pointQueriesCount; i++ {
+			point_queries.Add(trimmedXYBitString[:i])
+		}
+
 		// clear all unused bits, i.e. extend the bit string to 64 bits with zeros
 		// then shift it to the right to only take into account the 51 bits we're interested in
-		bitStringMinInt := bitStringPair.XYBitString & (uint64(math.MaxUint64) << (64 - bitStringPair.XYBitStringLen))
+		bitStringMinInt := bitString.XYBitString & (uint64(math.MaxUint64) << (64 - bitString.XYBitStringLen))
 		// to interpret is as a (big-endian) integer, we shift it to the right by 64 - 51 bits
 		// previously the relevant 51 bits were at the beginning of the 64 bits, afterwards the
 		// are at the end
 		bitStringMinInt = bitStringMinInt >> (64 - 51)
 
 		// same as before but now we set all unused bits, i.e. extend the bit string to 64 bits with ones
-		bitStringMaxInt := bitStringPair.XYBitString | (uint64(math.MaxUint64) >> bitStringPair.XYBitStringLen)
+		bitStringMaxInt := bitString.XYBitString | (uint64(math.MaxUint64) >> bitString.XYBitStringLen)
 		bitStringMaxInt = bitStringMaxInt >> (64 - 51)
 
 		// in general fmt.Sprintf is not prone to SQL injections but since the user input is
@@ -69,18 +80,8 @@ func BuildNodeQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uin
 		if i > 0 {
 			query.WriteString("UNION")
 		}
-		// always query the root node
-		query.WriteString("(SELECT bit_string_51, bit_string_15, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash, certificate_hashes FROM nodes WHERE bit_string_51 IN (''")
-		// add all other prefixes of 'trimmedXYBitString'
-		pointQueriesCount := len(trimmedXYBitString)
-		for i := 1; i < pointQueriesCount; i++ {
-			query.WriteString(",'" + trimmedXYBitString[:i] + "'")
-		}
-		query.WriteString(") AND altitude_min <= ")
-		query.WriteString(strconv.FormatUint(uint64(maxAltitude), 10))
-		query.WriteString(" AND altitude_max >= ")
-		query.WriteString(strconv.FormatUint(uint64(minAltitude), 10))
-		query.WriteString("UNION ALL SELECT bit_string_51, bit_string_15, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash, certificate_hashes FROM nodes WHERE bit_string_51_int >= ")
+		// integer range query
+		query.WriteString("(SELECT bit_string_51, bit_string_15, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash, certificate_hashes FROM nodes WHERE bit_string_51_int >= ")
 		query.WriteString(strconv.FormatUint(bitStringMinInt, 10))
 		query.WriteString(" AND bit_string_51_int <= ")
 		query.WriteString(strconv.FormatUint(bitStringMaxInt, 10))
@@ -90,6 +91,23 @@ func BuildNodeQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uin
 		query.WriteString(strconv.FormatUint(uint64(minAltitude), 10))
 		query.WriteString(")")
 	}
+
+	// union, not union all. while for individual queries there won't be any overlap
+	// across multiple bit strings there can be.
+	// example: query for [100100, 10011]
+	// then '1001' is a prefix of both and will be included twice. onece because of the range query for 100100 and once because it is a prefix of 10011
+	// also always query the root node
+	query.WriteString(") UNION SELECT bit_string_51, bit_string_15, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash, certificate_hashes FROM nodes WHERE bit_string_51 IN (''")
+	// add all other prefixes of 'trimmedXYBitString'
+	it := point_queries.Iterator()
+	for bitString := range it.C {
+		query.WriteString(",'" + bitString + "'")
+	}
+	it.Stop()
+	query.WriteString(") AND altitude_min <= ")
+	query.WriteString(strconv.FormatUint(uint64(maxAltitude), 10))
+	query.WriteString(" AND altitude_max >= ")
+	query.WriteString(strconv.FormatUint(uint64(minAltitude), 10))
 
 	return query.String()
 }
