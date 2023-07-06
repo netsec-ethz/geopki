@@ -11,10 +11,6 @@ import (
 	"net/http"
 )
 
-const (
-	F_GROW = 0.1
-)
-
 func main() {
 	var address string
 
