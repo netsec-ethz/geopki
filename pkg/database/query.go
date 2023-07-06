@@ -29,17 +29,30 @@ var stringBuilderPool = sync.Pool{
 	},
 }
 
+var pointQueryPool = sync.Pool{
+	New: func() any {
+		// The Pool's New function should generally only return pointer
+		// types, since a pointer can be put into the return interface
+		// value without an allocation:
+		return mapset.NewThreadUnsafeSet[string]()
+	},
+}
+
 func BuildNodeQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uint16) string {
 	// generate a query for each requested bit string pair
 	// and put them in an slice
 	query := stringBuilderPool.Get().(*strings.Builder)
+
+	// collect point queries over all bit string pairs
+	point_queries := pointQueryPool.Get().(mapset.Set[string])
+
 	defer func() {
 		query.Reset()
 		stringBuilderPool.Put(query)
-	}()
 
-	// collect point queries over all bit string pairs
-	point_queries := mapset.NewThreadUnsafeSet[string]()
+		point_queries.Clear()
+		pointQueryPool.Put(point_queries)
+	}()
 
 	query.WriteString("(")
 
