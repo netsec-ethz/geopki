@@ -444,30 +444,6 @@ func main() {
 		return
 	}
 
-	fmt.Printf("Dropping all indices..\n")
-	plainResponse, err := http.Post(
-		fmt.Sprintf("%s/v1/drop-indices?key=%s", address, insertionKey),
-		"application/json",
-		nil,
-	)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed sending HTTP GET request to %s: %v\n", address, err)
-		os.Exit(1)
-	}
-
-	body, err := io.ReadAll(plainResponse.Body)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "reading response body failed: %v\n", err)
-		os.Exit(1)
-	}
-
-	if plainResponse.StatusCode != 200 {
-		fmt.Fprintf(os.Stderr, "server replied with %s\n", string(body))
-		os.Exit(1)
-	}
-
-	fmt.Printf("Done!\n")
-
 	num := int(pr.GetNumRows())
 	progressBar := progressbar.Default(int64(num), "locate certificates")
 
@@ -511,13 +487,13 @@ func main() {
 
 	// wait for the importer to finish
 	<-certificatesFinishedImporting
-	fmt.Printf("Imported all %d certificates in %f minutes, build indices and compute hashes now.\n", certificateCount, time.Since(start).Minutes())
+	fmt.Printf("Imported all %d certificates in %f minutes, now build indices, compute hashes and remove expired certificates.\n", certificateCount, time.Since(start).Minutes())
 
 	start = time.Now()
 	fmt.Printf("This can take quite some time..\n")
 
-	plainResponse, err = http.Post(
-		fmt.Sprintf("%s/v1/finish-partial?key=%s", address, insertionKey),
+	plainResponse, err := http.Post(
+		fmt.Sprintf("%s/v1/release?key=%s", address, insertionKey),
 		"application/json",
 		nil,
 	)
@@ -526,7 +502,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	body, err = io.ReadAll(plainResponse.Body)
+	body, err := io.ReadAll(plainResponse.Body)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "reading response body failed: %v\n", err)
 		os.Exit(1)

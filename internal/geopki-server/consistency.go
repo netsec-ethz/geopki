@@ -20,7 +20,7 @@ func (env *EndpointHandlerEnv) getSignedConsistencyHead(c *gin.Context) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed marshaling response, check the server logs",
+			"error": "failed marshaling response",
 		})
 		return
 	}
@@ -41,7 +41,7 @@ func (env *EndpointHandlerEnv) getSignedMapHead(c *gin.Context) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed marshaling response, check the server logs",
+			"error": "failed marshaling response",
 		})
 		return
 	}
@@ -85,7 +85,7 @@ func (env *EndpointHandlerEnv) getSignedConsistencyHeadConsistency(c *gin.Contex
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "obtaining consistency proof failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "retrieving consistency proof failed, check the server logs",
+			"error": "retrieving consistency proof failed",
 		})
 		return
 	}
@@ -94,7 +94,7 @@ func (env *EndpointHandlerEnv) getSignedConsistencyHeadConsistency(c *gin.Contex
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed marshaling response, check the server logs",
+			"error": "failed marshaling response",
 		})
 		return
 	}
@@ -131,7 +131,7 @@ func (env *EndpointHandlerEnv) getProofByHash(c *gin.Context) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "obtaining a proof of inclusion for consistency tree failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "obtaining a proof of inclusion for consistency tree failed, check the server logs",
+			"error": "obtaining a proof of inclusion for consistency tree failed",
 		})
 		return
 	}
@@ -140,7 +140,7 @@ func (env *EndpointHandlerEnv) getProofByHash(c *gin.Context) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed marshaling response, check the server logs",
+			"error": "failed marshaling response",
 		})
 		return
 	}
@@ -183,7 +183,7 @@ func (env *EndpointHandlerEnv) getEntries(c *gin.Context) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "obtaining entries failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "obtaining entries failed, check the server logs",
+			"error": "obtaining entries failed",
 		})
 		return
 	}
@@ -192,7 +192,7 @@ func (env *EndpointHandlerEnv) getEntries(c *gin.Context) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed marshaling response, check the server logs",
+			"error": "failed marshaling response",
 		})
 		return
 	}
@@ -235,7 +235,7 @@ func (env *EndpointHandlerEnv) getEntryAndProof(c *gin.Context) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "obtaining entry and proof failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "obtaining entry and proof failed, check the server logs",
+			"error": "obtaining entry and proof failed",
 		})
 		return
 	}
@@ -244,7 +244,7 @@ func (env *EndpointHandlerEnv) getEntryAndProof(c *gin.Context) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed marshaling response, check the server logs",
+			"error": "failed marshaling response",
 		})
 		return
 	}

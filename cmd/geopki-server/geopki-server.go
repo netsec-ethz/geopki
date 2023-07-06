@@ -12,10 +12,10 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"time"
 
 	server "geopki/internal/geopki-server"
 	"geopki/pkg/crypto"
-	"geopki/pkg/database"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -129,33 +129,11 @@ func main() {
 
 	defer dbPool.Close()
 
-	// load presistent state
-
-	tx, err := dbPool.BeginTx(ctx, pgx.TxOptions{
-		IsoLevel: pgx.Serializable,
-	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "unable to start transaction: %v\n", err)
-		os.Exit(10)
-	}
-
-	dirty, err := database.QueryState(server.DATABASE_STATE_KEY_DIRTY, tx, ctx)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "unable to query persistent database state '%s': %v\n", server.DATABASE_STATE_KEY_DIRTY, err)
-		os.Exit(11)
-	}
-
-	err = tx.Commit(ctx)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "unable to commit transaction: %v\n", err)
-		os.Exit(12)
-	}
-
 	// ensure the existence of a consistency tree service
 	consistencyClient, err := crypto.NewConsistencyTreeClient(trillianAddress, consistencyLogId, privateKey, server.MAXIMUM_MERGE_DELAY)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to create consistency client: %v\n", err)
-		os.Exit(13)
+		os.Exit(10)
 	}
 
 	sch, err := consistencyClient.LatestSignedConsistencyHead(ctx)
@@ -166,7 +144,7 @@ func main() {
 		if err2 != nil {
 			fmt.Fprintf(os.Stderr, "unable to obtain latest consistency head: %v\n", err)
 			fmt.Fprintf(os.Stderr, "unable to initialize log server: %v\n", err2)
-			os.Exit(14)
+			os.Exit(11)
 		}
 	}
 
@@ -178,26 +156,26 @@ func main() {
 		})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to start transaction: %v\n", err)
-			os.Exit(15)
+			os.Exit(12)
 		}
 
-		smh, err := server.CreateNewSMH(tx, privateKey, context.Background())
+		smh, err := server.CreateNewSMH(time.Now(), tx, privateKey, context.Background())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to create new SMH: %v\n", err)
-			os.Exit(16)
+			os.Exit(13)
 		}
 
 		err = tx.Commit(ctx)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to commit transaction: %v\n", err)
-			os.Exit(17)
+			os.Exit(14)
 		}
 
 		// insert it into the consistency tree
 		sch, err = consistencyClient.AppendSignedMapHead(ctx, smh)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to append new SMH: %v\n", err)
-			os.Exit(18)
+			os.Exit(15)
 		}
 	}
 
@@ -205,24 +183,24 @@ func main() {
 	smh, err := consistencyClient.LatestSignedMapHead(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to obtain latest signed map head: %v\n", err)
-		os.Exit(19)
+		os.Exit(16)
 	}
 
 	if !smh.Verify(&privateKey.PublicKey) {
 		fmt.Fprintf(os.Stderr, "cannot verify the signature on the latest SMH, did the private key change?\n")
-		os.Exit(20)
+		os.Exit(17)
 	}
 
 	proof, err := consistencyClient.ProveSignedMapHeadInclusion(context.Background(), sch.Size, smh)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "obtaining a proof of inclusion for consistency tree failed: %v\n", err)
-		os.Exit(21)
+		os.Exit(18)
 	}
 
 	inclusionProof, err := proto.Marshal(proof)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed marshaling inclusion proof: %v\n", err)
-		os.Exit(22)
+		os.Exit(19)
 	}
 
 	fmt.Printf("Serving data with SMH:\n%s\n\n", smh.String())
@@ -238,8 +216,6 @@ func main() {
 		CurrentSignedMapHead:         smh,
 		CurrentSignedConsistencyHead: sch,
 		SchInclusionProof:            inclusionProof,
-
-		IsDirty: dirty == "true",
 	}
 
 	server.StartServer(env, listenAddress, listenPort)

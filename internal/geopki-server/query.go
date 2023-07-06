@@ -21,15 +21,6 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 	env.SharedDataLock.RLock()
 	defer env.SharedDataLock.RUnlock()
 
-	if env.IsDirty {
-		// display an error to the user
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "The database is being updated, try to query later again",
-		})
-
-		return
-	}
-
 	// check the content type request header
 	contentTypeHeaders, ok := c.Request.Header["Content-Type"]
 	if ok {
@@ -77,7 +68,7 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "node query failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "database query failed, check the server logs",
+			"error": "database query failed",
 		})
 		return
 	}
@@ -89,7 +80,7 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "scanning node rows failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "scanning rows failed, check the server logs",
+			"error": "scanning rows failed",
 		})
 		return
 	}
@@ -108,7 +99,7 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "building certificate query failed: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "building database query failed, check the server logs",
+				"error": "building database query failed",
 			})
 			return
 		}
@@ -120,7 +111,7 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "certificate query failed: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "database query failed, check the server logs",
+				"error": "database query failed",
 			})
 			return
 		}
@@ -132,7 +123,7 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "scanning certificate rows failed: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "scanning rows failed, check the server logs",
+				"error": "scanning rows failed",
 			})
 			return
 		}
@@ -153,7 +144,7 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed marshaling response, check the server logs",
+			"error": "failed marshaling response",
 		})
 		return
 	}
@@ -181,7 +172,7 @@ func (env *EndpointHandlerEnv) getCertificates(c *gin.Context) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "building certificate query failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "building database query failed, check the server logs",
+			"error": "building database query failed",
 		})
 		return
 	}
@@ -193,7 +184,7 @@ func (env *EndpointHandlerEnv) getCertificates(c *gin.Context) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "certificate query failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "database query failed, check the server logs",
+			"error": "database query failed",
 		})
 		return
 	}
@@ -206,7 +197,7 @@ func (env *EndpointHandlerEnv) getCertificates(c *gin.Context) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "scanning certificate rows failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "scanning rows failed, check the server logs",
+			"error": "scanning rows failed",
 		})
 		return
 	}
@@ -218,7 +209,7 @@ func (env *EndpointHandlerEnv) getCertificates(c *gin.Context) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed marshaling response, check the server logs",
+			"error": "failed marshaling response",
 		})
 		return
 	}

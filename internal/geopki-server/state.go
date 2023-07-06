@@ -31,8 +31,4 @@ type EndpointHandlerEnv struct {
 	CurrentSignedConsistencyHead *crypto.SignedConsistencyHead
 	// caches the inclusion proof for the latest SCH value
 	SchInclusionProof []byte
-
-	// persistent state
-	// whether the database contents are dirty and no valid data can be returned
-	IsDirty bool
 }

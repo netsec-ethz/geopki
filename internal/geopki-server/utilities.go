@@ -18,6 +18,7 @@ import (
 
 // creates a new SMH by querying the db and signing the root hash
 func CreateNewSMH(
+	t time.Time,
 	tx pgx.Tx,
 	privateKey *ecdsa.PrivateKey,
 	ctx context.Context,
@@ -36,7 +37,7 @@ func CreateNewSMH(
 	smh := &crypto.SignedMapHead{
 		MapHead: crypto.MapHead{
 			RootHash:  rootHash,
-			Timestamp: uint64(time.Now().UnixNano()),
+			Timestamp: uint64(t.UnixNano()),
 			// TODO: set the set of covered log servers for instance by storing that in the db and retrieving it here
 			CoveredCTLogServers: []crypto.CTLogServer{},
 		},

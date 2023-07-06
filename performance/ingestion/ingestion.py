@@ -136,7 +136,6 @@ def sample_random_altitude() -> tuple[float, float]:
     type=int,
     default=10
 )
-@click.option('--drop-indices', 'drop_indices', flag_value=True, default=False)
 @click.option('--with-altitude', 'with_altitude', flag_value=True, default=False)
 def main(
     website_density_path: str,
@@ -144,7 +143,6 @@ def main(
     address: str,
     insertion_key: str,
     repetitions: int,
-    drop_indices: bool,
     with_altitude: bool,
 ):
 
@@ -188,18 +186,6 @@ def main(
     uid = hashlib.sha256(str(time.time()).encode("ascii")).digest().hex()[:8]
 
     total_iterations = len(CERTIFICATE_BATCH_SIZES) * repetitions
-
-    if drop_indices:
-        input("confirm by pressing enter to drop the indices before starting")
-        request = Request(
-            f"{address}/v1/drop-indices?key={insertion_key}",
-            method="POST"
-        )
-        response = urlopen(request).read().decode()
-
-        if "error" in response:
-            print(response)
-            exit(1)
 
     for i, batch_size in tqdm(
         (

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"geopki/pkg/crypto"
 	"geopki/pkg/database"
@@ -38,16 +39,12 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		}
 	}
 
-	// by default the hashes are updated, can be turned off for partial insertions,
-	// especially the initial insertion where hashes are computed over and over again otherwise
-	isPartialUpdate := c.DefaultQuery("is-partial", "none") != "none"
-
 	// read request body
 	zr, err := gzip.NewReader(c.Request.Body)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "creating gzip reader failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "creating gzip reader, check the server logs",
+			"error": "creating gzip reader",
 		})
 		return
 	}
@@ -64,7 +61,7 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 	if err := zr.Close(); err != nil {
 		fmt.Fprintf(os.Stderr, "closing gzip reader failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "closing gzip reader, check the server logs",
+			"error": "closing gzip reader",
 		})
 		return
 	}
@@ -86,7 +83,7 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "marshaling certificate failed: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "marshaling certificates failed, check the server logs",
+				"error": "marshaling certificates failed",
 			})
 			return
 		}
@@ -110,7 +107,7 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "starting transaction failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "starting transaction failed, check the server logs",
+			"error": "starting transaction failed",
 		})
 		return
 	}
@@ -121,68 +118,24 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		certificates,
 		F_GROW,
 		tx,
-		// update hashes if it is *not* a partial update
-		!isPartialUpdate,
 		c.Request.Context(),
 	)
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed updating SMT: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed updating SMT, check the server logs",
+			"error": "failed updating SMT",
 		})
 		return
 	}
-
-	var smh *crypto.SignedMapHead
-
-	if isPartialUpdate {
-		// if set to false, set to true, noop if already true
-		_, err := database.UpdateState(DATABASE_STATE_KEY_DIRTY, "false", "true", tx, c.Request.Context())
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "updating state '%s' failed: %v\n", DATABASE_STATE_KEY_DIRTY, err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "updating internal state failed, check the server logs",
-			})
-			return
-		}
-	} else {
-		smh, err = CreateNewSMH(tx, env.PrivateKey, c.Request.Context())
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "updating SMH failed: %v\n", err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "updating SMH failed, check the server logs",
-			})
-			return
-		}
-	}
-
-	// before transaction is commited, acquire lock on shared data
-	env.SharedDataLock.Lock()
-	defer env.SharedDataLock.Unlock()
 
 	err = tx.Commit(c.Request.Context())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "commiting transaction failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "commiting transaction failed, check the server logs",
+			"error": "commiting transaction failed",
 		})
 		return
-	}
-
-	if isPartialUpdate {
-		// update was persisted and we acquired a lock, update the shared state
-		env.IsDirty = true
-	} else {
-		// update sch if transaction committed
-		_, err := env.updateSCH(smh, c.Request.Context())
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "updating SCH failed: %v\n", err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "updating SCH failed, check the server logs",
-			})
-			return
-		}
 	}
 
 	c.Data(
@@ -192,7 +145,7 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 	)
 }
 
-func (env *EndpointHandlerEnv) postDropIndices(c *gin.Context) {
+func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 	if !env.receivedValidInsertionKey(c) {
 		return
 	}
@@ -214,23 +167,40 @@ func (env *EndpointHandlerEnv) postDropIndices(c *gin.Context) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "starting transaction failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "starting transaction failed, check the server logs",
+			"error": "starting transaction failed",
 		})
 		return
 	}
 
 	defer tx.Rollback(c.Request.Context())
 
-	// drop indices for faster insertion
+	t := time.Now()
+	err = database.RemoveExpiredCertificates(t, tx, c.Request.Context())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "removing expired certificates failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "removing expired certificates failed",
+		})
+		return
+	}
+
+	// compute all hashes on nodes_next
+	_, err = tx.Exec(c.Request.Context(), "SELECT compute_hashes()")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "updating hashes failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "updating hashes failed",
+		})
+		return
+	}
+
+	// drop indices on 'nodes' table
 	_, err = tx.Exec(
 		c.Request.Context(),
 		// nodes table
 		"DROP INDEX IF EXISTS bit_string_bit_idx;"+
 			"DROP INDEX IF EXISTS bit_string_len;"+
-			"DROP INDEX IF EXISTS bit_string_integer_idx;"+
-			// certificates table
-			"DROP INDEX IF EXISTS certificate_hash;"+
-			"DROP INDEX IF EXISTS certificate_not_valid_after;",
+			"DROP INDEX IF EXISTS bit_string_integer_idx;",
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "dropping indices failed: %v\n", err)
@@ -240,118 +210,58 @@ func (env *EndpointHandlerEnv) postDropIndices(c *gin.Context) {
 		return
 	}
 
-	// update persistent state to dirty
-	_, err = database.UpdateState(DATABASE_STATE_KEY_DIRTY, "false", "true", tx, c.Request.Context())
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "updating state '%s' failed: %v\n", DATABASE_STATE_KEY_DIRTY, err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "updating internal state failed, check the server logs",
-		})
-		return
-	}
-
-	// before the data appears in the db, acquire a lock on the cached data
-	// otherwise a reader might observe inconsistent data
-	env.SharedDataLock.Lock()
-	defer env.SharedDataLock.Unlock()
-
-	err = tx.Commit(c.Request.Context())
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "commiting transaction failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "commiting transaction failed, check the server logs",
-		})
-		return
-	}
-
-	// after sucessful commitment, update shared state
-	// we already acquired the lock
-	env.IsDirty = true
-
-	c.Data(
-		http.StatusOK,
-		"application/json",
-		[]byte("{\"success\":true}"),
-	)
-}
-
-func (env *EndpointHandlerEnv) postFinishPartial(c *gin.Context) {
-	if !env.receivedValidInsertionKey(c) {
-		return
-	}
-
-	didLock := env.UpdateLock.TryLock()
-	if !didLock {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Update is already in progress, try again later",
-		})
-		return
-	}
-
-	// unlock after returning
-	defer env.UpdateLock.Unlock()
-
-	tx, err := env.DbPool.BeginTx(c.Request.Context(), pgx.TxOptions{
-		IsoLevel: pgx.Serializable,
-	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "starting transaction failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "starting transaction failed, check the server logs",
-		})
-		return
-	}
-
-	defer tx.Rollback(c.Request.Context())
-
-	// re-compute all hashes
-	_, err = tx.Exec(c.Request.Context(), "SELECT compute_hashes()")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "updating hashes failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "updating hashes failed, check the server logs",
-		})
-		return
-	}
-
-	// re-create indices
+	// create indices with the same names on 'nodes_next' and cluster the data accordingly
 	_, err = tx.Exec(
 		c.Request.Context(),
-		// nodes table
-		"CREATE UNIQUE INDEX IF NOT EXISTS bit_string_bit_idx ON nodes USING btree (bit_string_51 ASC NULLS LAST, bit_string_15 ASC NULLS LAST);"+
-			"CREATE INDEX IF NOT EXISTS bit_string_len ON nodes (LENGTH(bit_string_51), LENGTH(bit_string_15));"+
-			"CREATE INDEX IF NOT EXISTS bit_string_integer_idx ON nodes USING btree (bit_string_51_int ASC NULLS LAST);"+
-			"ALTER TABLE IF EXISTS nodes CLUSTER ON bit_string_integer_idx;"+
-			"CLUSTER nodes USING bit_string_integer_idx;"+
-			// certificates table
-			"CREATE INDEX IF NOT EXISTS certificate_hash ON certificates USING hash (certificate_hash);"+
-			"CREATE INDEX IF NOT EXISTS certificate_not_valid_after ON certificates USING btree (not_valid_after);"+
-			"ALTER TABLE IF EXISTS certificates CLUSTER ON certificate_not_valid_after;"+
-			"CLUSTER certificates USING certificate_not_valid_after;",
+		"CREATE UNIQUE INDEX IF NOT EXISTS bit_string_bit_idx ON nodes_next USING btree (bit_string_51 ASC NULLS LAST, bit_string_15 ASC NULLS LAST);"+
+			"CREATE INDEX IF NOT EXISTS bit_string_len ON nodes_next (LENGTH(bit_string_51), LENGTH(bit_string_15));"+
+			"CREATE INDEX IF NOT EXISTS bit_string_integer_idx ON nodes_next USING btree (bit_string_51_int ASC NULLS LAST);"+
+			"ALTER TABLE IF EXISTS nodes_next CLUSTER ON bit_string_integer_idx;"+
+			"CLUSTER nodes_next USING bit_string_integer_idx;",
 	)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "creating indices and constraints failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "creating indices failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "creating indices and constraints failed",
+			"error": "creating indices failed",
 		})
 		return
 	}
 
-	smh, err := CreateNewSMH(tx, env.PrivateKey, c.Request.Context())
+	// swap nodes with nodes_next
+	_, err = tx.Exec(
+		c.Request.Context(),
+		"ALTER TABLE nodes RENAME TO nodes_old;"+
+			"ALTER TABLE nodes_next RENAME TO nodes;"+
+			"ALTER TABLE nodes_old RENAME TO nodes_next;",
+	)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "swapping tables failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "swapping tables failed",
+		})
+		return
+	}
+
+	// 'nodes_next' contains stale data, truncate and replace with new data from 'nodes'
+	_, err = tx.Exec(
+		c.Request.Context(),
+		"TRUNCATE nodes_next;"+
+			"INSERT INTO nodes_next SELECT * FROM nodes;",
+	)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "updating nodes_next failed: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "updating nodes_next failed",
+		})
+		return
+	}
+
+	// create new SMH based on the new 'nodes' table
+	smh, err := CreateNewSMH(t, tx, env.PrivateKey, c.Request.Context())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "updating SMH failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "updating SMH failed, check the server logs",
-		})
-		return
-	}
-
-	// update persistent state, no longer dirty
-	_, err = database.UpdateState(DATABASE_STATE_KEY_DIRTY, "true", "false", tx, c.Request.Context())
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "updating state '%s' failed: %v\n", DATABASE_STATE_KEY_DIRTY, err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "updating internal state failed, check the server logs",
+			"error": "updating SMH failed",
 		})
 		return
 	}
@@ -365,21 +275,18 @@ func (env *EndpointHandlerEnv) postFinishPartial(c *gin.Context) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "commiting transaction failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "commiting transaction failed, check the server logs",
+			"error": "commiting transaction failed",
 		})
 		return
 	}
 
-	// after sucessful commitment, update shared state
-	// we already acquired the lock
-	env.IsDirty = false
-
-	// update sch if transaction committed
+	// update sch if transaction committed, we already acquired the lock
+	// and can now create a new sch and update the shared data
 	sch, err := env.updateSCH(smh, c.Request.Context())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "updating SCH failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "updating SCH failed, check the server logs",
+			"error": "updating SCH failed",
 		})
 		return
 	}
