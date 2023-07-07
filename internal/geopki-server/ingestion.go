@@ -299,6 +299,8 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 		return
 	}
 
+	fmt.Printf("Release took a total of %f minutes.\n", time.Since(t).Minutes())
+
 	c.Data(
 		http.StatusOK,
 		"application/json",
