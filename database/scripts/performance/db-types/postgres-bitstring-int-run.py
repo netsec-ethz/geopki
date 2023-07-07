@@ -8,6 +8,7 @@ from multiprocessing import Pool, Process, Event, Value
 import time
 import sys
 import os
+import itertools
 
 import psycopg2
 
@@ -99,7 +100,7 @@ def query_to_bitstring_integers(query: Tuple[float, float, int], query_radius: f
         (
             # compute all prefixes of bit_string that are not obtained by removing a trailing zero
             [
-                f"b'{b[:i]}'"
+                f"'{b[:i]}'"
                 for i in range(1, bl)
             ],
             int(bit_string.ljust(51, '0'), 2),
@@ -165,30 +166,36 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
 
                     (
                         ("SELECT COUNT(*) FROM (" if args.count_only else "") +
+                        f"SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash "
+                        f"FROM nodes "
+                        f"WHERE bit_string_51 IN (" +
+                        ','.join(
+                            set(
+                                itertools.chain.from_iterable(
+                                    point_queries
+                                    for point_queries, _, _ in bit_strings
+                                )
+                            )
+                        ) + ") AND "
+                        f"altitude_min <= {query_altitude + args.query_radius} AND "
+                        f"altitude_max >= {query_altitude - args.query_radius} UNION " +
                         "UNION".join(
                             [
-                                f"(SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash "
-                                f"FROM nodes "
-                                f"WHERE bit_string_51 IN (" +
-                                ','.join(point_queries) + ") AND "
-                                f"altitude_min <= {query_altitude + args.query_radius} AND "
-                                f"altitude_max >= {query_altitude - args.query_radius}"
-                                "UNION ALL "
-                                "SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash "
+                                "(SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash "
                                 "FROM nodes "
                                 f"WHERE "
                                 f"bit_string_51_int >= {imin} AND "
                                 f"bit_string_51_int <= {imax} AND "
-                                # fix altitude for now
                                 f"altitude_min <= {query_altitude + args.query_radius} AND "
                                 f"altitude_max >= {query_altitude - args.query_radius}"
                                 f")"
-                                for point_queries, imin, imax in bit_strings
-                                if (query_altitude := 22767)
-                            ])
+                                for _, imin, imax in bit_strings
+                            ]
+                        )
                         + (") as sq" if args.count_only else "")
                     )
                     for bit_strings in queries
+                    if (query_altitude := 22767)
                 ]
             )
         )

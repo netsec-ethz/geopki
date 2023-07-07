@@ -8,6 +8,7 @@ from multiprocessing import Process, Event, Value
 import time
 import sys
 import os
+import itertools
 
 import psycopg2
 
@@ -144,29 +145,37 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
 
                     (
                         ("SELECT COUNT(*) FROM (" if args.count_only else "") +
+                        f"SELECT bit_string, certificate_hashes, left_child_hash, right_child_hash "
+                        f"FROM nodes "
+                        f"WHERE bit_string_txt IN (" +
+                        ','.join(
+                            set(
+                                itertools.chain.from_iterable(
+                                    [
+                                        "'" + bit_string[:i] + "'"
+                                        for i in range(0, len(bit_string))
+                                    ]
+                                    for bit_string in bit_strings
+                                )
+                            )
+                        ) + ") AND "
+                        f"altitude_min <= {query_altitude + args.query_radius} AND "
+                        f"altitude_max >= {query_altitude - args.query_radius} UNION " +
                         "UNION".join(
                             [
                                 f"(SELECT bit_string, certificate_hashes, left_child_hash, right_child_hash "
-                                f"FROM nodes "
-                                f"WHERE bit_string_txt IN (" +
-                                ','.join(["'" + bit_string[:i] + "'" for i in range(0, len(bit_string))]) +
-                                ") AND "
-                                f"min_altitude_of_bit_string(bit_string) <= {22767 + args.query_radius} AND "
-                                f"max_altitude_of_bit_string(bit_string) >= {22767 - args.query_radius}"
-                                ")"
-                                "UNION ALL "
-                                f"(SELECT bit_string, certificate_hashes, left_child_hash, right_child_hash "
                                 f"FROM nodes WHERE "
                                 f"bit_string_txt LIKE '{bit_string}%' AND "
-                                # fix altitude for now
-                                f"min_altitude_of_bit_string(bit_string) <= {22767 + args.query_radius} AND "
-                                f"max_altitude_of_bit_string(bit_string) >= {22767 - args.query_radius}"
+                                f"altitude_min <= {query_altitude + args.query_radius} AND "
+                                f"altitude_max >= {query_altitude - args.query_radius}"
                                 f")"
                                 for bit_string in bit_strings
-                            ])
+                            ]
+                        )
                         + (") as sq" if args.count_only else "")
                     )
                     for bit_strings in queries
+                    if (query_altitude := 22767)
                 ]
             )
         )
