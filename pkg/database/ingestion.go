@@ -295,6 +295,16 @@ func AddNewCertificates(
 		return err
 	}
 
+	// now all certificate updates have been performed, we need to recompute the hashes of all parents
+	// compute the set of all parents
+	ancestorSet := changeSetPool.Get().(mapset.Set[bitstring.RawBitStringPair])
+	defer func() {
+		ancestorSet.Clear()
+		ancestorSetPool.Put(ancestorSet)
+	}()
+	// the root node always has to be updated if there are changes
+	ancestorSet.Add(bitstring.ROOT_NODE)
+
 	for bitStringPair := range certificatesToAdd {
 
 		addSet := certificatesToAdd[bitStringPair]
@@ -326,19 +336,7 @@ func AddNewCertificates(
 		if err != nil {
 			return fmt.Errorf("failed updating certificate hashes: %v", err)
 		}
-	}
 
-	// now all certificate updates have been performed, we need to recompute the hashes of all parents
-	// compute the set of all parents
-	ancestorSet := changeSetPool.Get().(mapset.Set[bitstring.RawBitStringPair])
-	defer func() {
-		ancestorSet.Clear()
-		ancestorSetPool.Put(ancestorSet)
-	}()
-	// the root node always has to be updated if there are changes
-	ancestorSet.Add(bitstring.ROOT_NODE)
-
-	for bitStringPair := range certificatesToAdd {
 		// compute all ancestors up to the root
 		for ancestor := bitStringPair.ParentPair(); !ancestor.IsRoot(); ancestor = ancestor.ParentPair() {
 			ancestorSet.Add(ancestor)
