@@ -229,19 +229,6 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 
 	fmt.Printf("Rebuilding indices took %f minutes.\n", time.Since(start).Minutes())
 
-	// compute all hashes on nodes_next
-	start = time.Now()
-	_, err = tx.Exec(c.Request.Context(), "SELECT compute_hashes()")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "updating hashes failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "updating hashes failed",
-		})
-		return
-	}
-
-	fmt.Printf("Computing of hashes took %f minutes.\n", time.Since(start).Minutes())
-
 	// swap nodes with nodes_next
 	start = time.Now()
 	_, err = tx.Exec(

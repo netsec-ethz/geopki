@@ -345,14 +345,13 @@ func AddNewCertificates(
 		}
 	}
 
+	// convert ancestors to a slice for proper update order (upwards from the bottom)
 	ancestors := ancestorSet.ToSlice()
-
 	sort.Slice(ancestors, func(i, j int) bool {
 		// must return true if i is smaller than j (smaller = has longer bit strings)
 		return ((ancestors[i].XYBitStringLen > ancestors[j].XYBitStringLen) || (ancestors[i].XYBitStringLen == ancestors[j].XYBitStringLen && ancestors[i].ZBitStringLen > ancestors[j].ZBitStringLen))
 	})
 
-	// sort the bit strings in ascending order (children to the root)
 	for _, bitStringPair := range ancestors {
 
 		// try to insert bit strings, do nothing if they are already there
@@ -368,6 +367,19 @@ func AddNewCertificates(
 		_, err := transaction.Exec(ctx, query)
 		if err != nil {
 			return fmt.Errorf("failed inserting possibly non-existent ancestor: %v", err)
+		}
+
+		// requires an 'update_children_hashes' function to be defined
+		query = fmt.Sprintf(
+			"SELECT update_children_hashes(b'%s', b'%s')",
+			bitStringPair.RawXYBitString.BitString().String(),
+			bitStringPair.RawZBitString.BitString().String(),
+		)
+
+		// execute the row update
+		_, err = transaction.Exec(ctx, query)
+		if err != nil {
+			return fmt.Errorf("failed updating children hashes for ancestor: %v", err)
 		}
 	}
 
@@ -400,6 +412,17 @@ func RemoveExpiredCertificates(
 		return err
 	}
 
+	// compute the set of all ancestors
+	ancestorSet := changeSetPool.Get().(mapset.Set[bitstring.RawBitStringPair])
+	defer func() {
+		ancestorSet.Clear()
+		ancestorSetPool.Put(ancestorSet)
+	}()
+	// the root node always has to be updated if there are changes
+	ancestorSet.Add(bitstring.ROOT_NODE)
+
+	// iterate bit string pairs, update hashes and compute set of ancestors
+
 	for bitStringPair := range certificatesToRemove {
 
 		hashes := "nodes_next.certificate_hashes"
@@ -430,6 +453,37 @@ func RemoveExpiredCertificates(
 		_, err := transaction.Exec(ctx, query)
 		if err != nil {
 			return fmt.Errorf("failed updating certificate hashes: %v", err)
+		}
+
+		// iterate over ancestors and add them to the set
+		for ancestor := bitStringPair.ParentPair(); !ancestor.IsRoot(); ancestor = ancestor.ParentPair() {
+			ancestorSet.Add(ancestor)
+		}
+	}
+
+	// now all certificate updates have been performed, we need to recompute the hashes of all ancestors
+
+	// convert ancestors to a slice for proper update order (upwards from the bottom)
+	ancestors := ancestorSet.ToSlice()
+	sort.Slice(ancestors, func(i, j int) bool {
+		// must return true if i is smaller than j (smaller = has longer bit strings)
+		return ((ancestors[i].XYBitStringLen > ancestors[j].XYBitStringLen) || (ancestors[i].XYBitStringLen == ancestors[j].XYBitStringLen && ancestors[i].ZBitStringLen > ancestors[j].ZBitStringLen))
+	})
+
+	for _, bitStringPair := range ancestors {
+		// nodes are already in the db, all ancestors are created on insertion
+
+		// requires an 'update_children_hashes' function to be defined
+		query := fmt.Sprintf(
+			"SELECT update_children_hashes(b'%s', b'%s')",
+			bitStringPair.RawXYBitString.BitString().String(),
+			bitStringPair.RawZBitString.BitString().String(),
+		)
+
+		// execute the row update
+		_, err = transaction.Exec(ctx, query)
+		if err != nil {
+			return fmt.Errorf("failed updating children hashes for ancestor: %v", err)
 		}
 	}
 
