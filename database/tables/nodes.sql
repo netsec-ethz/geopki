@@ -35,5 +35,6 @@ CLUSTER nodes USING bit_string_integer_idx;
 VACUUM FULL nodes;
 
 -- create copy of nodes called 'nodes_next', contains the data for the next version
-CREATE TABLE nodes_next AS TABLE nodes;
+CREATE TABLE nodes_next AS TABLE nodes WITH NO DATA;
 ALTER TABLE nodes_next ADD PRIMARY KEY (bit_string_51, bit_string_15);
+INSERT INTO nodes_next SELECT bit_string_51,bit_string_15,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes FROM nodes;
