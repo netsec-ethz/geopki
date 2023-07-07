@@ -32,7 +32,7 @@ ALTER TABLE IF EXISTS nodes
 
 CLUSTER nodes USING bit_string_integer_idx;
 
-VACUUM FULL nodes;
+-- VACUUM FULL nodes;
 
 -- create copy of nodes called 'nodes_next', contains the data for the next version
 CREATE TABLE nodes_next AS TABLE nodes WITH NO DATA;
