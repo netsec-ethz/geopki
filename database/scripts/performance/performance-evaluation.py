@@ -67,6 +67,7 @@ QUERY_RADIUS_VALUES = [10]
 @click.option('--excluding-bit-string-computation', 'excluding_bit_string_computation', flag_value=True, default=False)
 @click.option('--count-only', 'count_only', flag_value=True, default=False)
 @click.option('--batch-size', '-b', 'batch_size', type=int, default=100)
+@click.option('--qps-set-size', '-q', 'qps_set_size', type=int, default=1000)
 def main(
     website_density_path: str,
     output_path: str,
@@ -80,6 +81,7 @@ def main(
     excluding_bit_string_computation: bool,
     count_only: bool,
     batch_size: Optional[int],
+    qps_set_size: int,
 ):
 
     if not os.path.isfile(website_density_path):
@@ -145,6 +147,7 @@ def main(
                 f"--threads={num_threads}",
                 f"--time={time_s}",
                 f"--query-radius={query_radius_m}",
+                f"--qps-set-size={qps_set_size}",
             ]
             + (
                 [f"--excluding-bit-string-computation"]
