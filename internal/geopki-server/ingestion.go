@@ -252,7 +252,7 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 	_, err = tx.Exec(
 		c.Request.Context(),
 		"TRUNCATE nodes_next;"+
-			"INSERT INTO nodes_next SELECT bit_string_51,bit_string_15,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes FROM nodes;",
+			"INSERT INTO nodes_next(bit_string_51,bit_string_15,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes) SELECT bit_string_51,bit_string_15,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes FROM nodes;",
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "updating nodes_next failed: %v\n", err)
