@@ -247,12 +247,13 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 
 	fmt.Printf("Swapping tables took %f minutes.\n", time.Since(start).Minutes())
 
-	// 'nodes_next' contains stale data, truncate and replace with new data from 'nodes'
+	// 'nodes_next' contains stale data, drop and replace with copy of new 'nodes'
 	start = time.Now()
 	_, err = tx.Exec(
 		c.Request.Context(),
-		"TRUNCATE nodes_next;"+
-			"INSERT INTO nodes_next SELECT * FROM nodes;",
+		"DROP TABLE nodes_next;"+
+			"CREATE TABLE nodes_next AS TABLE nodes;",
+		"ALTER TABLE nodes_next ADD PRIMARY KEY (bit_string_51, bit_string_15);",
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "updating nodes_next failed: %v\n", err)
