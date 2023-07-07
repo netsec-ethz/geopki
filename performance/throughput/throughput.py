@@ -16,7 +16,7 @@ CURRENT_DIR = os.path.dirname(FILE_PATH)
 QUERY_RADIUS = 10
 
 TIME_VALUES = [8]
-THREAD_VALUES = [1, 2, 4, 8, 16, 32]
+THREAD_VALUES = [1, 2, 4, 8, 16, 32, 64, 128]
 
 MAX_QUERIES_PER_SECOND = 50
 
@@ -68,13 +68,11 @@ def sample_point_in_polygon(polygon: Polygon) -> tuple[float, float]:
     type=int,
     default=10
 )
-@click.option('--include-certificates', 'include_certificates', flag_value=True, default=False)
 def main(
     website_density_path: str,
     output_path: str,
     address: str,
     repetitions: int,
-    include_certificates: bool,
 ):
 
     if not os.path.isfile(website_density_path):
@@ -104,7 +102,7 @@ def main(
     else:
         f = open(output_path, "w")
         f.write(
-            f"threads,time,include_certificates,successful_requests,failed_requests\n"
+            f"threads,time,include_certificates,successful_requests,failed_requests,include_certificates\n"
         )
         f.flush()
 
@@ -116,11 +114,12 @@ def main(
 
     total_iterations = len(TIME_VALUES) * len(THREAD_VALUES) * repetitions
 
-    for i, time, threads in tqdm(
+    for i, time, threads, include_certificates in tqdm(
         (
-            (i, time, threads)
+            (i, time, threads, include_certificates)
             for time in TIME_VALUES
             for threads in THREAD_VALUES
+            for include_certificates in [False, True]
             for i in range(repetitions)
         ),
         total=total_iterations

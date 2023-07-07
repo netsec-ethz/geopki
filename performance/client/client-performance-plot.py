@@ -8,7 +8,8 @@ FILE_PATH = os.path.realpath(__file__)
 
 def cdf_plot(
     xlabel: str,
-    df_column,
+    df_column_excluding_certificates,
+    df_column_including_certificates,
     output_filename: str,
     show_quantile=True
 ):
@@ -19,7 +20,7 @@ def cdf_plot(
     ax.set_xlabel(xlabel)
 
     # https://stackoverflow.com/a/54317197
-    s = pd.Series(df_column.values, name='value')
+    s = pd.Series(df_column_excluding_certificates.values, name='value')
     df = pd.DataFrame(s)
 
     stats_df = df.groupby('value')['value'] \
@@ -37,34 +38,54 @@ def cdf_plot(
 
     plt.plot(stats_df['value'], stats_df['cdf'], label="CDF")
 
-    left, right = ax.get_xlim()
-    bottom, top = ax.get_ylim()
+    # including certs
 
-    # override the limits
-    bottom = 0
+    s = pd.Series(df_column_including_certificates.values, name='value')
+    df = pd.DataFrame(s)
 
-    ax.set_xlim(left, right)
-    ax.set_ylim(bottom, top)
+    stats_df = df.groupby('value')['value'] \
+        .agg('count') \
+        .pipe(pd.DataFrame) \
+        .rename(columns={'value': 'frequency'})
 
-    if show_quantile:
-        ninety_five_row = stats_df[stats_df['cdf'] >= 0.95].iloc[0]
-        ninety_five_p = ninety_five_row['cdf']
-        ninety_five = ninety_five_row['value']
+    # PDF
+    stats_df['pdf'] = stats_df['frequency'] / sum(stats_df['frequency'])
 
-        # print(nin)
+    # CDF
+    stats_df['cdf'] = stats_df['pdf'].cumsum()
+    stats_df = stats_df.reset_index()
+    cdf = stats_df['cdf'].values
 
-        ax.hlines(y=ninety_five_p, xmin=left,
-                  xmax=ninety_five, linewidth=0.5, color='r')
-        ax.vlines(x=ninety_five, ymin=bottom,
-                  ymax=ninety_five_p, linewidth=0.5, color='r')
+    plt.plot(stats_df['value'], stats_df['cdf'], label="CDF (inc. certs)")
 
-        plt.text(
-            ninety_five * 1.05,
-            0.92,
-            f'({ninety_five}, {ninety_five_p.round(2)})',
-            rotation=0,
-            color='r'
-        )
+    # left, right = ax.get_xlim()
+    # bottom, top = ax.get_ylim()
+
+    # # override the limits
+    # bottom = 0
+
+    # ax.set_xlim(left, right)
+    # ax.set_ylim(bottom, top)
+
+    # if show_quantile:
+    #     ninety_five_row = stats_df[stats_df['cdf'] >= 0.95].iloc[0]
+    #     ninety_five_p = ninety_five_row['cdf']
+    #     ninety_five = ninety_five_row['value']
+
+    #     # print(nin)
+
+    #     ax.hlines(y=ninety_five_p, xmin=left,
+    #               xmax=ninety_five, linewidth=0.5, color='r')
+    #     ax.vlines(x=ninety_five, ymin=bottom,
+    #               ymax=ninety_five_p, linewidth=0.5, color='r')
+
+    #     plt.text(
+    #         ninety_five * 1.05,
+    #         0.92,
+    #         f'({ninety_five}, {ninety_five_p.round(2)})',
+    #         rotation=0,
+    #         color='r'
+    #     )
 
     plt.savefig(output_filename)
 
@@ -129,38 +150,46 @@ def main(
         axis="columns"
     )
 
+    df_excluding_certificates = df[df['include_certificates'] == 'false']
+    df_including_certificates = df[df['include_certificates'] == 'true']
+
     # request_size
     cdf_plot(
         "request size in B",
-        df['request_size'],
+        df_excluding_certificates['request_size'],
+        df_including_certificates['request_size'],
         f"{output_path}/request-size-cdf.png"
     )
 
     # request_bit_string_count
     cdf_plot(
         "request bit string count",
-        df['request_bit_string_count'],
+        df_excluding_certificates['request_bit_string_count'],
+        df_including_certificates['request_bit_string_count'],
         f"{output_path}/request-bit-string-count-cdf.png"
     )
 
     # response_size
     cdf_plot(
         "response size in B",
-        df['response_size'],
+        df_excluding_certificates['response_size'],
+        df_including_certificates['response_size'],
         f"{output_path}/response-size-cdf.png"
     )
 
     # response_size
     cdf_plot(
         "response node count",
-        df['response_node_count'],
+        df_excluding_certificates['response_node_count'],
+        df_including_certificates['response_node_count'],
         f"{output_path}/response-node-count-cdf.png"
     )
 
     # response hash count
     cdf_plot(
         "response certificate hash count",
-        df['certificate_hash_count'],
+        df_excluding_certificates['certificate_hash_count'],
+        df_including_certificates['certificate_hash_count'],
         f"{output_path}/response-hash-count-cdf.png",
         show_quantile=False
     )
@@ -168,42 +197,48 @@ def main(
     # consistency_proof_size
     # cdf_plot(
     #     "response consistency proof size",
-    #     df['consistency_proof_size'],
+    #     df_excluding_certificates['consistency_proof_size'],
+    #     df_including_certificates['consistency_proof_size'],
     #     f"{output_path}/consistency-proof-size-cdf.png",
     # )
 
     # time_building_query
     cdf_plot(
         "time to generate query in s",
-        df['time_building_query'],
+        df_excluding_certificates['time_building_query'],
+        df_including_certificates['time_building_query'],
         f"{output_path}/time-build-query-cdf.png",
     )
 
     # time_send_receive
     # cdf_plot(
     #     "request time in s",
-    #     df['time_send_receive'],
+    #     df_excluding_certificates['time_send_receive'],
+    #     df_including_certificates['time_send_receive'],
     #     f"{output_path}/time-send-receive-cdf.png",
     # )
 
     # time_verification
     cdf_plot(
         "time to verify response in s",
-        df['time_verification'],
+        df_excluding_certificates['time_verification'],
+        df_including_certificates['time_verification'],
         f"{output_path}/time-verification-cdf.png",
     )
 
     # time_consistency
     # cdf_plot(
     #     "time to verify consistency in s",
-    #     df['time_consistency'],
+    #     df_excluding_certificates['time_consistency'],
+    #     df_including_certificates['time_consistency'],
     #     f"{output_path}/time-consistency-cdf.png",
     # )
 
     # time_total
     cdf_plot(
         "total request time in s",
-        df['time_total'],
+        df_excluding_certificates['time_total'],
+        df_including_certificates['time_total'],
         f"{output_path}/time-total-cdf.png",
     )
 

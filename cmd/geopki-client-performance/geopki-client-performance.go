@@ -122,7 +122,7 @@ func main() {
 	total = time.Since(clientStart)
 
 	fmt.Printf(
-		"%f,%f,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f\n",
+		"%f,%f,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%t\n",
 		longitude,
 		latitude,
 		radius,
@@ -146,5 +146,7 @@ func main() {
 		consistency.Seconds(),
 		// total client running time
 		total.Seconds(),
+		// whether certificates were fetched as well
+		includeCertificates,
 	)
 }

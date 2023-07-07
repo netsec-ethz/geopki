@@ -51,7 +51,6 @@ def sample_point_in_polygon(polygon: Polygon) -> tuple[float, float]:
     # by default do not repeat a single location
     default=1
 )
-@click.option('--include-certificates', 'include_certificates', flag_value=True, default=False)
 def main(
     website_density_path: str,
     output_path: str,
@@ -59,7 +58,6 @@ def main(
     address: str,
     location_count: int,
     repetitions: int,
-    include_certificates: bool,
 ):
 
     if not os.path.isfile(website_density_path):
@@ -93,7 +91,7 @@ def main(
         f = open(output_path, "a")
     else:
         f = open(output_path, "w")
-        f.write(f"longitude,latitude,radius,request_size,request_bit_string_count,response_size,response_node_count,certificate_hash_count,consistency_proof_size,time_building_query,time_send_receive,time_verification,time_consistency,time_total\n")
+        f.write(f"longitude,latitude,radius,request_size,request_bit_string_count,response_size,response_node_count,certificate_hash_count,consistency_proof_size,time_building_query,time_send_receive,time_verification,time_consistency,time_total,include_certificates\n")
         f.flush()
 
     # probability 0 if osm_website_element_count == 0
@@ -117,11 +115,12 @@ def main(
 
     total_iterations = len(query_locations) * repetitions
 
-    for i, longitude, latitude in tqdm(
+    for i, longitude, latitude, include_certificates in tqdm(
         (
-            (i, lon, lat)
+            (i, lon, lat, include_certificates)
             for (lon, lat) in query_locations
             for i in range(repetitions)
+            for include_certificates in [False, True]
         ),
         total=total_iterations
     ):

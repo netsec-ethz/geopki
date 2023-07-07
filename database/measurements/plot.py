@@ -8,7 +8,7 @@ CURRENT_DIR = os.path.dirname(FILE_PATH)
 
 fig, ax = plt.subplots(dpi=300)
 ax.set_xscale("log", base=2)
-ax.set_xlabel("number of parallel threads")
+ax.set_xlabel("number of parallel processes")
 ax.set_yscale("linear")
 ax.set_ylabel("queries per second")
 
@@ -17,7 +17,7 @@ file_to_fmt = {
     "performance-evaluation-bitstring.csv": "x",
     "performance-evaluation-bitstring-exclude-comp.csv": "+",
     "performance-evaluation-bitstring-int.csv": "h",
-    "performance-evaluation-bitstring-int-exclude-comp.csv": "H",
+    "performance-evaluation-bitstring-int-exclude-comp.csv": "d",
 }
 
 file_to_label = {

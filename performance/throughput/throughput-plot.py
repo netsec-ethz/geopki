@@ -39,24 +39,43 @@ def main(
 
     fig, ax = plt.subplots(dpi=300)
     ax.set_xscale("log", base=2)
-    ax.set_xlabel("number of parallel threads")
+    ax.set_xlabel("number of parallel goroutines")
     ax.set_yscale("linear")
     ax.set_ylabel("queries per second")
 
+    df_excluding_certificates = df[df['include_certificates'] == 'false']
+    df_including_certificates = df[df['include_certificates'] == 'true']
+
     ax.errorbar(
-        df['threads'],
-        df['qps'],
-        yerr=df['qps_std'],
-        fmt='o',
+        df_excluding_certificates['threads'],
+        df_excluding_certificates['qps'],
+        yerr=df_excluding_certificates['qps_std'],
+        fmt='x',
         label=f"successful"
     )
 
     ax.errorbar(
-        df['threads'],
-        df['fqps'],
-        yerr=df['fqps_std'],
-        fmt='o',
+        df_excluding_certificates['threads'],
+        df_excluding_certificates['fqps'],
+        yerr=df_excluding_certificates['fqps_std'],
+        fmt='+',
         label=f"failed"
+    )
+
+    ax.errorbar(
+        df_including_certificates['threads'],
+        df_including_certificates['qps'],
+        yerr=df_including_certificates['qps_std'],
+        fmt='h',
+        label=f"successful (inc. certs)"
+    )
+
+    ax.errorbar(
+        df_including_certificates['threads'],
+        df_including_certificates['fqps'],
+        yerr=df_including_certificates['fqps_std'],
+        fmt='d',
+        label=f"failed (inc. certs)"
     )
 
     plt.legend(loc="upper left")
