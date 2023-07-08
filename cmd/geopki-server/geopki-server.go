@@ -111,8 +111,7 @@ func main() {
 		os.Exit(8)
 	}
 	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
-		_, err := conn.Prepare(ctx, "pbb", "SELECT * FROM query_by_bitstrings($1::bit varying[],$2::smallint,$3::smallint)")
-		return err
+		return nil
 	}
 
 	dbPool, err := pgxpool.NewWithConfig(context.Background(), config)
