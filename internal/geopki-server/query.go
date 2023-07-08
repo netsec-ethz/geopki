@@ -134,8 +134,8 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 	inclusionProof := env.SchInclusionProof
 
 	response, err := proto.Marshal(&comm.Response{
-		SignedConsistencyHead: sch.Proto(),
-		SignedMapHead:         smh.Proto(),
+		SignedConsistencyHead: sch,
+		SignedMapHead:         smh,
 		InclusionProof:        inclusionProof,
 		Nodes:                 nodes,
 

@@ -16,7 +16,7 @@ func (env *EndpointHandlerEnv) getSignedConsistencyHead(c *gin.Context) {
 	sch := env.CurrentSignedConsistencyHead
 	env.SharedDataLock.RUnlock()
 
-	response, err := proto.Marshal(sch.Proto())
+	response, err := proto.Marshal(sch)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -37,7 +37,7 @@ func (env *EndpointHandlerEnv) getSignedMapHead(c *gin.Context) {
 	smh := env.CurrentSignedMapHead
 	env.SharedDataLock.RUnlock()
 
-	response, err := proto.Marshal(smh.Proto())
+	response, err := proto.Marshal(smh)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{

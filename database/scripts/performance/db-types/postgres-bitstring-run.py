@@ -147,7 +147,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                         ("SELECT COUNT(*) FROM (" if args.count_only else "") +
                         f"SELECT bit_string, certificate_hashes, left_child_hash, right_child_hash "
                         f"FROM nodes "
-                        f"WHERE bit_string_txt IN (" +
+                        f"WHERE bit_string_txt IN (''," +
                         ','.join(
                             set(
                                 itertools.chain.from_iterable(

@@ -213,8 +213,8 @@ func main() {
 
 		ConsistencyClient: consistencyClient,
 
-		CurrentSignedMapHead:         smh,
-		CurrentSignedConsistencyHead: sch,
+		CurrentSignedMapHead:         smh.Proto(),
+		CurrentSignedConsistencyHead: sch.Proto(),
 		SchInclusionProof:            inclusionProof,
 	}
 

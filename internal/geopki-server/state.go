@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"sync"
 
+	"geopki/pkg/comm"
 	"geopki/pkg/crypto"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -26,9 +27,9 @@ type EndpointHandlerEnv struct {
 	UpdateLock sync.Mutex
 
 	// caches the most recent SMH value
-	CurrentSignedMapHead *crypto.SignedMapHead
+	CurrentSignedMapHead *comm.SignedMapHead
 	// caches the most recent SCH value
-	CurrentSignedConsistencyHead *crypto.SignedConsistencyHead
+	CurrentSignedConsistencyHead *comm.SignedConsistencyHead
 	// caches the inclusion proof for the latest SCH value
 	SchInclusionProof []byte
 }

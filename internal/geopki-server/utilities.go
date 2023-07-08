@@ -77,8 +77,8 @@ func (env *EndpointHandlerEnv) updateSCH(
 	}
 
 	// update cached smh and sch, acquire lock to ensure all reads are consistent
-	env.CurrentSignedMapHead = smh
-	env.CurrentSignedConsistencyHead = sch
+	env.CurrentSignedMapHead = smh.Proto()
+	env.CurrentSignedConsistencyHead = sch.Proto()
 	env.SchInclusionProof = marshaledProof
 
 	return sch, nil
