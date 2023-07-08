@@ -112,7 +112,7 @@ def main(
     # very small probability if osm_website_element_count == 0
     # df['weights'] = df['osm_website_element_count'] + 1
 
-    total_iterations = len(TIME_VALUES) * len(THREAD_VALUES) * repetitions
+    total_iterations = len(TIME_VALUES) * len(THREAD_VALUES) * repetitions * 2
 
     for i, time, threads, include_certificates in tqdm(
         (

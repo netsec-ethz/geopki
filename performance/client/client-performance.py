@@ -113,7 +113,7 @@ def main(
         tuple[float, float]
     ] = sample['sample_point'].values
 
-    total_iterations = len(query_locations) * repetitions
+    total_iterations = len(query_locations) * repetitions * 2
 
     for i, longitude, latitude, include_certificates in tqdm(
         (
