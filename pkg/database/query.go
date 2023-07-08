@@ -38,7 +38,7 @@ func BuildNodeQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uin
 		stringBuilderPool.Put(query)
 	}()
 
-	query.WriteString("SELECT * FROM query_by_bitstrings(array[")
+	query.WriteString("SELECT DISTINCT * FROM query_by_bitstrings(array[")
 	for i, bitString := range bitStrings {
 		if i > 0 {
 			query.WriteString(",")
