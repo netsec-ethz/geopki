@@ -164,11 +164,9 @@ func main() {
 	fmt.Printf("    Verify Consistency: %fs\n", consistency.Seconds())
 
 	fmt.Printf("📡 Received %d certificate hashes:\n", certificateHashes.Cardinality())
-	it := certificateHashes.Iterator()
-	for certificateHash := range it.C {
+	for certificateHash := range certificateHashes.Iter() {
 		fmt.Printf("    %s\n", certificateHash)
 	}
-	it.Stop()
 
 	fmt.Printf("📡 Received %d certificates\n", len(response.GetCertificates()))
 	for _, rawCertificate := range response.GetCertificates() {

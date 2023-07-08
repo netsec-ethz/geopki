@@ -112,11 +112,9 @@ func BuildNodeQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uin
 	// also always query the root node
 	query.WriteString(") UNION SELECT bit_string_51, bit_string_15, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash, certificate_hashes FROM nodes WHERE bit_string_51 IN (''")
 	// add all other prefixes of 'trimmedXYBitString'
-	it := point_queries.Iterator()
-	for bitString := range it.C {
+	for bitString := range point_queries.Iter() {
 		query.WriteString(",'" + bitString + "'")
 	}
-	it.Stop()
 	query.WriteString(") AND altitude_min <= ")
 	query.WriteString(strconv.FormatUint(uint64(maxAltitude), 10))
 	query.WriteString(" AND altitude_max >= ")
