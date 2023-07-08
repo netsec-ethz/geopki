@@ -44,7 +44,14 @@ func BuildNodeQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uin
 			query.WriteString(",")
 		}
 		query.WriteString("'")
-		query.WriteString(strconv.FormatUint(bitString.XYBitString, 2))
+		// 1. convert to string
+		s := strconv.FormatUint(bitString.XYBitString, 2)
+		// 2. left pad to full width of 64 bits, 3. remove trailing zeros,
+		trimmedXYBitString := strings.TrimRight(
+			strings.Repeat("0", 64-len(s))+s,
+			"0",
+		)
+		query.WriteString(trimmedXYBitString)
 		query.WriteString("'")
 	}
 	query.WriteString("]::bit varying[],")
