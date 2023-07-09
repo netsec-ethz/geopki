@@ -5,76 +5,49 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"time"
 
 	"geopki/pkg/crypto"
 	"geopki/pkg/database"
 
-	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
+	"github.com/valyala/fasthttp"
 )
 
-func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
-	if !env.receivedValidInsertionKey(c) {
+func (env *EndpointHandlerEnv) postInsert(ctx *fasthttp.RequestCtx) {
+	if !env.receivedValidInsertionKey(ctx) {
 		return
 	}
 
-	// check the content type request header
-	contentTypeHeaders, ok := c.Request.Header["Content-Type"]
-	if ok {
-		// if the content type header is set, make sure it is exactly 'application/json'
-		if len(contentTypeHeaders) > 1 || contentTypeHeaders[0] != "application/json" {
-
-			// display an error to the user
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Sprintf(
-					"Content-Type:%s is not supported. Don't set the header or use 'application/json'.",
-					contentTypeHeaders[0],
-				),
-			})
-
-			return
-		}
-	}
-
 	// read request body
-	zr, err := gzip.NewReader(c.Request.Body)
+	zr, err := gzip.NewReader(ctx.RequestBodyStream())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "creating gzip reader failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "creating gzip reader",
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, "creating gzip reader")
 		return
 	}
 
 	body, err := io.ReadAll(zr)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "reading gzipped request body failed: %v\n", err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, err.Error())
 		return
 	}
 
 	if err := zr.Close(); err != nil {
 		fmt.Fprintf(os.Stderr, "closing gzip reader failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "closing gzip reader",
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, "closing gzip reader")
 		return
 	}
 
 	var certificates []*crypto.GeoCertificate
 	err = json.Unmarshal(body, &certificates)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf(
-				"supplied invalid certificates, %v",
-				err,
-			),
-		})
+		errorHandler(ctx, fasthttp.StatusBadRequest, fmt.Sprintf(
+			"supplied invalid certificates, %v",
+			err,
+		))
 		return
 	}
 
@@ -82,9 +55,7 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 		marshaledCert, err := json.Marshal(certificate)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "marshaling certificate failed: %v\n", err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "marshaling certificates failed",
-			})
+			errorHandler(ctx, fasthttp.StatusInternalServerError, "marshaling certificates failed")
 			return
 		}
 		certificate.MarshaledCert = marshaledCert
@@ -92,99 +63,82 @@ func (env *EndpointHandlerEnv) postInsert(c *gin.Context) {
 
 	didLock := env.UpdateLock.TryLock()
 	if !didLock {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "update is already in progress, try again later",
-		})
+		errorHandler(ctx, fasthttp.StatusBadRequest, "update is already in progress, try again later")
 		return
 	}
 
 	// unlock after returning
 	defer env.UpdateLock.Unlock()
 
-	tx, err := env.DbPool.BeginTx(c.Request.Context(), pgx.TxOptions{
+	tx, err := env.DbPool.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel: pgx.Serializable,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "starting transaction failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "starting transaction failed",
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, "starting transaction failed")
 		return
 	}
 
-	defer tx.Rollback(c.Request.Context())
+	defer tx.Rollback(ctx)
 
 	err = database.AddNewCertificates(
 		certificates,
 		F_GROW,
 		tx,
-		c.Request.Context(),
+		ctx,
 	)
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed updating SMT: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed updating SMT",
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, "failed updating SMT")
 		return
 	}
 
-	err = tx.Commit(c.Request.Context())
+	err = tx.Commit(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "commiting transaction failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "commiting transaction failed",
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, "commiting transaction failed")
 		return
 	}
 
-	c.Data(
-		http.StatusOK,
-		"application/json",
-		[]byte("{\"success\":true}"),
-	)
+	ctx.SetStatusCode(fasthttp.StatusOK)
+	ctx.SetBody([]byte("{\"success\":true}"))
 }
 
-func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
-	if !env.receivedValidInsertionKey(c) {
+func (env *EndpointHandlerEnv) postRelaseNewVersion(ctx *fasthttp.RequestCtx) {
+	if !env.receivedValidInsertionKey(ctx) {
 		return
 	}
 
 	didLock := env.UpdateLock.TryLock()
 	if !didLock {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Update is already in progress, try again later",
-		})
+		errorHandler(ctx, fasthttp.StatusBadRequest, "release is already in progress, try again later")
 		return
 	}
 
 	// unlock after returning
 	defer env.UpdateLock.Unlock()
 
-	tx, err := env.DbPool.BeginTx(c.Request.Context(), pgx.TxOptions{
+	tx, err := env.DbPool.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel: pgx.Serializable,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "starting transaction failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "starting transaction failed",
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, "starting transaction failed")
 		return
 	}
 
-	defer tx.Rollback(c.Request.Context())
+	defer tx.Rollback(ctx)
 
 	t := time.Now()
 
 	fmt.Printf("New release was initiated at %s.\n", t.Format("2006-01-02 15:04:05-07"))
 
 	start := time.Now()
-	err = database.RemoveExpiredCertificates(t, tx, c.Request.Context())
+	err = database.RemoveExpiredCertificates(t, tx, ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "removing expired certificates failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "removing expired certificates failed",
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, "removing expired certificates failed")
 		return
 	}
 
@@ -193,7 +147,7 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 	// drop indices on 'nodes' table
 	start = time.Now()
 	_, err = tx.Exec(
-		c.Request.Context(),
+		ctx,
 		// nodes table
 		"DROP INDEX IF EXISTS bit_string_bit_idx;"+
 			"DROP INDEX IF EXISTS bit_string_len;"+
@@ -201,9 +155,7 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "dropping indices failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "dropping indices failed",
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, "dropping indices failed")
 		return
 	}
 
@@ -212,7 +164,7 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 	// create indices with the same names on 'nodes_next' and cluster the data accordingly
 	start = time.Now()
 	_, err = tx.Exec(
-		c.Request.Context(),
+		ctx,
 		"CREATE UNIQUE INDEX IF NOT EXISTS bit_string_bit_idx ON nodes_next USING btree (bit_string_51 ASC NULLS LAST, bit_string_15 ASC NULLS LAST);"+
 			"CREATE INDEX IF NOT EXISTS bit_string_len ON nodes_next (LENGTH(bit_string_51), LENGTH(bit_string_15));"+
 			"CREATE INDEX IF NOT EXISTS bit_string_integer_idx ON nodes_next USING btree (bit_string_51_int ASC NULLS LAST);"+
@@ -221,9 +173,7 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "creating indices failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "creating indices failed",
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, "creating indices failed")
 		return
 	}
 
@@ -232,16 +182,14 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 	// swap nodes with nodes_next
 	start = time.Now()
 	_, err = tx.Exec(
-		c.Request.Context(),
+		ctx,
 		"ALTER TABLE nodes RENAME TO nodes_old;"+
 			"ALTER TABLE nodes_next RENAME TO nodes;"+
 			"ALTER TABLE nodes_old RENAME TO nodes_next;",
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "swapping tables failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "swapping tables failed",
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, "swapping tables failed")
 		return
 	}
 
@@ -250,27 +198,23 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 	// 'nodes_next' contains stale data, truncate and replace with new data from 'nodes' (not the generated columns though!)
 	start = time.Now()
 	_, err = tx.Exec(
-		c.Request.Context(),
+		ctx,
 		"TRUNCATE nodes_next;"+
 			"INSERT INTO nodes_next(bit_string_51,bit_string_15,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes) SELECT bit_string_51,bit_string_15,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes FROM nodes;",
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "updating nodes_next failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "updating nodes_next failed",
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, "updating nodes_next failed")
 		return
 	}
 
 	fmt.Printf("Preparing table for new insertions took %f minutes.\n", time.Since(start).Minutes())
 
 	// create new SMH based on the new 'nodes' table
-	smh, err := CreateNewSMH(t, tx, env.PrivateKey, c.Request.Context())
+	smh, err := CreateNewSMH(t, tx, env.PrivateKey, ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "updating SMH failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "updating SMH failed",
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, "updating SMH failed")
 		return
 	}
 
@@ -279,31 +223,24 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(c *gin.Context) {
 	env.SharedDataLock.Lock()
 	defer env.SharedDataLock.Unlock()
 
-	err = tx.Commit(c.Request.Context())
+	err = tx.Commit(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "commiting transaction failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "commiting transaction failed",
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, "commiting transaction failed")
 		return
 	}
 
 	// update sch if transaction committed, we already acquired the lock
 	// and can now create a new sch and update the shared data
-	sch, err := env.updateSCH(smh, c.Request.Context())
+	sch, err := env.updateSCH(smh, ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "updating SCH failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "updating SCH failed",
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, "updating SCH failed")
 		return
 	}
 
 	fmt.Printf("Release took a total of %f minutes.\n", time.Since(t).Minutes())
 
-	c.Data(
-		http.StatusOK,
-		"application/json",
-		[]byte(fmt.Sprintf("{\"success\":true, \"new_tree_size\":%d}", sch.Size)),
-	)
+	ctx.SetStatusCode(fasthttp.StatusOK)
+	ctx.SetBody([]byte(fmt.Sprintf("{\"success\":true, \"new_tree_size\":%d}", sch.Size)))
 }

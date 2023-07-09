@@ -8,11 +8,10 @@ import (
 	"fmt"
 	"geopki/pkg/crypto"
 	"geopki/pkg/database"
-	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
+	"github.com/valyala/fasthttp"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -85,15 +84,18 @@ func (env *EndpointHandlerEnv) updateSCH(
 }
 
 // ensures the GET parameter 'key' is set to the correct value
-func (env *EndpointHandlerEnv) receivedValidInsertionKey(c *gin.Context) bool {
-	key := c.DefaultQuery("key", "???")
-	keyHash := sha256.Sum256([]byte(key))
+func (env *EndpointHandlerEnv) receivedValidInsertionKey(ctx *fasthttp.RequestCtx) bool {
+	args := ctx.QueryArgs()
+	key := args.Peek("key")
+	if key == nil {
+		return false
+	}
+
+	keyHash := sha256.Sum256(key)
 
 	// compare hashes, avoids timing side channel since the strings are of the same length
 	if !bytes.Equal(keyHash[:], env.CertificateInsertionKeyHash) {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "invalid key",
-		})
+		errorHandler(ctx, fasthttp.StatusUnauthorized, "invalid key")
 		return false
 	}
 

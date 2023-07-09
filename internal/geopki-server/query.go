@@ -3,75 +3,42 @@ package server
 import (
 	"encoding/base64"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 
 	"geopki/pkg/comm"
 	"geopki/pkg/database"
 
 	mapset "github.com/deckarep/golang-set/v2"
-	"github.com/gin-gonic/gin"
+	"github.com/valyala/fasthttp"
 	"google.golang.org/protobuf/proto"
 )
 
 // handler for the /query endpoint
-func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
+func (env *EndpointHandlerEnv) postQuery(ctx *fasthttp.RequestCtx) {
 
 	// acquire read lock on cache for the duration of the query to guarantee
 	// the cached data is consistent with the data retrieved from the db
 	env.SharedDataLock.RLock()
 	defer env.SharedDataLock.RUnlock()
 
-	// check the content type request header
-	contentTypeHeaders, ok := c.Request.Header["Content-Type"]
-	if ok {
-		// if the content type header is set, make sure it is exactly 'application/octet-stream'
-		if len(contentTypeHeaders) > 1 || contentTypeHeaders[0] != "application/octet-stream" {
-
-			// display an error to the user
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Sprintf(
-					"Content-Type:%s is not supported. Don't set the header or use 'application/octet-stream'.",
-					contentTypeHeaders[0],
-				),
-			})
-
-			return
-		}
-	}
-
-	includeCertificates := c.DefaultQuery("include-certificates", "none") != "none"
+	includeCertificates := ctx.QueryArgs().Has("include-certificates")
 
 	// read request body
-	query, err := io.ReadAll(c.Request.Body)
+	requestBitStringPairs, minAltitude, maxAltitude, err := comm.ParseQuery(ctx.Request.Body())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "reading request body failed: %v\n", err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	requestBitStringPairs, minAltitude, maxAltitude, err := comm.ParseQuery(query)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
+		errorHandler(ctx, fasthttp.StatusBadRequest, err.Error())
 		return
 	}
 
 	sqlQuery := database.BuildNodeQuery(requestBitStringPairs, minAltitude, maxAltitude)
 
 	rows, err := env.DbPool.Query(
-		c.Request.Context(),
+		ctx,
 		sqlQuery,
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "node query failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "database query failed",
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, "database query failed")
 		return
 	}
 
@@ -81,17 +48,13 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 	nodes, rootHash, err := database.RowsToNodesAndRootHash(rows, len(requestBitStringPairs))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "scanning node rows failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "scanning rows failed",
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, "scanning rows failed")
 		return
 	}
 
 	if rootHash == nil {
 		fmt.Fprintf(os.Stderr, "integrity check failed, root node was not returned by the query")
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "integrity check failed, root node was not returned by the query",
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, "integrity check failed, root node was not returned by the query")
 		return
 	}
 
@@ -111,21 +74,17 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 			sqlQuery, err := database.BuildCertificateQuery(certificateStringHashes)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "building certificate query failed: %v\n", err)
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"error": "building database query failed",
-				})
+				errorHandler(ctx, fasthttp.StatusInternalServerError, "building database query failed")
 				return
 			}
 
 			rows, err := env.DbPool.Query(
-				c.Request.Context(),
+				ctx,
 				sqlQuery,
 			)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "certificate query failed: %v\n", err)
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"error": "database query failed",
-				})
+				errorHandler(ctx, fasthttp.StatusInternalServerError, "database query failed")
 				return
 			}
 
@@ -135,9 +94,7 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 			certificates, err = database.RowsToCertificates(rows, certificateStringHashes.Cardinality())
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "scanning certificate rows failed: %v\n", err)
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"error": "scanning rows failed",
-				})
+				errorHandler(ctx, fasthttp.StatusInternalServerError, "scanning rows failed")
 				return
 			}
 		}
@@ -157,51 +114,44 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed marshaling response",
-		})
+		errorHandler(ctx, fasthttp.StatusInternalServerError, "failed marshaling response")
 		return
 	}
 
-	c.Data(
-		http.StatusOK,
-		"application/octet-stream",
-		response,
-	)
+	ctx.SetStatusCode(fasthttp.StatusOK)
+	ctx.SetBody(response)
 }
 
 // handler for the /certificates endpoint
-func (env *EndpointHandlerEnv) getCertificates(c *gin.Context) {
-
-	certificateStringHashes, nonEmpty := c.GetQueryArray("hash")
-	if !nonEmpty {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "provide at least one hash using the 'hash' parameter",
-		})
+func (env *EndpointHandlerEnv) getCertificates(ctx *fasthttp.RequestCtx) {
+	certificateStringHashes := ctx.QueryArgs().PeekMulti("hash")
+	if len(certificateStringHashes) == 0 {
+		errorHandler(ctx, fasthttp.StatusBadRequest, "failed marshaling response")
 		return
+	}
+
+	certificateStringHashMap := mapset.NewThreadUnsafeSet[string]()
+	for _, certificateStringHash := range certificateStringHashes {
+		certificateStringHashMap.Add(string(certificateStringHash))
 	}
 
 	var certificates [][]byte
 	sqlQuery, err := database.BuildCertificateQuery(
-		mapset.NewThreadUnsafeSet[string](certificateStringHashes...),
+		certificateStringHashMap,
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "building certificate query failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "building database query failed",
-		})
+		errorHandler(ctx, fasthttp.StatusBadRequest, "building database query failed")
 		return
 	}
 
 	rows, err := env.DbPool.Query(
-		c.Request.Context(),
+		ctx,
 		sqlQuery,
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "certificate query failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "database query failed",
-		})
+		errorHandler(ctx, fasthttp.StatusBadRequest, "database query failed")
 		return
 	}
 
@@ -212,9 +162,7 @@ func (env *EndpointHandlerEnv) getCertificates(c *gin.Context) {
 	certificates, err = database.RowsToCertificates(rows, len(certificateStringHashes))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "scanning certificate rows failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "scanning rows failed",
-		})
+		errorHandler(ctx, fasthttp.StatusBadRequest, "scanning rows failed")
 		return
 	}
 
@@ -224,15 +172,10 @@ func (env *EndpointHandlerEnv) getCertificates(c *gin.Context) {
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed marshaling response: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed marshaling response",
-		})
+		errorHandler(ctx, fasthttp.StatusBadRequest, "failed marshaling response")
 		return
 	}
 
-	c.Data(
-		http.StatusOK,
-		"application/octet-stream",
-		response,
-	)
+	ctx.SetStatusCode(fasthttp.StatusOK)
+	ctx.SetBody(response)
 }
