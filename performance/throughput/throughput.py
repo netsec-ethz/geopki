@@ -117,9 +117,9 @@ def main(
     for i, time, threads, include_certificates in tqdm(
         (
             (i, time, threads, include_certificates)
+            for include_certificates in [False, True]
             for time in TIME_VALUES
             for threads in THREAD_VALUES
-            for include_certificates in [False, True]
             for i in range(repetitions)
         ),
         total=total_iterations
