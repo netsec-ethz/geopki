@@ -1,14 +1,12 @@
 package comm
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"geopki/pkg/bitstring"
-	"io"
 	"math"
-	"net/http"
 
+	"github.com/valyala/fasthttp"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -155,36 +153,24 @@ func QueryMapServer(
 		)
 	}
 
-	// log.Fatalf("success, computed %d bit strings", len(bitStrings))
-
 	getParameters := ""
 	if includeCertificates {
 		getParameters = "?include-certificates"
 	}
 
-	plainResponse, err := http.Post(
-		fmt.Sprintf("%s/v1/query%s", address, getParameters),
-		"application/octet-stream",
-		bytes.NewBuffer(request),
-	)
-	if err != nil {
-		return nil, 0, 0, fmt.Errorf(
-			"failed sending HTTP POST request to %s: %v",
-			address,
-			err,
-		)
-	}
+	httpRquest := fasthttp.AcquireRequest()
+	defer fasthttp.ReleaseRequest(httpRquest)
 
-	defer plainResponse.Body.Close()
+	httpRquest.Header.SetMethod("POST")
+	httpRquest.SetBody(request)
+	httpRquest.SetRequestURI(fmt.Sprintf("%s/v1/query%s", address, getParameters))
 
-	responseBody, err := io.ReadAll(plainResponse.Body)
-	if err != nil {
-		return nil, 0, 0, fmt.Errorf(
-			"failed reading response: %v",
-			err,
-		)
-	}
+	httpResponse := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseResponse(httpResponse)
 
+	fasthttp.Do(httpRquest, httpResponse)
+
+	responseBody := httpResponse.Body()
 	response := new(Response)
 	err = proto.Unmarshal(responseBody, response)
 
