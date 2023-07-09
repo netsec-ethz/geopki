@@ -153,7 +153,7 @@ func getJSONCertificates(
 		return nil, fmt.Errorf("❌ building query: %v\n", err)
 	}
 
-	response, requestSize, responseSize, err := comm.QueryMapServer(
+	response, requestSize, responseSize, err := comm.QueryMapServerSlow(
 		address,
 		query,
 		true,

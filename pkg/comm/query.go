@@ -1,10 +1,13 @@
 package comm
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"geopki/pkg/bitstring"
+	"io"
 	"math"
+	"net/http"
 
 	"github.com/valyala/fasthttp"
 	"google.golang.org/protobuf/proto"
@@ -174,6 +177,83 @@ func QueryMapServer(
 	}
 
 	responseBody := httpResponse.Body()
+	response := new(Response)
+	err = proto.Unmarshal(responseBody, response)
+
+	if err != nil {
+		var errorResponse ErrorResponse
+		err = json.Unmarshal(responseBody, &errorResponse)
+		if err != nil {
+			return nil, 0, 0, fmt.Errorf(
+				"failed unmarshaling: %v",
+				err,
+			)
+		}
+
+		return nil, 0, 0, fmt.Errorf("received error message: %s", errorResponse.Error)
+	}
+
+	return response, len(request), len(responseBody), nil
+}
+
+func QueryMapServerSlow(
+	address string,
+	query *Query,
+	includeCertificates bool,
+) (*Response, int, int, error) {
+	if address == "" {
+		return nil, 0, 0, fmt.Errorf("missing address value, use --address=http://[...]")
+	}
+
+	queries := make([]*XYBitString, len(query.XYBitStrings))
+	for i, bitString := range query.XYBitStrings {
+		queries[i] = &XYBitString{
+			XYBitString:    bitString.XYBitString,
+			XYBitStringLen: uint32(bitString.XYBitStringLen),
+		}
+	}
+
+	request, err := proto.Marshal(&Request{
+		XYBitStrings: queries,
+		MinAltitude:  uint32(query.MinAltitude),
+		MaxAltitude:  uint32(query.MaxAltitude),
+	})
+
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf(
+			"failed marshaling message: %v",
+			err,
+		)
+	}
+
+	getParameters := ""
+	if includeCertificates {
+		getParameters = "?include-certificates"
+	}
+
+	plainResponse, err := http.Post(
+		fmt.Sprintf("%s/v1/query%s", address, getParameters),
+		"application/octet-stream",
+		bytes.NewBuffer(request),
+	)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf(
+			"failed sending HTTP POST request to %s: %v",
+			address,
+			err,
+		)
+	}
+
+	defer plainResponse.Body.Close()
+
+	responseBody, err := io.ReadAll(plainResponse.Body)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf(
+			"failed reading response: %v",
+			err,
+		)
+	}
+
 	response := new(Response)
 	err = proto.Unmarshal(responseBody, response)
 
