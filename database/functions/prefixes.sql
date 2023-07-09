@@ -2,7 +2,7 @@ CREATE OR REPLACE FUNCTION prefixes(input_bit_string bit varying)
   RETURNS TABLE (bit_string bit varying)
     LANGUAGE 'plpgsql'
     COST 100
-    STABLE PARALLEL SAFE
+    IMMUTABLE PARALLEL SAFE
 AS $BODY$
 DECLARE
   len int := LENGTH(input_bit_string);
