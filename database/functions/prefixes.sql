@@ -9,7 +9,7 @@ DECLARE
 BEGIN
 FOR i IN 1.. len LOOP
   RETURN QUERY (
-    SELECT (SUBSTRING(input_bit_string FROM 1 FOR i)) as bit_string
+    SELECT (SUBSTRING(input_bit_string FROM 1 FOR i))::bit varying as bit_string
   );
 END LOOP;
 RETURN;
