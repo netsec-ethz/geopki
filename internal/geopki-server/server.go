@@ -133,6 +133,7 @@ func StartServer(
 		GenerateIndexPages: false,
 		Compress:           true,
 		AcceptByteRange:    true,
+		PathRewrite:        fasthttp.NewPathPrefixStripper(5),
 	}
 
 	requestHandler := env.newRequestHandler(
