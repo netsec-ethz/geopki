@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -106,17 +105,29 @@ func QueryRootHash(
 	return node.Hash(), nil
 }
 
+var bitStringSetPool = sync.Pool{
+	New: func() any {
+		// The Pool's New function should generally only return pointer
+		// types, since a pointer can be put into the return interface
+		// value without an allocation:
+		return mapset.NewThreadUnsafeSet[bitstring.RawBitStringPair]()
+	},
+}
+
 func RowsToNodesAndRootHash(
 	rows pgx.Rows,
 	expectedResults int,
-) ([]*comm.Node, crypto.SHA256Hash, mapset.Set[string], error) {
+) ([]*comm.Node, crypto.SHA256Hash, error) {
 	nodes := make([]*crypto.Node, 0, expectedResults)
 
 	// create a set of bit string pairs
-	bitStringSet := mapset.NewThreadUnsafeSet[bitstring.RawBitStringPair]()
+	bitStringSet := bitStringSetPool.Get().(mapset.Set[bitstring.RawBitStringPair])
+	defer func() {
+		bitStringSet.Clear()
+		bitStringSetPool.Put(bitStringSet)
+	}()
 
 	var rootHash crypto.SHA256Hash
-	certificateStringHashes := mapset.NewThreadUnsafeSet[string]()
 
 	var dbXYBitString pgtype.Bits
 	var dbZBitString pgtype.Bits
@@ -141,7 +152,7 @@ func RowsToNodesAndRootHash(
 		)
 
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 
 		// grow bit strings to 8 and 2 byte arrays respectively
@@ -182,17 +193,12 @@ func RowsToNodesAndRootHash(
 		if node.IsRoot() {
 			rootHash = node.Hash()
 		}
-
-		// collect certificate hashes
-		for _, certificateHash := range dbCertificateHashes.Elements {
-			certificateStringHashes.Add(base64.RawURLEncoding.EncodeToString(certificateHash))
-		}
 	}
 
 	// Any errors encountered by rows.Next or rows.Scan will be returned here
 	err := rows.Err()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	responseNodes := make([]*comm.Node, len(nodes))
@@ -238,27 +244,24 @@ func RowsToNodesAndRootHash(
 		responseNodes[i] = responseNode
 	}
 
-	return responseNodes, rootHash, certificateStringHashes, nil
+	return responseNodes, rootHash, nil
 }
 
-func BuildCertificateQuery(certificateStringHashes []string) (string, error) {
-	encodedHashes := make([]string, len(certificateStringHashes))
-
-	for i, certificateStringHash := range certificateStringHashes {
+// accepts a set of base64 encoded certificate hashes
+func BuildCertificateQuery(certificateStringHashes mapset.Set[string]) (string, error) {
+	var query strings.Builder
+	query.WriteString("SELECT certificate FROM certificates WHERE certificate_hash IN(")
+	for certificateStringHash := range certificateStringHashes.Iter() {
 		certificateHash, err := base64.RawURLEncoding.DecodeString(certificateStringHash)
 		if err != nil {
 			return "", err
 		}
 
-		encodedHashes[i] = fmt.Sprintf("E'\\\\x%s'", hex.EncodeToString(certificateHash))
+		query.WriteString("E'\\\\x" + hex.EncodeToString(certificateHash) + "'")
 	}
+	query.WriteString(")")
 
-	return fmt.Sprintf(
-		"SELECT certificate "+
-			"FROM certificates "+
-			"WHERE certificate_hash IN (%s)",
-		strings.Join(encodedHashes, ","),
-	), nil
+	return query.String(), nil
 }
 
 func RowsToCertificates(

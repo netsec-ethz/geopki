@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"geopki/pkg/comm"
 	"geopki/pkg/database"
 
+	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/gin-gonic/gin"
 	"google.golang.org/protobuf/proto"
 )
@@ -76,7 +78,7 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 	defer rows.Close()
 
 	// allocate slice with capacity of 'len(bit_strings)' and let go handle slice growth
-	nodes, rootHash, certificateStringHashes, err := database.RowsToNodesAndRootHash(rows, len(requestBitStringPairs))
+	nodes, rootHash, err := database.RowsToNodesAndRootHash(rows, len(requestBitStringPairs))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "scanning node rows failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -94,38 +96,50 @@ func (env *EndpointHandlerEnv) postQuery(c *gin.Context) {
 	}
 
 	var certificates [][]byte
-	if includeCertificates && certificateStringHashes.Cardinality() > 0 {
-		sqlQuery, err := database.BuildCertificateQuery(certificateStringHashes.ToSlice())
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "building certificate query failed: %v\n", err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "building database query failed",
-			})
-			return
+	if includeCertificates {
+
+		// create set of all certificate
+		certificateStringHashes := mapset.NewThreadUnsafeSet[string]()
+		for _, n := range nodes {
+			for _, certificateHash := range n.CertificateHashes {
+				certificateStringHashes.Add(base64.RawURLEncoding.EncodeToString(certificateHash))
+			}
 		}
 
-		rows, err := env.DbPool.Query(
-			c.Request.Context(),
-			sqlQuery,
-		)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "certificate query failed: %v\n", err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "database query failed",
-			})
-			return
-		}
+		// no need to continue if no certificates are requested
+		if certificateStringHashes.Cardinality() > 0 {
+			sqlQuery, err := database.BuildCertificateQuery(certificateStringHashes)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "building certificate query failed: %v\n", err)
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": "building database query failed",
+				})
+				return
+			}
 
-		defer rows.Close()
+			rows, err := env.DbPool.Query(
+				c.Request.Context(),
+				sqlQuery,
+			)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "certificate query failed: %v\n", err)
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": "database query failed",
+				})
+				return
+			}
 
-		// allocate slice with capacity of 'certificateStringHashes.Cardinality()', let go handle slice growth
-		certificates, err = database.RowsToCertificates(rows, certificateStringHashes.Cardinality())
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "scanning certificate rows failed: %v\n", err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "scanning rows failed",
-			})
-			return
+			defer rows.Close()
+
+			// allocate slice with capacity of 'certificateStringHashes.Cardinality()', let go handle slice growth
+			certificates, err = database.RowsToCertificates(rows, certificateStringHashes.Cardinality())
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "scanning certificate rows failed: %v\n", err)
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": "scanning rows failed",
+				})
+				return
+			}
 		}
 	}
 
@@ -168,7 +182,9 @@ func (env *EndpointHandlerEnv) getCertificates(c *gin.Context) {
 	}
 
 	var certificates [][]byte
-	sqlQuery, err := database.BuildCertificateQuery(certificateStringHashes)
+	sqlQuery, err := database.BuildCertificateQuery(
+		mapset.NewThreadUnsafeSet[string](certificateStringHashes...),
+	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "building certificate query failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
