@@ -101,3 +101,13 @@ func (env *EndpointHandlerEnv) receivedValidInsertionKey(ctx *fasthttp.RequestCt
 
 	return true
 }
+
+func errorHandler(ctx *fasthttp.RequestCtx, statusCode int, err string) {
+	ctx.SetContentType("text/plain")
+	ctx.SetStatusCode(statusCode)
+	ctx.SetBodyString("{\"error\":\"" + err + "\"}")
+}
+
+func notFoundHandler(ctx *fasthttp.RequestCtx) {
+	errorHandler(ctx, fasthttp.StatusNotFound, "requested resource was not found")
+}

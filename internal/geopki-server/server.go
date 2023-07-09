@@ -8,16 +8,6 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func errorHandler(ctx *fasthttp.RequestCtx, statusCode int, err string) {
-	ctx.SetContentType("text/plain")
-	ctx.SetStatusCode(statusCode)
-	ctx.SetBodyString("{\"error\":\"" + err + "\"")
-}
-
-func notFoundHandler(ctx *fasthttp.RequestCtx) {
-	errorHandler(ctx, fasthttp.StatusNotFound, "requested resource was not found")
-}
-
 func (env *EndpointHandlerEnv) newRequestHandler(
 	demoHandler fasthttp.RequestHandler,
 ) fasthttp.RequestHandler {
