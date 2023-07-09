@@ -166,9 +166,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
 
                     (
                         ("SELECT COUNT(*) FROM (" if args.count_only else "") +
-                        f"SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash "
-                        f"FROM nodes "
-                        f"WHERE bit_string_51 IN (''," +
+                        f"SELECT DISTINCT * FROM query_by_bitstrings(array[" +
                         ','.join(
                             set(
                                 itertools.chain.from_iterable(
@@ -176,22 +174,8 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                                     for point_queries, _, _ in bit_strings
                                 )
                             )
-                        ) + ") AND "
-                        f"altitude_min <= {query_altitude + args.query_radius} AND "
-                        f"altitude_max >= {query_altitude - args.query_radius} UNION " +
-                        "UNION".join(
-                            [
-                                "(SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash "
-                                "FROM nodes "
-                                f"WHERE "
-                                f"bit_string_51_int >= {imin} AND "
-                                f"bit_string_51_int <= {imax} AND "
-                                f"altitude_min <= {query_altitude + args.query_radius} AND "
-                                f"altitude_max >= {query_altitude - args.query_radius}"
-                                f")"
-                                for _, imin, imax in bit_strings
-                            ]
-                        )
+                        ) +
+                        f"]::bit varying[], {query_altitude - args.query_radius}::smallint, {query_altitude + args.query_radius}::smallint)"
                         + (") as sq" if args.count_only else "")
                     )
                     for bit_strings in queries
