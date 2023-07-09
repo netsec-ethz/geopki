@@ -16,7 +16,7 @@ import (
 
 const (
 	F_GROW                 = 1
-	MAX_QUERIES_PER_SECOND = 50
+	MAX_QUERIES_PER_SECOND = 500
 )
 
 type Query struct {
