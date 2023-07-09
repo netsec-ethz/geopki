@@ -80,7 +80,7 @@ class ProcessArgs:
         self.stop_event = stop_event
 
 
-def query_to_bitstring_integers(query: Tuple[float, float, int], query_radius: float):
+def query_to_bitstrings(query: Tuple[float, float, int], query_radius: float):
     longitude, latitude, altitude = query
 
     bit_strings = polygons_to_2d_bit_strings(
@@ -96,20 +96,7 @@ def query_to_bitstring_integers(query: Tuple[float, float, int], query_radius: f
         f_min=0
     )
 
-    return [
-        (
-            # compute all prefixes of bit_string that are not obtained by removing a trailing zero
-            [
-                f"'{b[:i]}'"
-                for i in range(1, bl)
-            ],
-            int(bit_string.ljust(51, '0'), 2),
-            int(bit_string.ljust(51, '1'), 2)
-        )
-        for bit_string in bit_strings
-        # define local variable, requires python >= 3.8 (https://stackoverflow.com/a/55881984)
-        if (b := bit_string.rstrip("0")) and (bl := len(b))
-    ]
+    return bit_strings
 
 
 def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_value: Value):
@@ -135,7 +122,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
 
     if args.excluding_bit_string_computation:
         query_set = [
-            query_to_bitstring_integers(q, args.query_radius)
+            query_to_bitstrings(q, args.query_radius)
             for q in query_set
         ]
 
@@ -156,7 +143,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
 
         if not args.excluding_bit_string_computation:
             queries = [
-                query_to_bitstring_integers(q, args.query_radius)
+                query_to_bitstrings(q, args.query_radius)
                 for q in queries
             ]
 
@@ -166,16 +153,9 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
 
                     (
                         ("SELECT COUNT(*) FROM (" if args.count_only else "") +
-                        f"SELECT DISTINCT * FROM query_by_bitstrings(array[" +
-                        ','.join(
-                            set(
-                                itertools.chain.from_iterable(
-                                    point_queries
-                                    for point_queries, _, _ in bit_strings
-                                )
-                            )
-                        ) +
-                        f"]::bit varying[], {query_altitude - args.query_radius}::smallint, {query_altitude + args.query_radius}::smallint)"
+                        f"SELECT DISTINCT * FROM query_by_bitstrings(array['" +
+                        "','".join(set(bit_strings)) +
+                        f"']::bit varying[], {query_altitude - args.query_radius}::smallint, {query_altitude + args.query_radius}::smallint)"
                         + (") as sq" if args.count_only else "")
                     )
                     for bit_strings in queries
