@@ -168,7 +168,10 @@ func QueryMapServer(
 	httpResponse := fasthttp.AcquireResponse()
 	defer fasthttp.ReleaseResponse(httpResponse)
 
-	fasthttp.Do(httpRquest, httpResponse)
+	err = fasthttp.Do(httpRquest, httpResponse)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("request failed: %s", err.Error())
+	}
 
 	responseBody := httpResponse.Body()
 	response := new(Response)
