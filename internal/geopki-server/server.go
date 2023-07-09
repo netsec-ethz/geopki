@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/valyala/fasthttp"
 )
@@ -104,15 +105,18 @@ func (env *EndpointHandlerEnv) newRequestHandler(
 			}
 			notFoundHandler(ctx)
 
-		// demo
 		case "/demo":
-			if ctx.IsGet() {
+			ctx.Redirect("/demo/", fasthttp.StatusMovedPermanently)
+
+		default:
+			p := string(ctx.Path())
+			if strings.HasPrefix(p, "/demo/") && ctx.IsGet() {
+				// strip /demo
+				ctx.URI().SetPath(string(ctx.Path()[6:]))
 				demoHandler(ctx)
 				return
 			}
-			notFoundHandler(ctx)
 
-		default:
 			notFoundHandler(ctx)
 		}
 	}
@@ -133,7 +137,6 @@ func StartServer(
 		GenerateIndexPages: false,
 		Compress:           true,
 		AcceptByteRange:    true,
-		PathRewrite:        fasthttp.NewPathPrefixStripper(5),
 	}
 
 	requestHandler := env.newRequestHandler(
