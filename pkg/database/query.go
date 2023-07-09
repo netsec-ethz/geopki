@@ -251,13 +251,22 @@ func RowsToNodesAndRootHash(
 func BuildCertificateQuery(certificateStringHashes mapset.Set[string]) (string, error) {
 	var query strings.Builder
 	query.WriteString("SELECT certificate FROM certificates WHERE certificate_hash IN(")
+
+	i := 0
 	for certificateStringHash := range certificateStringHashes.Iter() {
 		certificateHash, err := base64.RawURLEncoding.DecodeString(certificateStringHash)
 		if err != nil {
 			return "", err
 		}
 
-		query.WriteString("E'\\\\x" + hex.EncodeToString(certificateHash) + "'")
+		if i > 0 {
+			query.WriteString(",")
+		}
+
+		query.WriteString("E'\\\\x")
+		query.WriteString(hex.EncodeToString(certificateHash))
+		query.WriteString("'")
+		i++
 	}
 	query.WriteString(")")
 
