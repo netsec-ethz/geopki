@@ -10,6 +10,7 @@ def cdf_plot(
     label: str,
     ax: plt.Axes,
     df_column,
+    linestyle: str,
     show_quantile=True,
 ):
 
@@ -30,7 +31,12 @@ def cdf_plot(
     stats_df = stats_df.reset_index()
     cdf = stats_df['cdf'].values
 
-    plt.plot(stats_df['value'], stats_df['cdf'], label=label)
+    plt.plot(
+        stats_df['value'],
+        stats_df['cdf'],
+        label=label,
+        linestyle=linestyle
+    )
 
     left, right = ax.get_xlim()
     bottom, top = ax.get_ylim()
@@ -71,9 +77,17 @@ def main(
     ax.set_xlabel("mean time per certificate in s")
 
     certificate_counts = df['certificate_count'].unique()
-    for certificate_count in certificate_counts:
+    for certificate_count, linestyle in zip(
+        certificate_counts,
+        ["solid", "dotted", "dashed", "dashdot"]
+    ):
         x = df[df['certificate_count'] == certificate_count]
-        cdf_plot(f"batch of {certificate_count}", ax, x['spc'])
+        cdf_plot(
+            f"batch of {certificate_count}",
+            ax,
+            x['spc'],
+            linestyle
+        )
 
     plt.legend()
     plt.savefig(f"{output_path}/cdf.png")

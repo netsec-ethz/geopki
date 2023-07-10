@@ -38,6 +38,12 @@ def cdf_plot(
 
     plt.plot(stats_df['value'], stats_df['cdf'], label="CDF")
 
+    plt.savefig(output_filename)
+
+    fig, ax = plt.subplots(dpi=300)
+    ax.set_yscale("linear")
+    ax.set_ylabel("CDF")
+    ax.set_xlabel(xlabel)
     # including certs
 
     s = pd.Series(df_column_including_certificates.values, name='value')
@@ -57,6 +63,8 @@ def cdf_plot(
     cdf = stats_df['cdf'].values
 
     plt.plot(stats_df['value'], stats_df['cdf'], label="CDF (inc. certs)")
+
+    plt.savefig(output_filename.removesuffix(".png") + "-including-certs.png")
 
     # left, right = ax.get_xlim()
     # bottom, top = ax.get_ylim()
@@ -150,8 +158,8 @@ def main(
         axis="columns"
     )
 
-    df_excluding_certificates = df[df['include_certificates'] == 'false']
-    df_including_certificates = df[df['include_certificates'] == 'true']
+    df_excluding_certificates = df[df['include_certificates'] == False]
+    df_including_certificates = df[df['include_certificates'] == True]
 
     # request_size
     cdf_plot(

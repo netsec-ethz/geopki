@@ -43,14 +43,15 @@ def main(
     ax.set_yscale("linear")
     ax.set_ylabel("queries per second")
 
-    df_excluding_certificates = df[df['include_certificates'] == 'false']
-    df_including_certificates = df[df['include_certificates'] == 'true']
+    df_excluding_certificates = df[df['include_certificates'] == False]
+    df_including_certificates = df[df['include_certificates'] == True]
 
     ax.errorbar(
         df_excluding_certificates['threads'],
         df_excluding_certificates['qps'],
         yerr=df_excluding_certificates['qps_std'],
         fmt='x',
+        fillstyle='none',
         label=f"successful"
     )
 
@@ -59,6 +60,7 @@ def main(
         df_excluding_certificates['fqps'],
         yerr=df_excluding_certificates['fqps_std'],
         fmt='+',
+        fillstyle='none',
         label=f"failed"
     )
 
@@ -67,6 +69,7 @@ def main(
         df_including_certificates['qps'],
         yerr=df_including_certificates['qps_std'],
         fmt='h',
+        fillstyle='none',
         label=f"successful (inc. certs)"
     )
 
@@ -75,6 +78,7 @@ def main(
         df_including_certificates['fqps'],
         yerr=df_including_certificates['fqps_std'],
         fmt='d',
+        fillstyle='none',
         label=f"failed (inc. certs)"
     )
 
