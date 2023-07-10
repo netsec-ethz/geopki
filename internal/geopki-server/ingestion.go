@@ -1,10 +1,8 @@
 package server
 
 import (
-	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"time"
 
@@ -21,23 +19,10 @@ func (env *EndpointHandlerEnv) postInsert(ctx *fasthttp.RequestCtx) {
 	}
 
 	// read request body
-	zr, err := gzip.NewReader(ctx.RequestBodyStream())
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "creating gzip reader failed: %v\n", err)
-		errorHandler(ctx, fasthttp.StatusInternalServerError, "creating gzip reader")
-		return
-	}
-
-	body, err := io.ReadAll(zr)
+	body, err := ctx.Request.BodyGunzip()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "reading gzipped request body failed: %v\n", err)
 		errorHandler(ctx, fasthttp.StatusInternalServerError, err.Error())
-		return
-	}
-
-	if err := zr.Close(); err != nil {
-		fmt.Fprintf(os.Stderr, "closing gzip reader failed: %v\n", err)
-		errorHandler(ctx, fasthttp.StatusInternalServerError, "closing gzip reader")
 		return
 	}
 
