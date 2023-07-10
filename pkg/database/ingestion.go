@@ -367,7 +367,7 @@ func AddNewCertificates(
 			return fmt.Errorf("failed inserting possibly non-existent ancestor: %v", err)
 		}
 
-		// requires an 'update_children_hashes' function to be defined
+		// requires an 'update_children_hashes' and a 'smt_hash' function to be defined
 		query = fmt.Sprintf(
 			"SELECT update_children_hashes(b'%s', b'%s')",
 			bitStringPair.RawXYBitString.BitString().String(),
@@ -471,7 +471,7 @@ func RemoveExpiredCertificates(
 	for _, bitStringPair := range ancestors {
 		// nodes are already in the db, all ancestors are created on insertion
 
-		// requires an 'update_children_hashes' function to be defined
+		// requires an 'update_children_hashes' and a 'smt_hash' function to be defined
 		query := fmt.Sprintf(
 			"SELECT update_children_hashes(b'%s', b'%s')",
 			bitStringPair.RawXYBitString.BitString().String(),
