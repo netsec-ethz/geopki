@@ -153,9 +153,32 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
 
                     (
                         ("SELECT COUNT(*) FROM (" if args.count_only else "") +
-                        f"SELECT DISTINCT * FROM query_by_bitstrings(array['" +
-                        "','".join(set(bit_strings)) +
-                        f"']::bit varying[], 0::smallint, 32767::smallint)"
+                        f"SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash "
+                        f"FROM nodes "
+                        f"WHERE bit_string_51 IN (''," +
+                        ','.join(
+                            set(
+                                itertools.chain.from_iterable(
+                                    point_queries
+                                    for point_queries, _, _ in bit_strings
+                                )
+                            )
+                        ) + ") AND "
+                        f"altitude_min <= 32767 AND "
+                        f"altitude_max >= 0 UNION " +
+                        "UNION".join(
+                            [
+                                "(SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash "
+                                "FROM nodes "
+                                f"WHERE "
+                                f"bit_string_51_int >= {imin} AND "
+                                f"bit_string_51_int <= {imax} AND "
+                                f"altitude_min <= 32767 AND "
+                                f"altitude_max >= 0"
+                                f")"
+                                for _, imin, imax in bit_strings
+                            ]
+                        )
                         + (") as sq" if args.count_only else "")
                     )
                     for bit_strings in queries
