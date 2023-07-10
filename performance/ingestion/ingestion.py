@@ -19,7 +19,7 @@ from tqdm import tqdm
 FILE_PATH = os.path.realpath(__file__)
 CURRENT_DIR = os.path.dirname(FILE_PATH)
 
-CERTIFICATE_BATCH_SIZES = [10, 100, 1000]
+CERTIFICATE_BATCH_SIZES = [10, 100, 1000, 10000]
 SQUARE_SIDE_LENGTH_M = 30
 
 MIN_ALTITUDE = -10000
