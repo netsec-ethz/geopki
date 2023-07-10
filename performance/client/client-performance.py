@@ -43,21 +43,12 @@ def sample_point_in_polygon(polygon: Polygon) -> tuple[float, float]:
     type=int,
     default=1000
 )
-@click.option(
-    '--repetitions',
-    '-r',
-    'repetitions',
-    type=int,
-    # by default do not repeat a single location
-    default=1
-)
 def main(
     website_density_path: str,
     output_path: str,
     public_key: str,
     address: str,
     location_count: int,
-    repetitions: int,
 ):
 
     if not os.path.isfile(website_density_path):
@@ -113,17 +104,12 @@ def main(
         tuple[float, float]
     ] = sample['sample_point'].values
 
-    total_iterations = len(query_locations) * repetitions * 2
-
-    for i, longitude, latitude, include_certificates in tqdm(
-        (
-            (i, lon, lat, include_certificates)
-            for (lon, lat) in query_locations
-            for i in range(repetitions)
-            for include_certificates in [False, True]
-        ),
-        total=total_iterations
+    for i, (longitude, latitude) in tqdm(
+        enumerate(query_locations),
+        total=location_count
     ):
+        include_certificates = (i >= (location_count / 2))
+
         p = subprocess.Popen(
             [
                 f"../../dist/geopki-client-performance",
