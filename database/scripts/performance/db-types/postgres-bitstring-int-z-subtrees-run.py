@@ -41,7 +41,7 @@ def generate_queries(query_count: int, df_website_density: pd.DataFrame) -> list
     sample['sample_point'] = sample['polygon'].apply(sample_point_in_polygon)
 
     return [
-        (longitude, latitude, 22767)
+        (longitude, latitude)
         for (longitude, latitude) in sample['sample_point'].values
     ]
 
@@ -80,15 +80,15 @@ class ProcessArgs:
         self.stop_event = stop_event
 
 
-def query_to_bitstrings(query: Tuple[float, float, int], query_radius: float):
-    longitude, latitude, altitude = query
+def query_to_bitstrings(query: Tuple[float, float], query_radius: float):
+    longitude, latitude = query
 
     bit_strings = polygons_to_2d_bit_strings(
         polygons=[sphere_to_polygon(
             center=GeodeticCoordinate(
                 longitude=longitude,
                 latitude=latitude,
-                altitude=altitude
+                altitude=0
             ),
             radius_m=query_radius
         )],
@@ -155,11 +155,10 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                         ("SELECT COUNT(*) FROM (" if args.count_only else "") +
                         f"SELECT DISTINCT * FROM query_by_bitstrings(array['" +
                         "','".join(set(bit_strings)) +
-                        f"']::bit varying[], {query_altitude - args.query_radius}::smallint, {query_altitude + args.query_radius}::smallint)"
+                        f"']::bit varying[], 0::smallint, 32767::smallint)"
                         + (") as sq" if args.count_only else "")
                     )
                     for bit_strings in queries
-                    if (query_altitude := 22767)
                 ]
             )
         )

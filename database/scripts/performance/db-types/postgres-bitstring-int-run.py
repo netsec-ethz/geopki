@@ -29,7 +29,7 @@ def sample_point_in_polygon(polygon: Polygon) -> tuple[float, float]:
             return sample.x, sample.y
 
 
-def generate_queries(query_count: int, df_website_density: pd.DataFrame) -> list[tuple[float, float, int]]:
+def generate_queries(query_count: int, df_website_density: pd.DataFrame) -> list[tuple[float, float]]:
     sample = df_website_density.sample(
         n=query_count,
         weights='weight',
@@ -41,7 +41,7 @@ def generate_queries(query_count: int, df_website_density: pd.DataFrame) -> list
     sample['sample_point'] = sample['polygon'].apply(sample_point_in_polygon)
 
     return [
-        (longitude, latitude, 22767)
+        (longitude, latitude)
         for (longitude, latitude) in sample['sample_point'].values
     ]
 
@@ -80,15 +80,15 @@ class ProcessArgs:
         self.stop_event = stop_event
 
 
-def query_to_bitstring_integers(query: Tuple[float, float, int], query_radius: float):
-    longitude, latitude, altitude = query
+def query_to_bitstring_integers(query: Tuple[float, float], query_radius: float):
+    longitude, latitude = query
 
     bit_strings = polygons_to_2d_bit_strings(
         polygons=[sphere_to_polygon(
             center=GeodeticCoordinate(
                 longitude=longitude,
                 latitude=latitude,
-                altitude=altitude
+                altitude=0
             ),
             radius_m=query_radius
         )],
@@ -177,8 +177,8 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                                 )
                             )
                         ) + ") AND "
-                        f"altitude_min <= {query_altitude + args.query_radius} AND "
-                        f"altitude_max >= {query_altitude - args.query_radius} UNION " +
+                        f"altitude_min <= 32767 AND "
+                        f"altitude_max >= 0 UNION " +
                         "UNION".join(
                             [
                                 "(SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash "
@@ -186,8 +186,8 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                                 f"WHERE "
                                 f"bit_string_51_int >= {imin} AND "
                                 f"bit_string_51_int <= {imax} AND "
-                                f"altitude_min <= {query_altitude + args.query_radius} AND "
-                                f"altitude_max >= {query_altitude - args.query_radius}"
+                                f"altitude_min <= 32767 AND "
+                                f"altitude_max >= 0"
                                 f")"
                                 for _, imin, imax in bit_strings
                             ]
@@ -195,7 +195,6 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                         + (") as sq" if args.count_only else "")
                     )
                     for bit_strings in queries
-                    if (query_altitude := 22767)
                 ]
             )
         )

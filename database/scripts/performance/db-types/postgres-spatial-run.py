@@ -107,7 +107,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
 
         cursor.execute(
             ";".join([
-                f"SELECT {'COUNT(*)' if args.count_only else '*'} FROM query_by_cylinder("
+                f"SELECT {'COUNT(*)' if args.count_only else '*'} FROM query_by_cylinder_full_height("
                 f"ST_SetSRID(ST_Point({longitude}, {latitude}),4326)::geography,"
                 f"{altitude}::smallint,"
                 f"{args.query_radius}"
