@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,22 +28,36 @@ var stringBuilderPool = sync.Pool{
 	},
 }
 
+var pointQueryPool = sync.Pool{
+	New: func() any {
+		// The Pool's New function should generally only return pointer
+		// types, since a pointer can be put into the return interface
+		// value without an allocation:
+		return mapset.NewThreadUnsafeSet[string]()
+	},
+}
+
 func BuildNodeQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uint16) string {
 	// generate a query for each requested bit string pair
 	// and put them in an slice
 	query := stringBuilderPool.Get().(*strings.Builder)
 
+	// collect point queries over all bit string pairs
+	point_queries := pointQueryPool.Get().(mapset.Set[string])
+
 	defer func() {
 		query.Reset()
 		stringBuilderPool.Put(query)
+
+		point_queries.Clear()
+		pointQueryPool.Put(point_queries)
 	}()
 
-	query.WriteString("SELECT DISTINCT * FROM query_by_bitstrings(array[")
+	query.WriteString("(")
+
 	for i, bitString := range bitStrings {
-		if i > 0 {
-			query.WriteString(",")
-		}
-		query.WriteString("'")
+		// compute all prefixes of bitString that are not obtained by removing a trailing zero
+
 		// 1. convert to string
 		s := strconv.FormatUint(bitString.XYBitString, 2)
 		// 2. left pad to full width of 64 bits, 3. remove trailing zeros,
@@ -50,14 +65,59 @@ func BuildNodeQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uin
 			strings.Repeat("0", 64-len(s))+s,
 			"0",
 		)
-		query.WriteString(trimmedXYBitString)
-		query.WriteString("'")
+
+		// add all proper prefixes of 'trimmedXYBitString' except the empty string
+		pointQueriesCount := len(trimmedXYBitString)
+		for i := 1; i < pointQueriesCount; i++ {
+			point_queries.Add(trimmedXYBitString[:i])
+		}
+
+		// clear all unused bits, i.e. extend the bit string to 64 bits with zeros
+		// then shift it to the right to only take into account the 51 bits we're interested in
+		bitStringMinInt := bitString.XYBitString & (uint64(math.MaxUint64) << (64 - bitString.XYBitStringLen))
+		// to interpret is as a (big-endian) integer, we shift it to the right by 64 - 51 bits
+		// previously the relevant 51 bits were at the beginning of the 64 bits, afterwards the
+		// are at the end
+		bitStringMinInt = bitStringMinInt >> (64 - 51)
+
+		// same as before but now we set all unused bits, i.e. extend the bit string to 64 bits with ones
+		bitStringMaxInt := bitString.XYBitString | (uint64(math.MaxUint64) >> bitString.XYBitStringLen)
+		bitStringMaxInt = bitStringMaxInt >> (64 - 51)
+
+		// in general fmt.Sprintf is not prone to SQL injections but since the user input is
+		// checked against the protobuf format and interpreted as integers
+		// using prepared statements would be an option too but it would have to be generated on
+		// the fly. thus an easier improvement to ensure this stays safe would be to use a
+		// postgres function
+		if i > 0 {
+			query.WriteString("UNION")
+		}
+		// integer range query
+		query.WriteString("(SELECT bit_string_51, bit_string_15, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash, certificate_hashes FROM nodes WHERE bit_string_51_int >= ")
+		query.WriteString(strconv.FormatUint(bitStringMinInt, 10))
+		query.WriteString(" AND bit_string_51_int <= ")
+		query.WriteString(strconv.FormatUint(bitStringMaxInt, 10))
+		query.WriteString(" AND altitude_min <= ")
+		query.WriteString(strconv.FormatUint(uint64(maxAltitude), 10))
+		query.WriteString(" AND altitude_max >= ")
+		query.WriteString(strconv.FormatUint(uint64(minAltitude), 10))
+		query.WriteString(")")
 	}
-	query.WriteString("]::bit varying[],")
-	query.WriteString(strconv.FormatUint(uint64(minAltitude), 10))
-	query.WriteString("::smallint,")
+
+	// union, not union all. while for individual queries there won't be any overlap
+	// across multiple bit strings there can be.
+	// example: query for [100100, 10011]
+	// then '1001' is a prefix of both and will be included twice. onece because of the range query for 100100 and once because it is a prefix of 10011
+	// also always query the root node
+	query.WriteString(") UNION SELECT bit_string_51, bit_string_15, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash, certificate_hashes FROM nodes WHERE bit_string_51 IN (''")
+	// add all other prefixes of 'trimmedXYBitString'
+	for bitString := range point_queries.Iter() {
+		query.WriteString(",'" + bitString + "'")
+	}
+	query.WriteString(") AND altitude_min <= ")
 	query.WriteString(strconv.FormatUint(uint64(maxAltitude), 10))
-	query.WriteString("::smallint)")
+	query.WriteString(" AND altitude_max >= ")
+	query.WriteString(strconv.FormatUint(uint64(minAltitude), 10))
 
 	return query.String()
 }
