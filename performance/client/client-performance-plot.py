@@ -236,7 +236,7 @@ def main(
         df_including_certificates['certificate_hash_count'],
         f"{output_path}/response-hash-count-cdf.png",
         show_quantile=False,
-        base=10
+        base=None
     )
 
     # consistency_proof_size
