@@ -12,6 +12,8 @@ def cdf_plot(
     df_column,
     linestyle: str,
     show_quantile=True,
+    quantile_correction_factor=1.01,
+    quantile_y=0.92
 ):
 
     # https://stackoverflow.com/a/54317197
@@ -31,21 +33,35 @@ def cdf_plot(
     stats_df = stats_df.reset_index()
     cdf = stats_df['cdf'].values
 
-    plt.plot(
+    p = plt.plot(
         stats_df['value'],
         stats_df['cdf'],
         label=label,
         linestyle=linestyle
     )
+    color = p[0].get_color()
 
-    left, right = ax.get_xlim()
-    bottom, top = ax.get_ylim()
+    if show_quantile:
+        ninety_five_row = stats_df[stats_df['cdf'] >= 0.95].iloc[0]
+        ninety_five_p = ninety_five_row['cdf']
+        ninety_five = ninety_five_row['value']
 
-    # override the limits
-    bottom = 0
+        plt.scatter(
+            [ninety_five],
+            [ninety_five_p],
+            marker="o",
+            facecolors='none',
+            edgecolors=color
+        )
 
-    # ax.set_xlim(left, right)
-    # ax.set_ylim(bottom, top)
+        plt.text(
+            ninety_five * quantile_correction_factor,
+            quantile_y,
+            # f'({ninety_five}, {ninety_five_p.round(2)})',
+            f'{int(ninety_five) if ninety_five.is_integer() else ninety_five.round(4)}',
+            rotation=0,
+            color=color
+        )
 
 
 @click.command()
@@ -90,7 +106,7 @@ def main(
         )
 
     plt.legend()
-    plt.savefig(f"{output_path}/cdf.png")
+    plt.savefig(f"{output_path}/ingestion.png")
 
 
 if __name__ == '__main__':

@@ -2,6 +2,7 @@ import click
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse, Circle
 
 FILE_PATH = os.path.realpath(__file__)
 
@@ -17,6 +18,8 @@ def cdf_plot(
     base=10,
     plot=True,
     show_quantile=True,
+    quantile_correction_factor=1.2,
+    quantile_y=0.934
 ):
     if ax is None:
         fig, ax = plt.subplots(dpi=300)
@@ -43,14 +46,35 @@ def cdf_plot(
     stats_df = stats_df.reset_index()
     cdf = stats_df['cdf'].values
 
-    plt.plot(
+    p = plt.plot(
         stats_df['value'],
         stats_df['cdf'],
         label=labels[0],
         linestyle=linestyles[0]
     )
-    # plt.savefig(output_filename)
-    # plt.close()
+    color = p[0].get_color()
+
+    if show_quantile:
+        ninety_five_row = stats_df[stats_df['cdf'] >= 0.95].iloc[0]
+        ninety_five_p = ninety_five_row['cdf']
+        ninety_five = ninety_five_row['value']
+
+        plt.scatter(
+            [ninety_five],
+            [ninety_five_p],
+            marker="o",
+            facecolors='none',
+            edgecolors=color
+        )
+
+        plt.text(
+            ninety_five * quantile_correction_factor,
+            quantile_y,
+            # f'({ninety_five}, {ninety_five_p.round(2)})',
+            f'{int(ninety_five) if ninety_five.is_integer() else ninety_five.round(4)}',
+            rotation=0,
+            color=color
+        )
 
     if not df_column_including_certificates is None:
 
@@ -77,19 +101,37 @@ def cdf_plot(
         stats_df = stats_df.reset_index()
         cdf = stats_df['cdf'].values
 
-        plt.plot(
+        p = plt.plot(
             stats_df['value'],
             stats_df['cdf'],
             label=labels[1],
             linestyle=linestyles[1]
         )
-        plt.legend()
+        color = p[0].get_color()
 
-    if plot:
-        plt.savefig(output_filename)
-        plt.close()
-    else:
-        return ax
+        if show_quantile:
+            ninety_five_row = stats_df[stats_df['cdf'] >= 0.95].iloc[0]
+            ninety_five_p = ninety_five_row['cdf']
+            ninety_five = ninety_five_row['value']
+
+            plt.scatter(
+                [ninety_five],
+                [ninety_five_p],
+                marker="o",
+                facecolors='none',
+                edgecolors=color
+            )
+
+            plt.text(
+                ninety_five * quantile_correction_factor,
+                quantile_y,
+                # f'({ninety_five}, {ninety_five_p.round(2)})',
+                f'{int(ninety_five) if ninety_five.is_integer() else ninety_five.round(4)}',
+                rotation=0,
+                color=color
+            )
+
+        plt.legend()
 
     # left, right = ax.get_xlim()
     # bottom, top = ax.get_ylim()
@@ -100,26 +142,11 @@ def cdf_plot(
     # ax.set_xlim(left, right)
     # ax.set_ylim(bottom, top)
 
-    # if show_quantile:
-    #     ninety_five_row = stats_df[stats_df['cdf'] >= 0.95].iloc[0]
-    #     ninety_five_p = ninety_five_row['cdf']
-    #     ninety_five = ninety_five_row['value']
-
-    #     # print(nin)
-
-    #     ax.hlines(y=ninety_five_p, xmin=left,
-    #               xmax=ninety_five, linewidth=0.5, color='r')
-    #     ax.vlines(x=ninety_five, ymin=bottom,
-    #               ymax=ninety_five_p, linewidth=0.5, color='r')
-
-    #     plt.text(
-    #         ninety_five * 1.05,
-    #         0.92,
-    #         f'({ninety_five}, {ninety_five_p.round(2)})',
-    #         rotation=0,
-    #         color='r'
-    #     )
-    # plt.savefig(output_filename)
+    if plot:
+        plt.savefig(output_filename)
+        plt.close()
+    else:
+        return ax
 
 
 @click.command()
@@ -144,36 +171,47 @@ def main(
     # longitude,latitude,radius,request_size,request_bit_string_count,response_size,response_node_count,certificate_hash_count,consistency_proof_size,time_building_query,time_send_receive,time_verification,time_consistency,time_total
 
     df_mean_std = df.agg(
+        request_size_max=('request_size', 'max'),
         request_size=('request_size', 'mean'),
         request_size_std=('request_size', 'std'),
 
+        request_bit_string_count_max=('request_bit_string_count', 'max'),
         request_bit_string_count=('request_bit_string_count', 'mean'),
         request_bit_string_count_std=('request_bit_string_count', 'std'),
 
+        response_size_max=('response_size', 'max'),
         response_size=('response_size', 'mean'),
         response_size_std=('response_size', 'std'),
 
+        response_node_count_max=('response_node_count', 'max'),
         response_node_count=('response_node_count', 'mean'),
         response_node_count_std=('response_node_count', 'std'),
 
+        certificate_hash_count_max=('certificate_hash_count', 'max'),
         certificate_hash_count=('certificate_hash_count', 'mean'),
         certificate_hash_count_std=('certificate_hash_count', 'std'),
 
+        consistency_proof_size_max=('consistency_proof_size', 'max'),
         consistency_proof_size=('consistency_proof_size', 'mean'),
         consistency_proof_size_std=('consistency_proof_size', 'std'),
 
+        time_building_query_max=('time_building_query', 'max'),
         time_building_query=('time_building_query', 'mean'),
         time_building_query_std=('time_building_query', 'std'),
 
+        time_send_receive_max=('time_send_receive', 'max'),
         time_send_receive=('time_send_receive', 'mean'),
         time_send_receive_std=('time_send_receive', 'std'),
 
+        time_verification_max=('time_verification', 'max'),
         time_verification=('time_verification', 'mean'),
         time_verification_std=('time_verification', 'std'),
 
+        time_consistency_max=('time_consistency', 'max'),
         time_consistency=('time_consistency', 'mean'),
         time_consistency_std=('time_consistency', 'std'),
 
+        time_total_max=('time_total', 'max'),
         time_total=('time_total', 'mean'),
         time_total_std=('time_total', 'std'),
     ).agg(
@@ -181,6 +219,7 @@ def main(
         "sum",
         axis="columns"
     )
+    print(df_mean_std)
 
     df_excluding_certificates = df[df['include_certificates'] == False]
     df_including_certificates = df[df['include_certificates'] == True]
@@ -217,7 +256,9 @@ def main(
         df_excluding_certificates['request_bit_string_count'],
         df_including_certificates['request_bit_string_count'],
         f"{output_path}/request-bit-string-count-cdf.png",
-        base=None
+        base=None,
+        quantile_correction_factor=0.99,
+        quantile_y=0.98
     )
 
     # response_node_count
@@ -226,7 +267,8 @@ def main(
         df_excluding_certificates['response_node_count'],
         df_including_certificates['response_node_count'],
         f"{output_path}/response-node-count-cdf.png",
-        base=2
+        base=2,
+        quantile_correction_factor=1.1,
     )
 
     # response hash count
@@ -235,8 +277,9 @@ def main(
         df_excluding_certificates['certificate_hash_count'],
         df_including_certificates['certificate_hash_count'],
         f"{output_path}/response-hash-count-cdf.png",
-        show_quantile=False,
-        base=None
+        base=None,
+        quantile_correction_factor=0.975,
+        quantile_y=0.98
     )
 
     # consistency_proof_size
@@ -248,15 +291,15 @@ def main(
     # )
 
     # time_building_query
-    ax = cdf_plot(
-        "query time in s",
-        df['time_building_query'],
-        None,
-        f"{output_path}/time-build-query-cdf.png",
-        base=10,
-        plot=False,
-        labels=["query build time", ""]
-    )
+    # ax = cdf_plot(
+    #     "query time in s",
+    #     df['time_building_query'],
+    #     None,
+    #     f"{output_path}/time-build-query-cdf.png",
+    #     base=10,
+    #     plot=False,
+    #     labels=["query build time", ""]
+    # )
 
     # time_send_receive
     # cdf_plot(
@@ -267,12 +310,11 @@ def main(
     # )
 
     # time_verification
-    cdf_plot(
+    ax = cdf_plot(
         "time to verify response in s",
         df_excluding_certificates['time_verification'],
         df_including_certificates['time_verification'],
         f"{output_path}/time-verification-cdf.png",
-        ax=ax,
         plot=False,
         labels=[
             "verification time exc. certs",
