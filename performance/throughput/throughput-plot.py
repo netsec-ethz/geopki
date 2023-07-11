@@ -55,34 +55,37 @@ def main(
         label=f"successful"
     )
 
-    ax.errorbar(
-        df_excluding_certificates['threads'],
-        df_excluding_certificates['fqps'],
-        yerr=df_excluding_certificates['fqps_std'],
-        fmt='+',
-        fillstyle='none',
-        label=f"failed"
-    )
+    if len(df_excluding_certificates[df_excluding_certificates['fqps'] > 0]) > 0:
+        ax.errorbar(
+            df_excluding_certificates['threads'],
+            df_excluding_certificates['fqps'],
+            yerr=df_excluding_certificates['fqps_std'],
+            fmt='+',
+            fillstyle='none',
+            label=f"failed"
+        )
 
-    ax.errorbar(
-        df_including_certificates['threads'],
-        df_including_certificates['qps'],
-        yerr=df_including_certificates['qps_std'],
-        fmt='h',
-        fillstyle='none',
-        label=f"successful (inc. certs)"
-    )
+    if len(df_including_certificates) > 0:
+        ax.errorbar(
+            df_including_certificates['threads'],
+            df_including_certificates['qps'],
+            yerr=df_including_certificates['qps_std'],
+            fmt='h',
+            fillstyle='none',
+            label=f"successful (inc. certs)"
+        )
 
-    ax.errorbar(
-        df_including_certificates['threads'],
-        df_including_certificates['fqps'],
-        yerr=df_including_certificates['fqps_std'],
-        fmt='d',
-        fillstyle='none',
-        label=f"failed (inc. certs)"
-    )
+        if len(df_including_certificates[df_including_certificates['fqps'] > 0]) > 0:
+            ax.errorbar(
+                df_including_certificates['threads'],
+                df_including_certificates['fqps'],
+                yerr=df_including_certificates['fqps_std'],
+                fmt='d',
+                fillstyle='none',
+                label=f"failed (inc. certs)"
+            )
 
-    plt.legend(loc="upper left")
+    # plt.legend(loc="upper left")
     plt.savefig(f"{output_path}/throughput.png")
 
 

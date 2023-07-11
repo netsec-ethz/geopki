@@ -158,4 +158,3 @@ dist/
 demo/geopki-web-client/geopki-client.wasm
 
 performance/client/client-performance.csv
-performance/client/*.png

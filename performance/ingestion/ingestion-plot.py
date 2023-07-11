@@ -83,7 +83,7 @@ def main(
     ):
         x = df[df['certificate_count'] == certificate_count]
         cdf_plot(
-            f"batch of {certificate_count}",
+            f"batch of {certificate_count} per request",
             ax,
             x['spc'],
             linestyle
