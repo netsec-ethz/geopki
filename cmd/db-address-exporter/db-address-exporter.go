@@ -24,6 +24,7 @@ const (
 	CERTIFICATE_WRITE_BUFFER = 1000
 	NODE_WRITE_BUFFER        = 1000
 	MAX_FILE_SIZE            = 300 * 1000 * 1000 // 300 MB
+	MAX_CERTIFICATE_SIZE     = 3091              // ≈ 3kB
 	INSERT_INTO_NODES_STR    = "INSERT INTO nodes(bit_string_51,bit_string_15,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes) VALUES\n"
 	INSERT_INTO_CERTS_STR    = "INSERT INTO certificates(certificate_hash,certificate,not_valid_after) VALUES\n"
 )
@@ -567,6 +568,10 @@ func main() {
 		certificate, err := r.Certificate()
 		if err != nil {
 			log.Fatalf("failed converting to a certificate: %v", err)
+		}
+		if len(certificate.MarshaledCert) > MAX_CERTIFICATE_SIZE {
+			progressBar.Add(1)
+			continue
 		}
 
 		bitstringPairs, err := geometry.CertificateToBitStrings(certificate, F_GROW)

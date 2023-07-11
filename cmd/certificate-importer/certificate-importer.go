@@ -23,6 +23,7 @@ import (
 const (
 	CERTIFICATE_IMPORT_BATCH_SIZE = 1000
 	CERTIFICATE_IMPORT_BUFFER     = CERTIFICATE_IMPORT_BATCH_SIZE * 2
+	MAX_CERTIFICATE_SIZE          = 3091 // ≈ 3kB
 )
 
 type Coordinate struct {
@@ -477,6 +478,10 @@ func main() {
 		certificate, err := r.Certificate()
 		if err != nil {
 			log.Fatalf("failed converting to a certificate: %v", err)
+		}
+		if len(certificate.MarshaledCert) > MAX_CERTIFICATE_SIZE {
+			progressBar.Add(1)
+			continue
 		}
 
 		certificateCount++
