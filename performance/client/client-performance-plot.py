@@ -18,6 +18,7 @@ def cdf_plot(
     ax.set_yscale("linear")
     ax.set_ylabel("CDF")
     ax.set_xlabel(xlabel)
+    # ax.set_xscale("log", base=2)
 
     # https://stackoverflow.com/a/54317197
     s = pd.Series(df_column_excluding_certificates.values, name='value')
@@ -37,13 +38,14 @@ def cdf_plot(
     cdf = stats_df['cdf'].values
 
     plt.plot(stats_df['value'], stats_df['cdf'], label="CDF")
-
     plt.savefig(output_filename)
+    plt.close()
 
     fig, ax = plt.subplots(dpi=300)
     ax.set_yscale("linear")
     ax.set_ylabel("CDF")
     ax.set_xlabel(xlabel)
+    # ax.set_xscale("log", base=2)
     # including certs
 
     s = pd.Series(df_column_including_certificates.values, name='value')
@@ -63,8 +65,8 @@ def cdf_plot(
     cdf = stats_df['cdf'].values
 
     plt.plot(stats_df['value'], stats_df['cdf'], label="CDF (inc. certs)")
-
     plt.savefig(output_filename.removesuffix(".png") + "-including-certs.png")
+    plt.close()
 
     # left, right = ax.get_xlim()
     # bottom, top = ax.get_ylim()
@@ -94,8 +96,7 @@ def cdf_plot(
     #         rotation=0,
     #         color='r'
     #     )
-
-    plt.savefig(output_filename)
+    # plt.savefig(output_filename)
 
 
 @click.command()
