@@ -9,7 +9,7 @@ import sys
 import base64
 from tqdm import tqdm
 
-sys.path.insert(1, os.path.join(sys.path[0], '../../..'))  # noqa - prevent auto formatting
+sys.path.insert(1, os.path.join(sys.path[0], '../'))  # noqa - prevent auto formatting
 
 from sampling import sample
 
