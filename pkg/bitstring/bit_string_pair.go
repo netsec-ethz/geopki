@@ -535,11 +535,11 @@ func (pair *BitStringPair) RawBitStringPair() RawBitStringPair {
 }
 
 func UndiscretizeX(x uint32) float64 {
-	return (float64(uint64(x)*360)/float64(C_X+1) - 180)
+	return (float64(uint64(x)*360)/float64(C_X) - 180)
 }
 
 func UndiscretizeY(y uint32) float64 {
-	return (float64(uint64(y)*180)/float64(C_Y+1) - 90)
+	return (float64(uint64(y)*180)/float64(C_Y) - 90)
 }
 
 func UndiscretizeZ(z uint16) float64 {
@@ -723,6 +723,10 @@ func PolygonsTo2DBitStrings(polygons []Geometry2D, fGrow float64) ([]RawXYBitStr
 			intersects, err := polygon.Intersects(voxel)
 			if err != nil {
 				return nil, fmt.Errorf("could not convert bit string to gdal geometry: %v", err)
+			}
+			if !intersects && intersectingAreas.Cardinality() == 0 {
+				fmt.Printf("bitstring: %s, polygon: %v\n", LoopToGeoJsonFeature(voxel.Loop()), polygon)
+				return nil, fmt.Errorf("initial bit string does not intersect?")
 			}
 			if !intersects {
 				continue

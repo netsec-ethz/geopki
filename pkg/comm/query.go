@@ -101,6 +101,9 @@ func NewQuery(
 		return nil, fmt.Errorf("failed approximating circle: %v", err)
 	}
 
+	// free sphere memory, no longer needed
+	defer sphere.Destroy()
+
 	bitStrings, err := bitstring.PolygonsTo2DBitStrings(
 		[]bitstring.Geometry2D{sphere},
 		fGrow,
@@ -111,8 +114,6 @@ func NewQuery(
 			err,
 		)
 	}
-	// free sphere memory, no longer needed
-	sphere.Destroy()
 
 	minAltitude := int64(altitude) - int64(bitstring.D) - int64(radius)
 	maxAltitude := int64(altitude) - int64(bitstring.D) + int64(radius)

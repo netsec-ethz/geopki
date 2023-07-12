@@ -214,14 +214,16 @@ func CertificateToBitStrings(cert *crypto.GeoCertificate, fGrow float64) ([]*bit
 			return nil, err
 		}
 
+		defer func() {
+			// free memory
+			for _, g := range geometries {
+				g.Destroy()
+			}
+		}()
+
 		bs, err := bitstring.ExtrudedPolygonsToBitStringPairs(geometries, altitudeMin, altitudeMax, fGrow)
 		if err != nil {
 			return nil, err
-		}
-
-		// free memory
-		for _, g := range geometries {
-			g.Destroy()
 		}
 
 		bitstrings = append(bitstrings, bs...)
