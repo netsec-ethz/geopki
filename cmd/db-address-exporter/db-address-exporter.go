@@ -524,10 +524,8 @@ func sampleWriter(
 	}
 
 	for sample := range samples {
-		var err error
-
 		// write certificate row
-		_, err = file.Write(
+		_, err := file.Write(
 			[]byte(
 				fmt.Sprintf(
 					"%f,%f\n",
@@ -710,7 +708,8 @@ func main() {
 		certificates <- certificate
 		progressBar.Add(1)
 	}
-	// tell certificate writer that it has all certificates
+	// tell writers that they have all data
+	close(samples)
 	close(certificates)
 	progressBar.Exit()
 
