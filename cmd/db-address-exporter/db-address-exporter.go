@@ -23,6 +23,7 @@ const (
 	F_GROW                   = 0.1
 	CERTIFICATE_WRITE_BUFFER = 1000
 	NODE_WRITE_BUFFER        = 1000
+	SAMPLE_WRITE_BUFFER      = 1000
 	MAX_FILE_SIZE            = 300 * 1000 * 1000 // 300 MB
 	MAX_CERTIFICATE_SIZE     = 3091              // ≈ 3kB
 	INSERT_INTO_NODES_STR    = "INSERT INTO nodes(bit_string_51,bit_string_15,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes) VALUES\n"
@@ -505,14 +506,59 @@ func nodeWriter(
 	done <- true
 }
 
+func sampleWriter(
+	fileName string,
+	samples chan *Coordinate,
+	done chan bool,
+) {
+	file, err := os.Create(fileName)
+	if err != nil {
+		log.Fatalf("failed opening file %s: %v", fileName, err)
+	}
+
+	_, err = file.Write(
+		[]byte("longitude,latitude\n"),
+	)
+	if err != nil {
+		log.Fatalf("failed writing header to %s: %v", fileName, err)
+	}
+
+	for sample := range samples {
+		var err error
+
+		// write certificate row
+		_, err = file.Write(
+			[]byte(
+				fmt.Sprintf(
+					"%f,%f\n",
+					*sample.Lon,
+					*sample.Lat,
+				),
+			),
+		)
+		if err != nil {
+			log.Fatalf("failed writing to file %s: %v", fileName, err)
+		}
+	}
+
+	err = file.Close()
+	if err != nil {
+		log.Fatalf("failed closing file %s: %v", fileName, err)
+	}
+
+	done <- true
+}
+
 func main() {
 	var inputPath string
 	var nodesOutputPath string
 	var certificatesOutputPath string
+	var sampleOutputPath string
 
 	flag.StringVar(&inputPath, "input", "", "The path to the input .parquet file")
 	flag.StringVar(&nodesOutputPath, "nodes", "", "The path to the nodes output directory")
 	flag.StringVar(&certificatesOutputPath, "certs", "", "The path to certificates output directory")
+	flag.StringVar(&sampleOutputPath, "sampling-map", "", "The path to the sampling-map file")
 	flag.Parse()
 
 	if inputPath == "" {
@@ -525,6 +571,10 @@ func main() {
 
 	if certificatesOutputPath == "" {
 		log.Fatalf("'certs' flag must be set")
+	}
+
+	if sampleOutputPath == "" {
+		log.Fatalf("'sample-map' flag must be set")
 	}
 
 	fileReader, err := local.NewLocalFileReader(inputPath)
@@ -551,6 +601,16 @@ func main() {
 		certificatesFinishedWriting,
 	)
 
+	// setup channels for concurrently writing samples to disk
+	samples := make(chan *Coordinate, SAMPLE_WRITE_BUFFER)
+	samplesFinishedWriting := make(chan bool)
+	// start writer routine
+	go sampleWriter(
+		sampleOutputPath,
+		samples,
+		samplesFinishedWriting,
+	)
+
 	bitstringPairToNode := make(map[bitstring.RawBitStringPair]*crypto.Node)
 
 	for i := 0; i < num; i++ {
@@ -573,6 +633,10 @@ func main() {
 			progressBar.Add(1)
 			continue
 		}
+
+		// get some coordinate of the mulitpolygon
+		coordinate := (*(*(*r.List_of_multipolygons)[0])[0])[0]
+		samples <- coordinate
 
 		bitstringPairs, err := geometry.CertificateToBitStrings(certificate, F_GROW)
 		if err != nil {
@@ -716,11 +780,15 @@ func main() {
 	close(nodes)
 	progressBar.Exit()
 
+	fmt.Printf("Waiting until all samples are written to disk..\n")
+	<-samplesFinishedWriting
+	fmt.Printf("Done!\n")
+
 	fmt.Printf("Waiting until all certificates are written to disk..\n")
 	<-certificatesFinishedWriting
-	fmt.Printf("Donen!\n")
+	fmt.Printf("Done!\n")
 
 	fmt.Printf("Waiting until all nodes are written to disk..\n")
 	<-nodesFinishedWriting
-	fmt.Printf("Donen!\n")
+	fmt.Printf("Done!\n")
 }
