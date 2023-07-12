@@ -33,12 +33,15 @@ def sample(
 
     samples: list[tuple[float, float]] = []
     for _ in range(num_samples):
-        shape = sampling_map.geoms[random.randint(
-            0, len(sampling_map.geoms) - 1)]
+        geom = sampling_map.geoms[
+            random.randint(
+                0,
+                len(sampling_map.geoms) - 1)
+        ]
 
-        if not isinstance(shape, Polygon):
-            raise Exception(f"unsupported shape type '{shape}'")
+        if not isinstance(geom, Polygon):
+            raise Exception(f"unsupported shape type '{type(geom)}'")
 
-        samples.append(sample_point_in_polygon(shape))
+        samples.append(sample_point_in_polygon(geom))
 
     return samples
