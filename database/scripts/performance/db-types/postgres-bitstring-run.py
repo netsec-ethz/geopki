@@ -12,44 +12,16 @@ import itertools
 
 import psycopg2
 
+sys.path.insert(1, os.path.join(sys.path[0], '../../../../performance'))  # noqa - prevent auto formatting
 sys.path.insert(1, os.path.join(sys.path[0], '../../../..'))  # noqa - prevent auto formatting
 from coordinates import GeodeticCoordinate, sphere_to_coarse_2d_binary_strings
-
-
-def sample_point_in_polygon(polygon: Polygon) -> tuple[float, float]:
-    "https://www.matecdev.com/posts/random-points-in-polygon.html"
-    minX, minY, maxX, maxY = polygon.bounds
-
-    while True:
-        # rejection sampling
-        sample = Point(np.random.uniform(minX, maxX),
-                       np.random.uniform(minY, maxY))
-
-        if polygon.contains(sample):
-            return sample.x, sample.y
-
-
-def generate_queries(query_count: int, df_website_density: pd.DataFrame) -> list[tuple[float, float]]:
-    sample = df_website_density.sample(
-        n=query_count,
-        weights='weight',
-        random_state=1,
-        replace=True
-    )
-
-    # for each sample, sample a point within the polygon
-    sample['sample_point'] = sample['polygon'].apply(sample_point_in_polygon)
-
-    return [
-        (longitude, latitude)
-        for (longitude, latitude) in sample['sample_point'].values
-    ]
+from sampling import load_sampling_map, sample_df
 
 
 class ProcessArgs:
     def __init__(
             self,
-            df_website_density: pd.DataFrame,
+            sampling_map: pd.DataFrame,
             db_host: str,
             db_port: int,
             db_name: str,
@@ -64,7 +36,7 @@ class ProcessArgs:
             ready_event: Event,
             stop_event: Event
     ) -> None:
-        self.df_website_density = df_website_density
+        self.sampling_map = sampling_map
         self.db_host = db_host
         self.db_port = db_port
         self.db_name = db_name
@@ -110,7 +82,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
     cursor = conn.cursor()
 
     # pre-generate a query set
-    query_set = generate_queries(args.query_set_size, args.df_website_density)
+    query_set = sample_df(args.sampling_map, args.query_set_size)
 
     if args.excluding_bit_string_computation:
         query_set = [
@@ -199,9 +171,9 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
 
 @click.command()
 @click.option(
-    '--website-density',
+    '--sampling-map',
     '-w',
-    'website_density_path',
+    'sampling_map_path',
     type=str,
     required=True
 )
@@ -278,7 +250,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
     default=80
 )
 def main(
-    website_density_path: str,
+    sampling_map_path: str,
     db_host: str,
     db_port: int,
     db_name: str,
@@ -292,26 +264,7 @@ def main(
     count_only: bool,
     batch_size: bool
 ):
-    global df_website_density
-
-    if not website_density_path.endswith(".parquet"):
-        raise Exception(f"website density path does to end in '.parquet'")
-
-    df_website_density = pd.read_parquet(website_density_path)
-
-    df_website_density['polygon'] = df_website_density['polygon'].apply(
-        lambda points:
-        Polygon([
-            (p[1], p[0])
-            for p in points
-        ])
-    )
-
-    # probability 0 if osm_website_element_count == 0
-    df_website_density['weight'] = df_website_density['osm_website_element_count']
-
-    # very small probability if osm_website_element_count == 0
-    # df['weights'] = df['osm_website_element_count'] + 1
+    sampling_map = load_sampling_map(sampling_map_path)
 
     if db_pass is None:
         db_pass = getpass(
@@ -340,7 +293,7 @@ def main(
             target=run_queries,
             args=(
                 ProcessArgs(
-                    df_website_density=df_website_density,
+                    sampling_map=sampling_map,
                     db_host=db_host,
                     db_port=db_port,
                     db_name=db_name,
