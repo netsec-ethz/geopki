@@ -5,29 +5,20 @@ import pandas as pd
 import numpy as np
 import subprocess
 import os
+import sys
 import base64
-
 from tqdm import tqdm
+
+sys.path.insert(1, os.path.join(sys.path[0], '../../..'))  # noqa - prevent auto formatting
+
+from sampling import sample
 
 FILE_PATH = os.path.realpath(__file__)
 QUERY_RADIUS = 10
 
-# https://www.matecdev.com/posts/random-points-in-polygon.html
-
-
-def sample_point_in_polygon(polygon: Polygon) -> tuple[float, float]:
-    minX, minY, maxX, maxY = polygon.bounds
-
-    while True:
-        # rejection sampling
-        sample = Point(np.random.uniform(minX, maxX),
-                       np.random.uniform(minY, maxY))
-        if polygon.contains(sample):
-            return sample.x, sample.y
-
 
 @click.command()
-@click.argument('website_density_path', type=click.Path(exists=True))
+@click.argument('sampling_map_path', type=click.Path(exists=True))
 @click.argument('output_path', type=click.Path(exists=False))
 @click.argument('public_key', type=str)
 @click.option(
@@ -44,29 +35,12 @@ def sample_point_in_polygon(polygon: Polygon) -> tuple[float, float]:
     default=1000
 )
 def main(
-    website_density_path: str,
+    sampling_map_path: str,
     output_path: str,
     public_key: str,
     address: str,
     location_count: int,
 ):
-
-    if not os.path.isfile(website_density_path):
-        raise Exception(f"Website density path does to point to a file")
-
-    if not website_density_path.endswith(".parquet"):
-        raise Exception(f"Website density path does to end in '.parquet'")
-
-    df = pd.read_parquet(website_density_path)
-
-    df['polygon'] = df['polygon'].apply(
-        lambda points:
-        Polygon([
-            (p[1], p[0])
-            for p in points
-        ])
-    )
-
     if os.path.isdir(output_path):
         raise Exception(f"Output path points to a directory")
 
@@ -85,24 +59,7 @@ def main(
         f.write(f"longitude,latitude,radius,request_size,request_bit_string_count,response_size,response_node_count,certificate_hash_count,consistency_proof_size,time_building_query,time_send_receive,time_verification,time_consistency,time_total,include_certificates\n")
         f.flush()
 
-    # probability 0 if osm_website_element_count == 0
-    df['weight'] = df['osm_website_element_count']
-
-    # very small probability if osm_website_element_count == 0
-    # df['weights'] = df['osm_website_element_count'] + 1
-
-    sample = df.sample(
-        n=location_count,
-        weights='weight',
-        random_state=1,
-        replace=True
-    )
-
-    # for each sample, sample a point within the polygon
-    sample['sample_point'] = sample['polygon'].apply(sample_point_in_polygon)
-    query_locations: list[
-        tuple[float, float]
-    ] = sample['sample_point'].values
+    query_locations = sample(sampling_map_path, location_count)
 
     for i, (longitude, latitude) in tqdm(
         enumerate(query_locations),
