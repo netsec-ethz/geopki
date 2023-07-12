@@ -10,7 +10,6 @@ import base64
 from tqdm import tqdm
 
 sys.path.insert(1, os.path.join(sys.path[0], '../'))  # noqa - prevent auto formatting
-
 from sampling import sample
 
 FILE_PATH = os.path.realpath(__file__)

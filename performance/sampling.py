@@ -1,11 +1,26 @@
 import pandas as pd
 
 
+def load_sampling_map(
+        sampling_map_path: str,
+) -> pd.DataFrame:
+    df = pd.read_csv(sampling_map_path)
+
+    return df
+
+
+def sample_df(
+        df: pd.DataFrame,
+        num_samples: int,
+) -> pd.DataFrame:
+    sample = df.sample(num_samples, replace=True)
+    return sample.values
+
+
 def sample(
         sampling_map_path: str,
         num_samples: int,
 ) -> list[tuple[float, float]]:
-    df = pd.read_csv(sampling_map_path)
-    df.sample(num_samples, replace=True)
+    df = load_sampling_map(sampling_map_path)
 
-    return df.values
+    return sample_df(df, num_samples)
