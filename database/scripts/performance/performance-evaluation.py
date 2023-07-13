@@ -14,7 +14,7 @@ QUERY_RADIUS_VALUES = [10]
 
 
 @click.command()
-@click.argument('website_density_path', type=click.Path(exists=False))
+@click.argument('sampling_map_path', type=click.Path(exists=False))
 @click.argument('output_path', type=click.Path(exists=False))
 @click.option(
     '--db-host',
@@ -69,7 +69,7 @@ QUERY_RADIUS_VALUES = [10]
 @click.option('--batch-size', '-b', 'batch_size', type=int, default=100)
 @click.option('--qps-set-size', '-q', 'qps_set_size', type=int, default=1000)
 def main(
-    website_density_path: str,
+    sampling_map_path: str,
     output_path: str,
     db_host: str,
     db_port: int,
@@ -84,8 +84,8 @@ def main(
     qps_set_size: int,
 ):
 
-    if not os.path.isfile(website_density_path):
-        raise Exception(f"Website density path does not point to a file")
+    if not os.path.isfile(sampling_map_path):
+        raise Exception(f"sampling map path does not point to a file")
 
     if os.path.isdir(output_path):
         raise Exception(f"Output path has to point to a file")
@@ -138,7 +138,7 @@ def main(
             [
                 f"python3",
                 executable,
-                f"--website-density={website_density_path}",
+                f"--sampling-map={sampling_map_path}",
                 f"--db-host={db_host}",
                 f"--db-port={db_port}",
                 f"--db-name={db_name}",
