@@ -21,7 +21,7 @@ func (env *EndpointHandlerEnv) postQuery(ctx *fasthttp.RequestCtx) {
 	env.SharedDataLock.RLock()
 	defer env.SharedDataLock.RUnlock()
 
-	includeCertificates := ctx.QueryArgs().Has("include-certificates")
+	includeCertificates := ctx.QueryArgs().Has("c")
 
 	// read request body
 	requestBitStringPairs, minAltitude, maxAltitude, err := comm.ParseQuery(ctx.Request.Body())

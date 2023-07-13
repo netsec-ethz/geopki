@@ -159,7 +159,7 @@ func QueryMapServer(
 
 	getParameters := ""
 	if includeCertificates {
-		getParameters = "?include-certificates"
+		getParameters = "?c"
 	}
 
 	httpRquest := fasthttp.AcquireRequest()
@@ -229,7 +229,7 @@ func QueryMapServerSlow(
 
 	getParameters := ""
 	if includeCertificates {
-		getParameters = "?include-certificates"
+		getParameters = "?c"
 	}
 
 	plainResponse, err := http.Post(
