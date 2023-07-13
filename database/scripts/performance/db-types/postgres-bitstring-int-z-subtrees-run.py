@@ -52,7 +52,7 @@ class ProcessArgs:
         self.stop_event = stop_event
 
 
-def query_to_bitstring_integers(query: Tuple[float, float], query_radius: float):
+def query_to_bitstrings(query: Tuple[float, float], query_radius: float):
     longitude, latitude = query
 
     bit_strings = polygons_to_2d_bit_strings(
