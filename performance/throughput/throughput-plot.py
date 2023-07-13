@@ -52,7 +52,7 @@ def main(
         yerr=df_excluding_certificates['qps_std'],
         fmt='x',
         fillstyle='none',
-        label=f"successful"
+        label=f"excluding certificates"
     )
 
     if len(df_excluding_certificates[df_excluding_certificates['fqps'] > 0]) > 0:
@@ -62,7 +62,7 @@ def main(
             yerr=df_excluding_certificates['fqps_std'],
             fmt='+',
             fillstyle='none',
-            label=f"failed"
+            label=f"failed excluding certificates"
         )
 
     if len(df_including_certificates) > 0:
@@ -72,7 +72,7 @@ def main(
             yerr=df_including_certificates['qps_std'],
             fmt='h',
             fillstyle='none',
-            label=f"successful (inc. certs)"
+            label=f"including certificates"
         )
 
         if len(df_including_certificates[df_including_certificates['fqps'] > 0]) > 0:
@@ -82,10 +82,10 @@ def main(
                 yerr=df_including_certificates['fqps_std'],
                 fmt='d',
                 fillstyle='none',
-                label=f"failed (inc. certs)"
+                label=f"failed including certificates"
             )
 
-    # plt.legend(loc="upper left")
+    plt.legend(loc="upper left")
     plt.savefig(f"{output_path}/throughput.png")
 
 

@@ -2,7 +2,6 @@ import click
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse, Circle
 
 FILE_PATH = os.path.realpath(__file__)
 
@@ -17,9 +16,10 @@ def cdf_plot(
     linestyles=["solid", "dashed"],
     base=10,
     plot=True,
+    legend=False,
     show_quantile=True,
-    quantile_correction_factor=1.2,
-    quantile_y=0.934
+    quantile_correction_factor=[1.2, 1.2],
+    quantile_y=[0.934, 0.934]
 ):
     if ax is None:
         fig, ax = plt.subplots(dpi=300)
@@ -68,8 +68,8 @@ def cdf_plot(
         )
 
         plt.text(
-            ninety_five * quantile_correction_factor,
-            quantile_y,
+            ninety_five * quantile_correction_factor[0],
+            quantile_y[0],
             # f'({ninety_five}, {ninety_five_p.round(2)})',
             f'{int(ninety_five) if ninety_five.is_integer() else ninety_five.round(4)}',
             rotation=0,
@@ -123,15 +123,13 @@ def cdf_plot(
             )
 
             plt.text(
-                ninety_five * quantile_correction_factor,
-                quantile_y,
+                ninety_five * quantile_correction_factor[1],
+                quantile_y[1],
                 # f'({ninety_five}, {ninety_five_p.round(2)})',
                 f'{int(ninety_five) if ninety_five.is_integer() else ninety_five.round(4)}',
                 rotation=0,
                 color=color
             )
-
-        plt.legend()
 
     # left, right = ax.get_xlim()
     # bottom, top = ax.get_ylim()
@@ -143,10 +141,79 @@ def cdf_plot(
     # ax.set_ylim(bottom, top)
 
     if plot:
+        if isinstance(legend, str):
+            plt.legend(loc=legend)
+
         plt.savefig(output_filename)
         plt.close()
     else:
         return ax
+
+
+def print_stats(df):
+    df_mean_std = df.agg(
+        request_size_max=('request_size', 'max'),
+        request_size=('request_size', 'mean'),
+        request_size_std=('request_size', 'std'),
+
+        request_bit_string_count_max=('request_bit_string_count', 'max'),
+        request_bit_string_count=('request_bit_string_count', 'mean'),
+        request_bit_string_count_std=('request_bit_string_count', 'std'),
+
+        response_size_max=('response_size', 'max'),
+        response_size=('response_size', 'mean'),
+        response_size_std=('response_size', 'std'),
+
+        response_node_count_max=('response_node_count', 'max'),
+        response_node_count=('response_node_count', 'mean'),
+        response_node_count_std=('response_node_count', 'std'),
+
+        certificate_hash_count_max=('certificate_hash_count', 'max'),
+        certificate_hash_count_min=('certificate_hash_count', 'min'),
+        certificate_hash_count=('certificate_hash_count', 'mean'),
+        certificate_hash_count_std=('certificate_hash_count', 'std'),
+
+        consistency_proof_size_max=('consistency_proof_size', 'max'),
+        consistency_proof_size=('consistency_proof_size', 'mean'),
+        consistency_proof_size_std=('consistency_proof_size', 'std'),
+
+        time_building_query_max=('time_building_query', 'max'),
+        time_building_query=('time_building_query', 'mean'),
+        time_building_query_std=('time_building_query', 'std'),
+
+        time_send_receive_max=('time_send_receive', 'max'),
+        time_send_receive=('time_send_receive', 'mean'),
+        time_send_receive_std=('time_send_receive', 'std'),
+
+        time_verification_max=('time_verification', 'max'),
+        time_verification=('time_verification', 'mean'),
+        time_verification_std=('time_verification', 'std'),
+
+        verification_fraction_max=('verification_fraction', 'max'),
+        verification_fraction=('verification_fraction', 'mean'),
+        verification_fraction_std=('verification_fraction', 'std'),
+
+        query_build_fraction_max=('query_build_fraction', 'max'),
+        query_build_fraction=('query_build_fraction', 'mean'),
+        query_build_fraction_std=('query_build_fraction', 'std'),
+
+        client_computation_fraction_max=('client_computation_fraction', 'max'),
+        client_computation_fraction=('client_computation_fraction', 'mean'),
+        client_computation_fraction_std=('client_computation_fraction', 'std'),
+
+        time_consistency_max=('time_consistency', 'max'),
+        time_consistency=('time_consistency', 'mean'),
+        time_consistency_std=('time_consistency', 'std'),
+
+        time_total_max=('time_total', 'max'),
+        time_total=('time_total', 'mean'),
+        time_total_std=('time_total', 'std'),
+    ).agg(
+        # collapse matrix
+        "sum",
+        axis="columns"
+    )
+    print(df_mean_std)
 
 
 @click.command()
@@ -168,61 +235,25 @@ def main(
 
     df = pd.read_csv(input_path)
 
+    df['verification_fraction'] = df['time_verification'] / df['time_total']
+    df['query_build_fraction'] = df['time_building_query'] / df['time_total']
+    df['client_computation_fraction'] = 1 - \
+        (df['time_send_receive'] / df['time_total'])
+
     # longitude,latitude,radius,request_size,request_bit_string_count,response_size,response_node_count,certificate_hash_count,consistency_proof_size,time_building_query,time_send_receive,time_verification,time_consistency,time_total
-
-    df_mean_std = df.agg(
-        request_size_max=('request_size', 'max'),
-        request_size=('request_size', 'mean'),
-        request_size_std=('request_size', 'std'),
-
-        request_bit_string_count_max=('request_bit_string_count', 'max'),
-        request_bit_string_count=('request_bit_string_count', 'mean'),
-        request_bit_string_count_std=('request_bit_string_count', 'std'),
-
-        response_size_max=('response_size', 'max'),
-        response_size=('response_size', 'mean'),
-        response_size_std=('response_size', 'std'),
-
-        response_node_count_max=('response_node_count', 'max'),
-        response_node_count=('response_node_count', 'mean'),
-        response_node_count_std=('response_node_count', 'std'),
-
-        certificate_hash_count_max=('certificate_hash_count', 'max'),
-        certificate_hash_count=('certificate_hash_count', 'mean'),
-        certificate_hash_count_std=('certificate_hash_count', 'std'),
-
-        consistency_proof_size_max=('consistency_proof_size', 'max'),
-        consistency_proof_size=('consistency_proof_size', 'mean'),
-        consistency_proof_size_std=('consistency_proof_size', 'std'),
-
-        time_building_query_max=('time_building_query', 'max'),
-        time_building_query=('time_building_query', 'mean'),
-        time_building_query_std=('time_building_query', 'std'),
-
-        time_send_receive_max=('time_send_receive', 'max'),
-        time_send_receive=('time_send_receive', 'mean'),
-        time_send_receive_std=('time_send_receive', 'std'),
-
-        time_verification_max=('time_verification', 'max'),
-        time_verification=('time_verification', 'mean'),
-        time_verification_std=('time_verification', 'std'),
-
-        time_consistency_max=('time_consistency', 'max'),
-        time_consistency=('time_consistency', 'mean'),
-        time_consistency_std=('time_consistency', 'std'),
-
-        time_total_max=('time_total', 'max'),
-        time_total=('time_total', 'mean'),
-        time_total_std=('time_total', 'std'),
-    ).agg(
-        # collapse matrix
-        "sum",
-        axis="columns"
-    )
-    print(df_mean_std)
+    # print(df[df['response_node_count'] == 2539])
+    # exit()
+    assert len(df[df['certificate_hash_count'] == 0]) == 0
 
     df_excluding_certificates = df[df['include_certificates'] == False]
     df_including_certificates = df[df['include_certificates'] == True]
+
+    print("all")
+    print_stats(df)
+    print("excluding certificates")
+    print_stats(df_excluding_certificates)
+    print("including certificates")
+    print_stats(df_including_certificates)
 
     # request_size
     ax = cdf_plot(
@@ -240,46 +271,50 @@ def main(
         "response size in B",
         df_excluding_certificates['response_size'],
         df_including_certificates['response_size'],
-        f"{output_path}/request-response-size-cdf.png",
+        f"{output_path}/response-size-cdf.png",
         base=2,
         labels=[
             "response size excluding certs",
             "response size including certs"
         ],
         linestyles=["dashed", "dotted"],
-        ax=ax
+        ax=ax,
+        legend="lower right",
+        quantile_correction_factor=[0.4, 1.15],
+        quantile_y=[0.95, 0.92]
     )
 
     # request_bit_string_count
     cdf_plot(
         "request bit string count",
-        df_excluding_certificates['request_bit_string_count'],
-        df_including_certificates['request_bit_string_count'],
+        df['request_bit_string_count'],
+        None,
         f"{output_path}/request-bit-string-count-cdf.png",
         base=None,
-        quantile_correction_factor=0.99,
-        quantile_y=0.98
+        quantile_correction_factor=[0.99, 1],
+        quantile_y=[0.98, 1]
     )
 
     # response_node_count
     cdf_plot(
         "response node count",
-        df_excluding_certificates['response_node_count'],
-        df_including_certificates['response_node_count'],
+        df['response_node_count'],
+        None,
         f"{output_path}/response-node-count-cdf.png",
         base=2,
-        quantile_correction_factor=1.1,
+        quantile_correction_factor=[1.05, 1],
+        quantile_y=[0.9, 1]
     )
 
     # response hash count
     cdf_plot(
         "response certificate hash count",
-        df_excluding_certificates['certificate_hash_count'],
-        df_including_certificates['certificate_hash_count'],
+        df['certificate_hash_count'],
+        None,
         f"{output_path}/response-hash-count-cdf.png",
         base=None,
-        quantile_correction_factor=0.975,
-        quantile_y=0.98
+        quantile_correction_factor=[0.975, 1],
+        quantile_y=[0.98, 1]
     )
 
     # consistency_proof_size
@@ -291,36 +326,48 @@ def main(
     # )
 
     # time_building_query
-    # ax = cdf_plot(
-    #     "query time in s",
-    #     df['time_building_query'],
-    #     None,
-    #     f"{output_path}/time-build-query-cdf.png",
-    #     base=10,
-    #     plot=False,
-    #     labels=["query build time", ""]
-    # )
+    ax = cdf_plot(
+        "query time in ms",
+        df['time_building_query'] * 1000,
+        None,
+        f"{output_path}/time-build-query-cdf.png",
+        plot=False,
+        base=10,
+        labels=["query build time", ""],
+        linestyles=["dashed", ""],
+        quantile_correction_factor=[1.15, 1],
+        quantile_y=[0.925, 1]
+    )
 
     # time_send_receive
-    # cdf_plot(
+    # ax = cdf_plot(
     #     "request time in s",
     #     df_excluding_certificates['time_send_receive'],
     #     df_including_certificates['time_send_receive'],
     #     f"{output_path}/time-send-receive-cdf.png",
+    #     plot=False,
+    #     ax=ax,
+    #     labels=[
+    #         "request time exc. certs",
+    #         "request time inc. certs"
+    #     ],
     # )
 
     # time_verification
     ax = cdf_plot(
-        "time to verify response in s",
-        df_excluding_certificates['time_verification'],
-        df_including_certificates['time_verification'],
+        "query time in ms",
+        df_excluding_certificates['time_verification'] * 1000,
+        df_including_certificates['time_verification'] * 1000,
         f"{output_path}/time-verification-cdf.png",
+        ax=ax,
         plot=False,
         labels=[
             "verification time exc. certs",
             "verification time inc. certs"
         ],
-        linestyles=["dashed", "dotted"]
+        linestyles=["solid", "dotted"],
+        quantile_correction_factor=[0.75, 0.45],
+        quantile_y=[1, 0.93]
     )
 
     # time_consistency
@@ -333,16 +380,69 @@ def main(
 
     # time_total
     cdf_plot(
-        "total request time in s",
-        df_excluding_certificates['time_total'],
-        df_including_certificates['time_total'],
+        "total request time in ms",
+        df_excluding_certificates['time_total'] * 1000,
+        df_including_certificates['time_total'] * 1000,
         f"{output_path}/time-total-cdf.png",
         ax=ax,
+        legend="lower right",
         labels=[
             "total time exc. certs",
             "total time inc. certs"
         ],
-        linestyles=["dashdot", (0, (3, 5, 1, 5, 1, 5))]
+        linestyles=["dashdot", (0, (3, 5, 1, 5, 1, 5))],
+        quantile_correction_factor=[0.55, 1.15],
+        quantile_y=[0.935, 0.935]
+    )
+
+    # query_build fraction
+    # ax = cdf_plot(
+    #     "fraction",
+    #     df_excluding_certificates['query_build_fraction'],
+    #     df_including_certificates['query_build_fraction'],
+    #     f"{output_path}/query-build-fraction-cdf.png",
+    #     labels=[
+    #         "query build exc. certs",
+    #         "query build inc. certs"
+    #     ],
+    #     plot=False,
+    #     base=10,
+    #     legend="best",
+    #     linestyles=["solid", "dashed"],
+    #     show_quantile=False,
+    # )
+    # cdf_plot(
+    #     "fraction",
+    #     df_excluding_certificates['verification_fraction'],
+    #     df_including_certificates['verification_fraction'],
+    #     f"{output_path}/verification-fraction-cdf.png",
+    #     labels=[
+    #         "verification exc. certs",
+    #         "verification inc. certs"
+    #     ],
+    #     ax=ax,
+    #     plot=False,
+    #     base=None,
+    #     legend="best",
+    #     linestyles=["dotted", "dashdot"],
+    #     show_quantile=False,
+    # )
+    cdf_plot(
+        "client computation fraction",
+        df_excluding_certificates['client_computation_fraction'],
+        df_including_certificates['client_computation_fraction'],
+        f"{output_path}/fraction-cdf.png",
+        labels=[
+            "excluding certs",
+            "including certs"
+        ],
+        # ax=ax,
+        base=None,
+        legend="best",
+        # linestyles=[(0, (1, 10)), (0, (3, 5, 1, 5, 1, 5))],
+        # show_quantile=False,
+        quantile_correction_factor=[1.03, 0.825],
+        quantile_y=[0.935, 0.935]
     )
 
 

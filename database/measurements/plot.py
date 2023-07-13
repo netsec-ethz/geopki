@@ -30,10 +30,10 @@ file_to_label = {
 
 file_to_color = {
     "performance-evaluation-spatial.csv": "#3498db",
-    "performance-evaluation-bitstring.csv": "#16a085",
-    "performance-evaluation-bitstring-exclude-comp.csv": "#2ecc71",
-    "performance-evaluation-bitstring-int.csv": "#f39c12",
-    "performance-evaluation-bitstring-int-exclude-comp.csv": "#e74c3c",
+    "performance-evaluation-bitstring.csv": "#f39c12",
+    "performance-evaluation-bitstring-exclude-comp.csv": "#e74c3c",
+    "performance-evaluation-bitstring-int.csv": "#2ecc71",
+    "performance-evaluation-bitstring-int-exclude-comp.csv": "#27ae60",
 }
 
 files = file_to_fmt.keys()
@@ -65,6 +65,6 @@ for file in files:
             color=file_to_color[file]
         )
 
-plt.grid()
+# plt.grid()
 plt.legend(loc="upper left")
 plt.savefig(f"{CURRENT_DIR}/plot.png")
