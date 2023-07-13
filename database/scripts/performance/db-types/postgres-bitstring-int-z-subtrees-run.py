@@ -52,7 +52,7 @@ class ProcessArgs:
         self.stop_event = stop_event
 
 
-def query_to_bitstrings(query: Tuple[float, float], query_radius: float):
+def query_to_bitstring_integers(query: Tuple[float, float], query_radius: float):
     longitude, latitude = query
 
     bit_strings = polygons_to_2d_bit_strings(
@@ -68,7 +68,20 @@ def query_to_bitstrings(query: Tuple[float, float], query_radius: float):
         f_min=0
     )
 
-    return bit_strings
+    return [
+        (
+            # compute all prefixes of bit_string that are not obtained by removing a trailing zero
+            [
+                f"b'{b[:i]}'"
+                for i in range(1, bl)
+            ],
+            int(bit_string.ljust(51, '0'), 2),
+            int(bit_string.ljust(51, '1'), 2)
+        )
+        for bit_string in bit_strings
+        # define local variable, requires python >= 3.8 (https://stackoverflow.com/a/55881984)
+        if (b := bit_string.rstrip("0")) and (bl := len(b))
+    ]
 
 
 def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_value: Value):
