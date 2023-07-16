@@ -11,7 +11,6 @@ import (
 
 	"geopki/pkg/bitstring"
 	"geopki/pkg/comm"
-	"geopki/pkg/geometry"
 )
 
 const (
@@ -35,17 +34,40 @@ var runningMutex sync.RWMutex
 var stopTime time.Time
 
 func measureThroughput(
-	queries []*comm.Query,
+	querySet []*Query,
 	address string,
 	includeCertificates bool,
 	results chan Results,
+	readyMutex *sync.Mutex,
 ) {
+	numQueries := len(querySet)
+
+	queries := make([]*comm.Query, numQueries)
+	for i := range queries {
+		q := querySet[i]
+
+		// set altitude to 0
+		// use slightly faster comm.S2CircleApproximator -> results in slightly faster throughput tests
+		query, err := comm.NewQuery(q.Longitude, q.Latitude, 0, q.Radius, F_GROW, &comm.S2CircleApproximator{})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed building a query using (%f,%f,%f,%d)\n", q.Longitude, q.Latitude, 0.0, q.Radius)
+			os.Exit(1)
+		}
+		// and then overwrite min and max altitude to cover the full altitude range
+		query.MinAltitude = 0
+		query.MaxAltitude = int16(bitstring.C_Z)
+
+		queries[i] = query
+	}
+
 	// keep track of the current query index
-	numQueries := len(queries)
 	i := 0
 
 	successfulRequests := 0
 	failedRequests := 0
+
+	// signal that we're ready
+	readyMutex.Unlock()
 
 	// acquire mutex preventing the main goroutine from terminating
 	runningMutex.RLock()
@@ -133,43 +155,46 @@ func main() {
 		os.Exit(1)
 	}
 
-	queries := make([]*comm.Query, queryCount)
-	for i := range queries {
-		q := querySet[i]
-
-		// set altitude to 0
-		query, err := comm.NewQuery(q.Longitude, q.Latitude, 0, q.Radius, F_GROW, &geometry.GdalCircleApproximator{})
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed building a query using (%f,%f,%f,%d)\n", q.Longitude, q.Latitude, 0.0, q.Radius)
-			os.Exit(1)
-		}
-		// and then overwrite min and max altitude to cover the full altitude range
-		query.MinAltitude = 0
-		query.MaxAltitude = int16(bitstring.C_Z)
-
-		queries[i] = query
-	}
+	t := time.Now()
 
 	results := make(chan Results, threads)
 
 	// acquire write lock blocking any thread from starting
 	runningMutex.Lock()
 
-	if len(queries)%threads != 0 {
-		log.Fatalf("# of queries (%d) is not a multiple of # of threads (%d)\n", len(queries), threads)
+	if len(querySet)%threads != 0 {
+		log.Fatalf("# of queries (%d) is not a multiple of # of threads (%d)\n", len(querySet), threads)
 	}
-	queriesPerThread := len(queries) / threads
+	queriesPerThread := len(querySet) / threads
+
+	readyMutexes := make([]*sync.Mutex, threads)
 
 	// initialize go routines, divide queries slice
 	for i := 0; i < threads; i++ {
+		// initialize lock in locked state
+		var readyMutex sync.Mutex
+		readyMutex.Lock()
+
+		readyMutexes[i] = &readyMutex
+
 		go measureThroughput(
-			queries[i*queriesPerThread:(i+1)*queriesPerThread],
+			querySet[i*queriesPerThread:(i+1)*queriesPerThread],
 			address,
 			includeCertificates,
 			results,
+			&readyMutex,
 		)
 	}
 
+	// wait for all routines to become ready
+	for i := 0; i < threads; i++ {
+		readyMutexes[i].Lock()
+	}
+
+	fmt.Printf("took %f minutes to get ready\n", time.Since(t).Seconds())
+	os.Exit(0)
+
+	// once all are ready, define the start & stop time
 	now := time.Now()
 
 	// set start time to now
