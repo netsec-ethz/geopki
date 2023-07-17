@@ -147,8 +147,11 @@ def main(
                 f"--threads={num_threads}",
                 f"--time={time_s}",
                 f"--query-radius={query_radius_m}",
-                f"--qps-set-size={qps_set_size}",
             ]
+            + (
+                [f"--qps-set-size={qps_set_size}"]
+                if mode != "postgres_bitstrings_int_z" else []
+            )
             + (
                 [f"--excluding-bit-string-computation"]
                 if excluding_bit_string_computation else []
