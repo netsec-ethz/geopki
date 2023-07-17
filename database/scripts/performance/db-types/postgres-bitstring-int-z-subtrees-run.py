@@ -20,7 +20,7 @@ from sampling import load_bit_string_sampling_map, sample_df
 class ProcessArgs:
     def __init__(
             self,
-            sampling_map: pd.DataFrame,
+            query_set: list[str],
             db_host: str,
             db_port: int,
             db_name: str,
@@ -30,12 +30,11 @@ class ProcessArgs:
             batch_size: int,
             count_only: bool,
             excluding_bit_string_computation: bool,
-            query_set_size: int,
             start_event: Event,
             ready_event: Event,
             stop_event: Event
     ) -> None:
-        self.sampling_map = sampling_map
+        self.query_set = query_set
         self.db_host = db_host
         self.db_port = db_port
         self.db_name = db_name
@@ -45,7 +44,6 @@ class ProcessArgs:
         self.batch_size = batch_size
         self.count_only = count_only
         self.excluding_bit_string_computation = excluding_bit_string_computation
-        self.query_set_size = query_set_size
         self.start_event = start_event
         self.ready_event = ready_event
         self.stop_event = stop_event
@@ -84,7 +82,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
     cursor = conn.cursor()
 
     # pre-generate a query set
-    query_set = sample_df(args.sampling_map, args.query_set_size)[0]
+    query_set = args.query_set
 
     if args.excluding_bit_string_computation:
         query_set = [
@@ -291,12 +289,18 @@ def main(
         for _ in range(num_threads)
     ]
 
+    queries_per_thread = len(sampling_map) // num_threads
+    query_set = sampling_map["bit_strings"].values
+
     processes: List[Process] = [
         Process(
             target=run_queries,
             args=(
                 ProcessArgs(
-                    sampling_map=sampling_map,
+                    query_set=query_set[
+                        i * queries_per_thread:
+                        (i + 1) * queries_per_thread
+                    ],
                     db_host=db_host,
                     db_port=db_port,
                     db_name=db_name,
@@ -306,7 +310,6 @@ def main(
                     batch_size=batch_size,
                     count_only=count_only,
                     excluding_bit_string_computation=excluding_bit_string_computation,
-                    query_set_size=qps_set_size * time_s,
                     start_event=start_event,
                     ready_event=ready_event,
                     stop_event=stop_event,
