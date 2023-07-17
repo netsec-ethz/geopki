@@ -234,13 +234,6 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
     type=int,
     default=11  # ceil(10m * 1.005)
 )
-@click.option(
-    '--qps-set-size',
-    '-q',
-    'qps_set_size',
-    type=int,
-    default=1000
-)
 @click.option('--excluding-bit-string-computation', 'excluding_bit_string_computation', flag_value=True, default=False)
 @click.option('--count-only', 'count_only', flag_value=True, default=False)
 @click.option(
@@ -260,7 +253,6 @@ def main(
     num_threads: int,
     time_s: int,
     query_radius: int,
-    qps_set_size: int,
     excluding_bit_string_computation: bool,
     count_only: bool,
     batch_size: bool
