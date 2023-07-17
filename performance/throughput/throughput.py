@@ -76,6 +76,9 @@ def main(
             cwd=CURRENT_DIR
         )
 
+        f.write(p.stdout.read().decode("ascii"))
+        f.flush()
+
     f.close()
 
 
