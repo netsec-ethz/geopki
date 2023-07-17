@@ -14,8 +14,6 @@ import os
 import psycopg2
 
 sys.path.insert(1, os.path.join(sys.path[0], '../../../../performance'))  # noqa - prevent auto formatting
-sys.path.insert(1, os.path.join(sys.path[0], '../../../..'))  # noqa - prevent auto formatting
-from coordinatez import GeodeticCoordinate, polygons_to_2d_bit_strings, sphere_to_polygon
 from sampling import load_sampling_map, sample_df
 
 
@@ -53,22 +51,7 @@ class ProcessArgs:
         self.stop_event = stop_event
 
 
-def query_to_bitstrings(query: Tuple[float, float], query_radius: float):
-    longitude, latitude = query
-
-    bit_strings = polygons_to_2d_bit_strings(
-        polygons=[sphere_to_polygon(
-            center=GeodeticCoordinate(
-                longitude=longitude,
-                latitude=latitude,
-                altitude=0
-            ),
-            radius_m=query_radius
-        )],
-        f_grow=0.1,
-        f_min=0
-    )
-
+def bitstrings_to_query(bit_strings: Tuple[str]):
     return [
         (
             # compute all prefixes of bit_string that are not obtained by removing a trailing zero
@@ -105,7 +88,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
 
     if args.excluding_bit_string_computation:
         query_set = [
-            query_to_bitstrings(q, args.query_radius)
+            bitstrings_to_query(q)
             for q in query_set
         ]
 
@@ -126,7 +109,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
 
         if not args.excluding_bit_string_computation:
             queries = [
-                query_to_bitstrings(q, args.query_radius)
+                bitstrings_to_query(q, args.query_radius)
                 for q in queries
             ]
 

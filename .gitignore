@@ -159,4 +159,6 @@ demo/geopki-web-client/geopki-client.wasm
 
 performance/client/client-performance.csv
 performance/cert-sizes/*.csv
-performance/sampling-map.csv
+performance/sampling-map*.csv
+performance/sampling-map*.json
+performance/sampling-map*.parquet

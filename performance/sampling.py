@@ -24,3 +24,11 @@ def sample(
     df = load_sampling_map(sampling_map_path)
 
     return sample_df(df, num_samples)
+
+
+def load_bit_string_sampling_map(
+        sampling_map_path: str,
+) -> pd.DataFrame:
+    df = pd.read_parquet(sampling_map_path)
+
+    return df

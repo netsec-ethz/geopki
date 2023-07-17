@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -19,9 +20,7 @@ const (
 )
 
 type Query struct {
-	Longitude float64 `json:"longitude"`
-	Latitude  float64 `json:"latitude"`
-	Radius    uint64  `json:"radius"`
+	BitStrings []string `json:"bit_strings"`
 }
 
 type Results struct {
@@ -46,18 +45,28 @@ func measureThroughput(
 	for i := range queries {
 		q := querySet[i]
 
-		// set altitude to 0
-		// use slightly faster comm.S2CircleApproximator -> results in slightly faster throughput tests
-		query, err := comm.NewQuery(q.Longitude, q.Latitude, 0, q.Radius, F_GROW, &comm.S2CircleApproximator{})
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed building a query using (%f,%f,%f,%d)\n", q.Longitude, q.Latitude, 0.0, q.Radius)
-			os.Exit(1)
-		}
-		// and then overwrite min and max altitude to cover the full altitude range
-		query.MinAltitude = 0
-		query.MaxAltitude = int16(bitstring.C_Z)
+		bitStrings := make([]bitstring.RawXYBitString, len(q.BitStrings))
+		for i, bitString := range q.BitStrings {
+			b, err := strconv.ParseUint(bitString, 2, 51)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "failed parsing bit string '%s'\n", bitString)
+				os.Exit(1)
+			}
 
-		queries[i] = query
+			bitStrings[i] = bitstring.RawXYBitString{
+				XYBitString:    b << (64 - len(bitString)),
+				XYBitStringLen: uint8(len(bitString)),
+			}
+		}
+
+		// set altitude to 0
+		query := comm.Query{
+			XYBitStrings: bitStrings,
+			MinAltitude:  0,
+			MaxAltitude:  int16(bitstring.C_Z),
+		}
+
+		queries[i] = &query
 	}
 
 	// keep track of the current query index
@@ -155,18 +164,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	t := time.Now()
-
 	results := make(chan Results, threads)
 
 	// acquire write lock blocking any thread from starting
 	runningMutex.Lock()
 
-	if len(querySet)%threads != 0 {
-		log.Fatalf("# of queries (%d) is not a multiple of # of threads (%d)\n", len(querySet), threads)
-	}
 	queriesPerThread := len(querySet) / threads
-
 	readyMutexes := make([]*sync.Mutex, threads)
 
 	// initialize go routines, divide queries slice
@@ -190,9 +193,6 @@ func main() {
 	for i := 0; i < threads; i++ {
 		readyMutexes[i].Lock()
 	}
-
-	fmt.Printf("took %f minutes to get ready\n", time.Since(t).Seconds())
-	os.Exit(0)
 
 	// once all are ready, define the start & stop time
 	now := time.Now()
