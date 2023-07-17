@@ -73,6 +73,7 @@ def main(
         rows.append(row_to_query((longitude, latitude), QUERY_RADIUS))
 
     df = pd.DataFrame.from_dict(rows)
+    df = df.sample(frac=1).reset_index(drop=True)
     df.to_parquet(output_path, index=False)
 
 
