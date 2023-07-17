@@ -84,7 +84,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
     cursor = conn.cursor()
 
     # pre-generate a query set
-    query_set = sample_df(args.sampling_map, args.query_set_size)
+    query_set = sample_df(args.sampling_map, args.query_set_size)[0]
 
     if args.excluding_bit_string_computation:
         query_set = [
