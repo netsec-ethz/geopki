@@ -15,7 +15,6 @@ import (
 )
 
 const (
-	F_GROW                 = 0.1
 	MAX_QUERIES_PER_SECOND = 1000
 )
 
