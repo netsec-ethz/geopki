@@ -14,7 +14,7 @@ import os
 import psycopg2
 
 sys.path.insert(1, os.path.join(sys.path[0], '../../../../performance'))  # noqa - prevent auto formatting
-from sampling import load_sampling_map, sample_df
+from sampling import load_bit_string_sampling_map, sample_df
 
 
 class ProcessArgs:
@@ -267,7 +267,7 @@ def main(
     count_only: bool,
     batch_size: bool
 ):
-    sampling_map = load_sampling_map(sampling_map_path)
+    sampling_map = load_bit_string_sampling_map(sampling_map_path)
 
     if db_pass is None:
         db_pass = getpass(
