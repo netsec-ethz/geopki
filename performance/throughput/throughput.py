@@ -10,7 +10,7 @@ FILE_PATH = os.path.realpath(__file__)
 CURRENT_DIR = os.path.dirname(FILE_PATH)
 
 TIME_VALUES = [8]
-THREAD_VALUES = [128]
+THREAD_VALUES = [1, 2, 4, 8, 16, 32, 64, 128]
 
 
 @click.command()
