@@ -25,8 +25,10 @@ def cdf_plot(
     if ax is None or fig is None:
         fig, ax = plt.subplots(dpi=300)
         fig.set_figheight(3)
-        fig.set_figwidth(9)
-        fig.subplots_adjust(bottom=0.16, left=0.06, right=0.99)
+        fig.set_figwidth(6)
+        fig.subplots_adjust(bottom=0.16, left=0.09, right=0.99)
+        # fig.set_figwidth(9)
+        # fig.subplots_adjust(bottom=0.16, left=0.06, right=0.99)
 
         ax.set_yscale("linear")
         ax.set_ylabel("CDF")
@@ -365,7 +367,7 @@ def main(
         plot=False,
         base=10,
         labels=["query build time", ""],
-        linestyles=["dashed", ""],
+        linestyles=["solid", ""],
         show_quantile=False,
         # quantile_correction_factor=[1.15, 1],
         # quantile_y=[0.925, 1]
@@ -388,17 +390,17 @@ def main(
     # time_verification
     cdf_plot(
         "query time in ms",
-        df_excluding_certificates['time_verification'] * 1000,
-        df_including_certificates['time_verification'] * 1000,
+        df['time_verification'] * 1000,
+        None,
         f"{output_path}/time-verification-cdf.png",
         fig=fig,
         ax=ax,
         plot=False,
         labels=[
-            "verification time exc. certs",
-            "verification time inc. certs"
+            "verification time",
+            ""
         ],
-        linestyles=["solid", "dotted"],
+        linestyles=["dashed", ""],
         show_quantile=False,
         # quantile_correction_factor=[0.75, 0.45],
         # quantile_y=[1, 0.93]
@@ -425,7 +427,7 @@ def main(
             "total time exc. certs",
             "total time inc. certs"
         ],
-        linestyles=["dashdot", (0, (3, 5, 1, 5, 1, 5))],
+        linestyles=["dotted", "dashdot"],
         show_quantile="line",
         # quantile_correction_factor=[0.55, 1.15],
         # quantile_y=[0.935, 0.935]

@@ -90,8 +90,10 @@ def main(
 
     fig, ax = plt.subplots(dpi=300)
     fig.set_figheight(3)
-    fig.set_figwidth(9)
-    fig.subplots_adjust(bottom=0.16, left=0.06, right=0.99)
+    fig.set_figwidth(6)
+    fig.subplots_adjust(bottom=0.16, left=0.09, right=0.99)
+    # fig.set_figwidth(9)
+    # fig.subplots_adjust(bottom=0.16, left=0.06, right=0.99)
 
     ax.set_yscale("linear")
     ax.set_ylabel("CDF")
@@ -111,8 +113,10 @@ def main(
 
     fig, ax = plt.subplots(dpi=300)
     fig.set_figheight(3)
-    fig.set_figwidth(9)
-    fig.subplots_adjust(bottom=0.16, left=0.06, right=0.99)
+    fig.set_figwidth(6)
+    fig.subplots_adjust(bottom=0.16, left=0.09, right=0.99)
+    # fig.set_figwidth(9)
+    # fig.subplots_adjust(bottom=0.16, left=0.06, right=0.99)
 
     ax.set_yscale("linear")
     ax.set_ylabel("CDF")

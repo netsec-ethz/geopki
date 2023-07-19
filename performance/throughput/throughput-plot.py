@@ -41,8 +41,10 @@ def main(
 
     fig, ax = plt.subplots(dpi=300)
     fig.set_figheight(3)
-    fig.set_figwidth(9)
-    fig.subplots_adjust(bottom=0.16, left=0.09, right=0.99)
+    fig.set_figwidth(6)
+    fig.subplots_adjust(bottom=0.16, left=0.13, right=0.99)
+    # fig.set_figwidth(9)
+    # fig.subplots_adjust(bottom=0.16, left=0.09, right=0.99)
     ax.set_xscale("log", base=2)
     ax.set_xlabel("number of parallel goroutines")
     ax.set_yscale("linear")
