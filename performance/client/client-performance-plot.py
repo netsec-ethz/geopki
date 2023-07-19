@@ -124,7 +124,7 @@ def cdf_plot(
         ninety_five_p = ninety_five_row['cdf']
         ninety_five = ninety_five_row['value']
 
-        print(labels[0])
+        print(labels[1])
         print(f">= 95% of data points have a value <= {ninety_five}")
 
         if show_quantile == "circle":
@@ -268,7 +268,8 @@ def main(
         (df['time_send_receive'] / df['time_total'])
 
     # longitude,latitude,radius,request_size,request_bit_string_count,response_size,response_node_count,certificate_hash_count,consistency_proof_size,time_building_query,time_send_receive,time_verification,time_consistency,time_total
-    # print(df[df['response_node_count'] == 2539])
+    # print(df[df['response_node_count'] == 4173])
+    # print(df[df['certificate_hash_count'] == 64])
     # exit()
     assert len(df[df['certificate_hash_count'] == 0]) == 0
 

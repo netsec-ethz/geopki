@@ -13,7 +13,7 @@ def cdf_plot(
     linestyle: str,
     show_quantile=True,
     quantile_correction_factor=0.00075,
-    quantile_y=0.875
+    quantile_y=0.85
 ):
 
     # https://stackoverflow.com/a/54317197
@@ -58,7 +58,7 @@ def cdf_plot(
             ninety_five + quantile_correction_factor,
             quantile_y,
             # f'({ninety_five}, {ninety_five_p.round(2)})',
-            f'{int(ninety_five) if ninety_five.is_integer() else ninety_five.round(4)}',
+            f'{int(ninety_five) if ninety_five.is_integer() else ninety_five.round(2)}',
             rotation=0,
             color=color
         )
@@ -94,7 +94,7 @@ def main(
 
     ax.set_yscale("linear")
     ax.set_ylabel("CDF")
-    ax.set_xlabel("mean time per certificate in s")
+    ax.set_xlabel("mean time per certificate in ms")
 
     certificate_counts = df['certificate_count'].unique()
     for certificate_count, linestyle in zip(
@@ -105,7 +105,7 @@ def main(
         cdf_plot(
             f"batch of {certificate_count} per request",
             ax,
-            x['spc'],
+            x['spc'] * 1000,
             linestyle
         )
 
