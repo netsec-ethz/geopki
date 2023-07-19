@@ -12,8 +12,8 @@ def cdf_plot(
     df_column,
     linestyle: str,
     show_quantile=True,
-    quantile_correction_factor=1.01,
-    quantile_y=0.92
+    quantile_correction_factor=0.00075,
+    quantile_y=0.875
 ):
 
     # https://stackoverflow.com/a/54317197
@@ -55,7 +55,7 @@ def cdf_plot(
         )
 
         plt.text(
-            ninety_five * quantile_correction_factor,
+            ninety_five + quantile_correction_factor,
             quantile_y,
             # f'({ninety_five}, {ninety_five_p.round(2)})',
             f'{int(ninety_five) if ninety_five.is_integer() else ninety_five.round(4)}',
@@ -88,6 +88,10 @@ def main(
     df['spc'] = df['time'] / df['certificate_count']
 
     fig, ax = plt.subplots(dpi=300)
+    fig.set_figheight(3)
+    fig.set_figwidth(9)
+    fig.subplots_adjust(bottom=0.16, left=0.09, right=0.99)
+
     ax.set_yscale("linear")
     ax.set_ylabel("CDF")
     ax.set_xlabel("mean time per certificate in s")

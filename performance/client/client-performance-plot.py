@@ -12,17 +12,22 @@ def cdf_plot(
     df_column_including_certificates,
     output_filename: str,
     ax: plt.Axes = None,
+    fig: plt.Figure = None,
     labels=["excluding certs", "including certs"],
     linestyles=["solid", "dashed"],
     base=10,
     plot=True,
     legend=False,
-    show_quantile=True,
+    show_quantile="circle",
     quantile_correction_factor=[1.2, 1.2],
     quantile_y=[0.934, 0.934]
-):
-    if ax is None:
+) -> tuple[plt.Figure, plt.Axes]:
+    if ax is None or fig is None:
         fig, ax = plt.subplots(dpi=300)
+        fig.set_figheight(3)
+        fig.set_figwidth(9)
+        fig.subplots_adjust(bottom=0.16, left=0.06, right=0.99)
+
         ax.set_yscale("linear")
         ax.set_ylabel("CDF")
         ax.set_xlabel(xlabel)
@@ -54,10 +59,16 @@ def cdf_plot(
     )
     color = p[0].get_color()
 
-    if show_quantile:
-        ninety_five_row = stats_df[stats_df['cdf'] >= 0.95].iloc[0]
-        ninety_five_p = ninety_five_row['cdf']
-        ninety_five = ninety_five_row['value']
+    ninety_five_row = stats_df[stats_df['cdf'] >= 0.95].iloc[0]
+    ninety_five_p = ninety_five_row['cdf']
+    ninety_five = ninety_five_row['value']
+
+    print("-" * 80)
+    print(xlabel)
+    print(labels[0])
+    print(f">= 95% of data points have a value <= {ninety_five}")
+
+    if show_quantile == "circle":
 
         plt.scatter(
             [ninety_five],
@@ -109,10 +120,14 @@ def cdf_plot(
         )
         color = p[0].get_color()
 
-        if show_quantile:
-            ninety_five_row = stats_df[stats_df['cdf'] >= 0.95].iloc[0]
-            ninety_five_p = ninety_five_row['cdf']
-            ninety_five = ninety_five_row['value']
+        ninety_five_row = stats_df[stats_df['cdf'] >= 0.95].iloc[0]
+        ninety_five_p = ninety_five_row['cdf']
+        ninety_five = ninety_five_row['value']
+
+        print(labels[0])
+        print(f">= 95% of data points have a value <= {ninety_five}")
+
+        if show_quantile == "circle":
 
             plt.scatter(
                 [ninety_five],
@@ -141,13 +156,25 @@ def cdf_plot(
     # ax.set_ylim(bottom, top)
 
     if plot:
+        if show_quantile == "line":
+            left, right = plt.xlim()
+            plt.xlim(left, right)
+            plt.text(
+                left * 1.1,
+                0.97,
+                f'0.95',
+                rotation=0,
+                color='gray'
+            )
+            plt.hlines(0.95, left, right, 'gray', linewidth=1)
+
         if isinstance(legend, str):
             plt.legend(loc=legend)
 
         plt.savefig(output_filename)
         plt.close()
     else:
-        return ax
+        return fig, ax
 
 
 def print_stats(df):
@@ -256,14 +283,15 @@ def main(
     print_stats(df_including_certificates)
 
     # request_size
-    ax = cdf_plot(
+    fig, ax = cdf_plot(
         "request and response sizes in B",
         df['request_size'],
         None,
         f"{output_path}/request-size-cdf.png",
         base=2,
         labels=["request size", ""],
-        plot=False
+        plot=False,
+        show_quantile=False,
     )
 
     # response_size
@@ -271,7 +299,7 @@ def main(
         "response size in B",
         df_excluding_certificates['response_size'],
         df_including_certificates['response_size'],
-        f"{output_path}/response-size-cdf.png",
+        f"{output_path}/request-response-size-cdf.png",
         base=2,
         labels=[
             "response size excluding certs",
@@ -279,7 +307,9 @@ def main(
         ],
         linestyles=["dashed", "dotted"],
         ax=ax,
+        fig=fig,
         legend="lower right",
+        show_quantile='line',
         quantile_correction_factor=[0.4, 1.15],
         quantile_y=[0.95, 0.92]
     )
@@ -291,8 +321,8 @@ def main(
         None,
         f"{output_path}/request-bit-string-count-cdf.png",
         base=None,
-        quantile_correction_factor=[0.99, 1],
-        quantile_y=[0.98, 1]
+        quantile_correction_factor=[0.995, 1],
+        quantile_y=[0.87, 1]
     )
 
     # response_node_count
@@ -302,8 +332,8 @@ def main(
         None,
         f"{output_path}/response-node-count-cdf.png",
         base=2,
-        quantile_correction_factor=[1.05, 1],
-        quantile_y=[0.9, 1]
+        quantile_correction_factor=[0.93, 1],
+        quantile_y=[0.83, 1]
     )
 
     # response hash count
@@ -326,7 +356,7 @@ def main(
     # )
 
     # time_building_query
-    ax = cdf_plot(
+    fig, ax = cdf_plot(
         "query time in ms",
         df['time_building_query'] * 1000,
         None,
@@ -335,12 +365,13 @@ def main(
         base=10,
         labels=["query build time", ""],
         linestyles=["dashed", ""],
-        quantile_correction_factor=[1.15, 1],
-        quantile_y=[0.925, 1]
+        show_quantile=False,
+        # quantile_correction_factor=[1.15, 1],
+        # quantile_y=[0.925, 1]
     )
 
     # time_send_receive
-    # ax = cdf_plot(
+    # _, ax = cdf_plot(
     #     "request time in s",
     #     df_excluding_certificates['time_send_receive'],
     #     df_including_certificates['time_send_receive'],
@@ -354,11 +385,12 @@ def main(
     # )
 
     # time_verification
-    ax = cdf_plot(
+    cdf_plot(
         "query time in ms",
         df_excluding_certificates['time_verification'] * 1000,
         df_including_certificates['time_verification'] * 1000,
         f"{output_path}/time-verification-cdf.png",
+        fig=fig,
         ax=ax,
         plot=False,
         labels=[
@@ -366,8 +398,9 @@ def main(
             "verification time inc. certs"
         ],
         linestyles=["solid", "dotted"],
-        quantile_correction_factor=[0.75, 0.45],
-        quantile_y=[1, 0.93]
+        show_quantile=False,
+        # quantile_correction_factor=[0.75, 0.45],
+        # quantile_y=[1, 0.93]
     )
 
     # time_consistency
@@ -385,18 +418,20 @@ def main(
         df_including_certificates['time_total'] * 1000,
         f"{output_path}/time-total-cdf.png",
         ax=ax,
+        fig=fig,
         legend="lower right",
         labels=[
             "total time exc. certs",
             "total time inc. certs"
         ],
         linestyles=["dashdot", (0, (3, 5, 1, 5, 1, 5))],
-        quantile_correction_factor=[0.55, 1.15],
-        quantile_y=[0.935, 0.935]
+        show_quantile="line",
+        # quantile_correction_factor=[0.55, 1.15],
+        # quantile_y=[0.935, 0.935]
     )
 
     # query_build fraction
-    # ax = cdf_plot(
+    # _, ax = cdf_plot(
     #     "fraction",
     #     df_excluding_certificates['query_build_fraction'],
     #     df_including_certificates['query_build_fraction'],
@@ -437,12 +472,13 @@ def main(
             "including certs"
         ],
         # ax=ax,
+        # fig=fig,
         base=None,
         legend="best",
         # linestyles=[(0, (1, 10)), (0, (3, 5, 1, 5, 1, 5))],
         # show_quantile=False,
-        quantile_correction_factor=[1.03, 0.825],
-        quantile_y=[0.935, 0.935]
+        quantile_correction_factor=[1.01, 0.9],
+        quantile_y=[0.85, 0.95]
     )
 
 

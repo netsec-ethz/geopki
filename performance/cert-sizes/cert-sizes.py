@@ -89,6 +89,10 @@ def main(
     print(f"median: {df['length'].median()}")
 
     fig, ax = plt.subplots(dpi=300)
+    fig.set_figheight(3)
+    fig.set_figwidth(9)
+    fig.subplots_adjust(bottom=0.16, left=0.06, right=0.99)
+
     ax.set_yscale("linear")
     ax.set_ylabel("CDF")
     ax.set_xlabel("certificate size in B")
@@ -99,13 +103,17 @@ def main(
         df['length'],
         "solid",
         quantile=0.99,
-        quantile_correction_factor=50,
-        quantile_y=0.93
+        quantile_correction_factor=40,
+        quantile_y=0.9
     )
 
     plt.savefig(f"{output_path}/cert-sizes-cdf.png")
 
     fig, ax = plt.subplots(dpi=300)
+    fig.set_figheight(3)
+    fig.set_figwidth(9)
+    fig.subplots_adjust(bottom=0.16, left=0.06, right=0.99)
+
     ax.set_yscale("linear")
     ax.set_ylabel("CDF")
     ax.set_xlabel("certificate size in B")
@@ -118,8 +126,8 @@ def main(
         df_reduced['length'],
         "solid",
         quantile=0.99,
-        quantile_correction_factor=1.01,
-        quantile_y=0.93
+        quantile_correction_factor=0.96,
+        quantile_y=0.875
     )
 
     # plt.legend()

@@ -15,19 +15,19 @@ ax.set_ylabel("queries per second")
 file_to_fmt = {
     "performance-evaluation-spatial.csv": "o",
     "performance-evaluation-bitstring.csv": "x",
-    "performance-evaluation-bitstring-int.csv": "h",
+    "performance-evaluation-bitstring-int-f1.csv": "h",
 }
 
 file_to_label = {
     "performance-evaluation-spatial.csv": "spatial",
     "performance-evaluation-bitstring.csv": "bit strings",
-    "performance-evaluation-bitstring-int.csv": "bit string integers",
+    "performance-evaluation-bitstring-int-f1.csv": "bit string integers",
 }
 
 file_to_color = {
     "performance-evaluation-spatial.csv": "#3498db",
     "performance-evaluation-bitstring.csv": "#e74c3c",
-    "performance-evaluation-bitstring-int.csv": "#27ae60",
+    "performance-evaluation-bitstring-int-f1.csv": "#27ae60",
 }
 
 files = file_to_fmt.keys()
