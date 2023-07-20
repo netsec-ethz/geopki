@@ -62,7 +62,7 @@ def query_to_bitstring(query: Tuple[float, float], query_radius: float):
             altitude=0
         ),
         radius_m=query_radius,
-        f_grow=0.1
+        f_grow=1
     )
 
 

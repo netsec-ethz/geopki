@@ -352,7 +352,7 @@ l = sphere_to_coarse_2d_binary_strings(
         altitude=0
     ),
     radius_m=10,
-    f_grow=0.1,
+    f_grow=1,
     f_min=0,
     plot=True
 )

@@ -77,7 +77,7 @@ def query_to_bitstring_integers(query: Tuple[float, float], query_radius: float)
             ),
             radius_m=query_radius
         )],
-        f_grow=0.1,
+        f_grow=1,
         f_min=0
     )
 

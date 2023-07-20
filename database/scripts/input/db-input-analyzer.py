@@ -11,7 +11,7 @@ sys.path.insert(1, os.path.join(sys.path[0], '../../..'))  # noqa - prevent auto
 from coordinates import extruded_polygons_to_bit_string_counts
 from coordinatez import DiscretizedVoxel
 
-INITIAL_AREA_FRACTION = 1
+INITIAL_AREA_FRACTION = 0.1
 VOXEL_PLOT_MAX = 1
 
 

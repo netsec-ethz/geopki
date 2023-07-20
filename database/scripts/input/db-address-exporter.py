@@ -14,7 +14,7 @@ sys.path.insert(1, os.path.join(sys.path[0], '../../..'))  # noqa - prevent auto
 from coordinates import ZOrderBitString, GeodeticCoordinate, extruded_polygons_to_bit_strings, polygons_to_2d_bit_strings
 from coordinatez import DiscretizedVoxel, extruded_polygons_to_bit_string_tuples
 
-INITIAL_AREA_FRACTION = 1
+INITIAL_AREA_FRACTION = 0.1
 MAX_FILE_SIZE = 300 * 1000 * 1000  # 300 MB
 
 DEFAULT_HASH = hashlib.sha256(b"\x00").digest()
