@@ -14,7 +14,7 @@ from coordinatez import DiscretizedVoxel, GeodeticCoordinate
 from sampling import load_sampling_map, sample_df
 
 
-def query_to_bitstrings(query: Tuple[float, float]):
+def query_to_bitstring(query: Tuple[float, float]):
     longitude, latitude = query
 
     bit_strings = [
@@ -30,19 +30,18 @@ def query_to_bitstrings(query: Tuple[float, float]):
     assert len(bit_strings) == 1
     assert len(bit_strings[0]) == 51
 
-    return [
-        (
-            # compute all prefixes of bit_string that are not obtained by removing a trailing zero
-            [
-                f"b'{b[:i]}'"
-                for i in range(1, bl)
-            ],
-            int(bit_string, 2)
-        )
-        for bit_string in bit_strings
-        # define local variable, requires python >= 3.8 (https://stackoverflow.com/a/55881984)
-        if (b := bit_string.rstrip("0")) and (bl := len(b))
-    ]
+    bit_string = bit_strings[0]
+    b = bit_string.rstrip("0")
+    bl = len(b)
+
+    return (
+        # compute all prefixes of bit_string that are not obtained by removing a trailing zero
+        [
+            f"'{b[:i]}'"
+            for i in range(1, bl)
+        ],
+        int(bit_string, 2)
+    )
 
 
 @click.command()
@@ -119,7 +118,7 @@ def main(
         raise Exception("output path already exists")
     else:
         f = open(output_path, "w")
-        f.write(f"longitude,latitude,smt_depth\n")
+        f.write(f"longitude,latitude,smt_depth,smt_depth_xy,smt_depth_z\n")
         f.flush()
 
     # work until stop is signalled
@@ -128,43 +127,37 @@ def main(
         total=len(sampling_map),
         desc="measure SMT depth"
     ):
-        bit_strings = query_to_bitstrings((longitude, latitude))
+        point_queries, bit_string_int = query_to_bitstring(
+            (longitude, latitude)
+        )
         # print(len(bit_strings))
         # print(bit_strings)
         # exit()
 
         # execute query
         cursor.execute(
-            f"SELECT COUNT(*) FROM ("
-            f"SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash "
+            f"WITH sq1 AS (SELECT COUNT(DISTINCT bit_string_51) as depth_xy "
             f"FROM nodes "
             f"WHERE bit_string_51 IN (''," +
-            ','.join(
-                set(
-                    itertools.chain.from_iterable(
-                        point_queries
-                        for point_queries, _ in bit_strings
-                    )
-                )
-            ) + ") UNION " +
-            "UNION".join(
-                [
-                    "(SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash "
-                    "FROM nodes "
-                    f"WHERE "
-                    f"bit_string_51_int = {bit_string_int}"
-                    f")"
-                    for _, bit_string_int in bit_strings
-                ]
-            ) +
-            ") sq"
+            ','.join(set(point_queries)) +
+            ")), "
+            "sq2 AS (SELECT COUNT(DISTINCT bit_string_15) as depth_z "
+            "FROM nodes "
+            f"WHERE "
+            f"bit_string_51_int = {bit_string_int}"
+            f")"
+            f"SELECT sq1.depth_xy, sq2.depth_z FROM sq1, sq2"
         )
 
         # simulate fetching all results
         res = cursor.fetchall()
-        smt_depth = res[0][0]
+        smt_depth_xy = res[0][0]
+        smt_depth_z = res[0][1]
 
-        f.write(f"{longitude},{latitude},{smt_depth}\n")
+        f.write(
+            f"{longitude},{latitude},{smt_depth_xy + smt_depth_z},{smt_depth_xy},{smt_depth_z}\n"
+        )
+        exit()
 
     cursor.close()
     conn.close()
