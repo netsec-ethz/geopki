@@ -166,9 +166,9 @@ def cdf_plot(
                 0.97,
                 f'0.95',
                 rotation=0,
-                color='gray'
+                color='silver'
             )
-            plt.hlines(0.95, left, right, 'gray', linewidth=1)
+            plt.hlines(0.95, left, right, 'silver', linewidth=1)
 
         if isinstance(legend, str):
             plt.legend(loc=legend)
@@ -297,6 +297,8 @@ def main(
         show_quantile=False,
     )
 
+    ax.grid(axis='x', color='silver')
+
     # response_size
     cdf_plot(
         "response size in B",
@@ -413,6 +415,8 @@ def main(
     #     df_including_certificates['time_consistency'],
     #     f"{output_path}/time-consistency-cdf.png",
     # )
+
+    ax.grid(axis='x', color='silver')
 
     # time_total
     cdf_plot(
