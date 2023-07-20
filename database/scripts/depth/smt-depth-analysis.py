@@ -157,7 +157,6 @@ def main(
         f.write(
             f"{longitude},{latitude},{smt_depth_xy + smt_depth_z},{smt_depth_xy},{smt_depth_z}\n"
         )
-        exit()
 
     cursor.close()
     conn.close()
