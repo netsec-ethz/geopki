@@ -118,7 +118,7 @@ def main(
         raise Exception("output path already exists")
     else:
         f = open(output_path, "w")
-        f.write(f"longitude,latitude,smt_depth,smt_depth_xy,smt_depth_z\n")
+        f.write(f"longitude,latitude,smt_depth_xy,smt_depth_z\n")
         f.flush()
 
     # work until stop is signalled
@@ -136,17 +136,16 @@ def main(
 
         # execute query
         cursor.execute(
-            f"WITH sq1 AS (SELECT COUNT(DISTINCT bit_string_51) as depth_xy "
+            f"WITH sq AS ("
+            f"SELECT LENGTH(bit_string_51) as depth_xy, MAX(LENGTH(bit_string_15)) as depth_z, LENGTH(bit_string_51) + MAX(LENGTH(bit_string_15)) as depth "
             f"FROM nodes "
             f"WHERE bit_string_51 IN (''," +
             ','.join(set(point_queries)) +
-            ")), "
-            "sq2 AS (SELECT COUNT(DISTINCT LENGTH(bit_string_15)) as depth_z "
-            "FROM nodes "
-            f"WHERE "
-            f"bit_string_51_int = {bit_string_int}"
-            f")"
-            f"SELECT sq1.depth_xy, sq2.depth_z FROM sq1, sq2"
+            ") "
+            "GROUP BY bit_string_51"
+            "), "
+            "sq_max AS (SELECT MAX(sq.depth) as max_depth FROM sq) "
+            "SELECT sq.depth_xy, sq.depth_z FROM sq, sq_max WHERE sq.depth=sq_max.max_depth"
         )
 
         # simulate fetching all results
@@ -155,7 +154,7 @@ def main(
         smt_depth_z = res[0][1]
 
         f.write(
-            f"{longitude},{latitude},{smt_depth_xy + smt_depth_z},{smt_depth_xy},{smt_depth_z}\n"
+            f"{longitude},{latitude},{smt_depth_xy},{smt_depth_z}\n"
         )
 
     cursor.close()
