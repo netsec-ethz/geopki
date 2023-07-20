@@ -129,9 +129,9 @@ def main(
         desc="measure SMT depth"
     ):
         bit_strings = query_to_bitstrings((longitude, latitude))
-        print(len(bit_strings))
-        print(bit_strings)
-        exit()
+        # print(len(bit_strings))
+        # print(bit_strings)
+        # exit()
 
         # execute query
         cursor.execute(
@@ -157,7 +157,7 @@ def main(
                     for _, bit_string_int in bit_strings
                 ]
             ) +
-            ")"
+            ") sq"
         )
 
         # simulate fetching all results
@@ -165,7 +165,6 @@ def main(
         smt_depth = res[0][0]
 
         f.write(f"{longitude},{latitude},{smt_depth}\n")
-        exit()
 
     cursor.close()
     conn.close()
