@@ -141,7 +141,7 @@ def main(
             f"WHERE bit_string_51 IN (''," +
             ','.join(set(point_queries)) +
             ")), "
-            "sq2 AS (SELECT COUNT(DISTINCT bit_string_15) as depth_z "
+            "sq2 AS (SELECT COUNT(DISTINCT LENGTH(bit_string_15)) as depth_z "
             "FROM nodes "
             f"WHERE "
             f"bit_string_51_int = {bit_string_int}"
