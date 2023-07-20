@@ -160,10 +160,10 @@ class DiscretizedVoxel:
     U = 1
     "The precision of the tree in meters"
 
-    D = -10000
+    D = -11000
     "The minimum geodetic altitude in meters"
 
-    H = 22767
+    H = 21767
     "The maximum geodetic altitude in meters"
 
     X_BITS = math.floor(math.log2(2 * SEMI_MAJOR_AXIS_A_M * math.pi / U)) + 1

@@ -116,7 +116,7 @@ class ZOrderBitString:
     C_Z = (1 << Z_BITS) - 1
 
     # the maximum depth
-    D = -10000
+    D = -11000
 
     def __init__(
             self,

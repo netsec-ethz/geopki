@@ -92,6 +92,6 @@ WHERE
 
 SELECT * FROM query_by_bitstring(
 	b'1100010110010011010101101110100100110101',
-	22767::smallint,
+	21767::smallint,
 	10
 )

@@ -36,7 +36,7 @@ const (
 	C_Z uint16 = (1 << Z_BITS) - 1
 
 	// The minimum geodetic altitude in meters
-	D int16 = -10000
+	D int16 = -11000
 
 	// The minimum geodetic altitude in meters
 	H int16 = int16(C_Z) + int16(D)
