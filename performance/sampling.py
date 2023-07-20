@@ -13,7 +13,7 @@ def sample_df(
         df: pd.DataFrame,
         num_samples: int,
 ) -> pd.DataFrame:
-    sample = df.sample(num_samples, replace=True)
+    sample = df.sample(num_samples)
     return sample.values
 
 
