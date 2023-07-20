@@ -162,3 +162,4 @@ performance/cert-sizes/*.csv
 performance/sampling-map*.csv
 performance/sampling-map*.json
 performance/sampling-map*.parquet
+database/measurements/depth.csv
