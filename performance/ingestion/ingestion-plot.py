@@ -89,8 +89,11 @@ def main(
 
     fig, ax = plt.subplots(dpi=300)
     fig.set_figheight(3)
-    fig.set_figwidth(9)
-    fig.subplots_adjust(bottom=0.16, left=0.09, right=0.99)
+
+    fig.set_figwidth(6)
+    fig.subplots_adjust(bottom=0.16, left=0.13, right=0.99)
+    # fig.set_figwidth(9)
+    # fig.subplots_adjust(bottom=0.16, left=0.09, right=0.99)
 
     ax.set_yscale("linear")
     ax.set_ylabel("CDF")
@@ -106,10 +109,23 @@ def main(
             f"batch of {certificate_count} per request",
             ax,
             x['spc'] * 1000,
-            linestyle
+            linestyle,
+            show_quantile=False
         )
 
-    plt.legend()
+    ax.grid(axis='x', color='silver')
+    left, right = plt.xlim()
+    plt.xlim(0, right)
+    plt.text(
+        1,
+        0.97,
+        f'0.95',
+        rotation=0,
+        color='silver'
+    )
+    plt.hlines(0.95, 0, right, 'silver', linewidth=1)
+
+    plt.legend(loc="lower left")
     plt.savefig(f"{output_path}/ingestion.png")
 
 

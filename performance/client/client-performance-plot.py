@@ -297,6 +297,7 @@ def main(
         show_quantile=False,
     )
 
+    ax.set_xticks([2 ** i for i in range(4, 18)])
     ax.grid(axis='x', color='silver')
 
     # response_size
@@ -416,7 +417,8 @@ def main(
     #     f"{output_path}/time-consistency-cdf.png",
     # )
 
-    ax.grid(axis='x', color='silver')
+    # ax.set_xticks([2 ** i for i in range(4, 18)])
+    ax.grid(axis='x', color='silver', which='both')
 
     # time_total
     cdf_plot(

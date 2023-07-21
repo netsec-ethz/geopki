@@ -51,6 +51,8 @@ def main(
     ax.set_ylabel("queries per second")
     # ax.set_yticks([])
 
+    ax.grid(axis='y', color='silver')
+
     df_excluding_certificates = df[df['include_certificates'] == False]
     df_including_certificates = df[df['include_certificates'] == True]
 
