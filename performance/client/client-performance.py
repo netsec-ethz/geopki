@@ -60,12 +60,14 @@ def main(
 
     query_locations = sample(sampling_map_path, location_count)
 
-    for i, (longitude, latitude) in tqdm(
-        enumerate(query_locations),
+    for i, (longitude, latitude, include_certificates) in tqdm(
+        enumerate(
+            (longitude, latitude, include_certificates)
+            for include_certificates in [False, True]
+            for (longitude, latitude) in query_locations
+        ),
         total=location_count
     ):
-        include_certificates = (i >= (location_count / 2))
-
         p = subprocess.Popen(
             [
                 f"../../dist/geopki-client-performance",
