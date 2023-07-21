@@ -20,14 +20,15 @@ import (
 )
 
 const (
-	F_GROW                   = 0.1
-	CERTIFICATE_WRITE_BUFFER = 1000
-	NODE_WRITE_BUFFER        = 1000
-	SAMPLE_WRITE_BUFFER      = 1000
-	MAX_FILE_SIZE            = 300 * 1000 * 1000 // 300 MB
-	MAX_CERTIFICATE_SIZE     = 3091              // ≈ 3kB
-	INSERT_INTO_NODES_STR    = "INSERT INTO nodes(bit_string_51,bit_string_15,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes) VALUES\n"
-	INSERT_INTO_CERTS_STR    = "INSERT INTO certificates(certificate_hash,certificate,not_valid_after) VALUES\n"
+	F_GROW                             = 0.1
+	CERTIFICATE_WRITE_BUFFER           = 1000
+	NODE_WRITE_BUFFER                  = 1000
+	SAMPLE_WRITE_BUFFER                = 1000
+	ALTITUDE_DISTRIBUTION_WRITE_BUFFER = 1000
+	MAX_FILE_SIZE                      = 300 * 1000 * 1000 // 300 MB
+	MAX_CERTIFICATE_SIZE               = 3091              // ≈ 3kB
+	INSERT_INTO_NODES_STR              = "INSERT INTO nodes(bit_string_51,bit_string_15,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes) VALUES\n"
+	INSERT_INTO_CERTS_STR              = "INSERT INTO certificates(certificate_hash,certificate,not_valid_after) VALUES\n"
 )
 
 type Coordinate struct {
@@ -547,16 +548,58 @@ func sampleWriter(
 	done <- true
 }
 
+func surfaceAltitudeWriter(
+	fileName string,
+	surfaceAltitudes chan *float64,
+	done chan bool,
+) {
+	file, err := os.Create(fileName)
+	if err != nil {
+		log.Fatalf("failed opening file %s: %v", fileName, err)
+	}
+
+	_, err = file.Write(
+		[]byte("altitude\n"),
+	)
+	if err != nil {
+		log.Fatalf("failed writing header to %s: %v", fileName, err)
+	}
+
+	for surfaceAltitude := range surfaceAltitudes {
+		// write certificate row
+		_, err := file.Write(
+			[]byte(
+				fmt.Sprintf(
+					"%f\n",
+					*surfaceAltitude,
+				),
+			),
+		)
+		if err != nil {
+			log.Fatalf("failed writing to file %s: %v", fileName, err)
+		}
+	}
+
+	err = file.Close()
+	if err != nil {
+		log.Fatalf("failed closing file %s: %v", fileName, err)
+	}
+
+	done <- true
+}
+
 func main() {
 	var inputPath string
 	var nodesOutputPath string
 	var certificatesOutputPath string
 	var sampleOutputPath string
+	var surfaceAltitudeOutputPath string
 
 	flag.StringVar(&inputPath, "input", "", "The path to the input .parquet file")
 	flag.StringVar(&nodesOutputPath, "nodes", "", "The path to the nodes output directory")
 	flag.StringVar(&certificatesOutputPath, "certs", "", "The path to certificates output directory")
 	flag.StringVar(&sampleOutputPath, "sampling-map", "", "The path to the sampling-map file")
+	flag.StringVar(&surfaceAltitudeOutputPath, "altitude-dist", "", "The path to the altitude distribution file")
 	flag.Parse()
 
 	if inputPath == "" {
@@ -573,6 +616,10 @@ func main() {
 
 	if sampleOutputPath == "" {
 		log.Fatalf("'sample-map' flag must be set")
+	}
+
+	if surfaceAltitudeOutputPath == "" {
+		log.Fatalf("'altitude-dist' flag must be set")
 	}
 
 	fileReader, err := local.NewLocalFileReader(inputPath)
@@ -609,6 +656,16 @@ func main() {
 		samplesFinishedWriting,
 	)
 
+	// setup channels for concurrently writing the surface altitude distribution to disk
+	altitudes := make(chan *float64, ALTITUDE_DISTRIBUTION_WRITE_BUFFER)
+	altitudeFinishedWriting := make(chan bool)
+	// start writer routine
+	go surfaceAltitudeWriter(
+		surfaceAltitudeOutputPath,
+		altitudes,
+		altitudeFinishedWriting,
+	)
+
 	bitstringPairToNode := make(map[bitstring.RawBitStringPair]*crypto.Node)
 
 	for i := 0; i < num; i++ {
@@ -635,6 +692,10 @@ func main() {
 		// get some coordinate of the mulitpolygon
 		coordinate := (*(*(*r.List_of_multipolygons)[0])[0])[0]
 		samples <- coordinate
+
+		if r.Surface_altitude_aster_30 != nil {
+			altitudes <- r.Surface_altitude_aster_30
+		}
 
 		bitstringPairs, err := geometry.CertificateToBitStrings(certificate, F_GROW)
 		if err != nil {
@@ -709,8 +770,9 @@ func main() {
 		progressBar.Add(1)
 	}
 	// tell writers that they have all data
-	close(samples)
 	close(certificates)
+	close(samples)
+	close(altitudes)
 	progressBar.Exit()
 
 	// compute child hashes
@@ -781,6 +843,10 @@ func main() {
 
 	fmt.Printf("Waiting until all samples are written to disk..\n")
 	<-samplesFinishedWriting
+	fmt.Printf("Done!\n")
+
+	fmt.Printf("Waiting until all altitude values are written to disk..\n")
+	<-altitudeFinishedWriting
 	fmt.Printf("Done!\n")
 
 	fmt.Printf("Waiting until all certificates are written to disk..\n")

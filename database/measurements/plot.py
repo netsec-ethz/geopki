@@ -84,7 +84,7 @@ df.sort_values(
 )
 
 
-def cdf(column):
+def get_stats_df(column):
     # https://stackoverflow.com/a/54317197
     s = pd.Series(column.values, name='value')
 
@@ -99,7 +99,12 @@ def cdf(column):
     # CDF
     stats_df['cdf'] = stats_df['pdf'].cumsum()
     stats_df = stats_df.reset_index()
-    cdf = stats_df['cdf'].values
+
+    return stats_df
+
+
+def plot_cdf(column, quantile=True):
+    stats_df = get_stats_df(column)
 
     p = plt.plot(
         stats_df['value'],
@@ -107,29 +112,42 @@ def cdf(column):
     )
     color = p[0].get_color()
 
-    ninety_five_row = stats_df[stats_df['cdf'] >= 0.95].iloc[0]
-    ninety_five_p = ninety_five_row['cdf']
-    ninety_five = ninety_five_row['value']
+    if quantile:
 
-    plt.scatter(
-        [ninety_five],
-        [ninety_five_p],
-        marker="o",
-        facecolors='none',
-        edgecolors=color
+        ninety_five_row = stats_df[stats_df['cdf'] >= 0.95].iloc[0]
+        ninety_five_p = ninety_five_row['cdf']
+        ninety_five = ninety_five_row['value']
+
+        plt.scatter(
+            [ninety_five],
+            [ninety_five_p],
+            marker="o",
+            facecolors='none',
+            edgecolors=color
+        )
+
+        plt.text(
+            ninety_five * 0.98,
+            0.85,
+            # f'({ninety_five}, {ninety_five_p.round(2)})',
+            f'{int(ninety_five) if ninety_five.is_integer() else ninety_five.round(4)}',
+            rotation=0,
+            color=color
+        )
+
+
+def plot_pdf(column):
+    stats_df = get_stats_df(column)
+
+    p = plt.scatter(
+        stats_df['value'],
+        stats_df['pdf'],
+        s=1,
+        marker="x",
     )
 
-    plt.text(
-        ninety_five * 0.98,
-        0.85,
-        # f'({ninety_five}, {ninety_five_p.round(2)})',
-        f'{int(ninety_five) if ninety_five.is_integer() else ninety_five.round(4)}',
-        rotation=0,
-        color=color
-    )
 
-
-cdf(df['smt_depth'])
+plot_cdf(df['smt_depth'])
 plt.savefig(f"{CURRENT_DIR}/depth.png")
 plt.close()
 
@@ -195,4 +213,49 @@ for _, spine in ax.spines.items():
 
 
 plt.savefig(f"{CURRENT_DIR}/leaves.png")
+plt.close()
+
+
+df = pd.read_csv(os.path.join(CURRENT_DIR, "altitude.csv"))
+
+df['altitude'] = df['altitude']
+df['altitude'] = df['altitude'].round(0).astype(int)
+
+fig, ax = plt.subplots(figsize=(6, 3), dpi=300)
+fig.subplots_adjust(bottom=0.16, left=0.06, right=0.99)
+
+plot_cdf(df['altitude'], quantile=False)
+
+ylimits = ax.get_ylim()
+
+ax.vlines(
+    x=[264],
+    ymin=ylimits[0],
+    ymax=ylimits[1],
+    color='tab:blue',
+    linestyle='dotted',
+    linewidth=1
+)
+
+plt.savefig(f"{CURRENT_DIR}/altitude-cdf.png")
+plt.close()
+
+fig, ax = plt.subplots(figsize=(6, 3), dpi=300)
+fig.subplots_adjust(bottom=0.16, left=0.1, right=0.99)
+# ax.set_xscale("log")
+
+plot_pdf(df['altitude'])
+
+ylimits = ax.get_ylim()
+
+ax.vlines(
+    x=[264],
+    ymin=ylimits[0],
+    ymax=ylimits[1],
+    color='tab:blue',
+    linestyle='dotted',
+    linewidth=1
+)
+
+plt.savefig(f"{CURRENT_DIR}/altitude-pdf.png")
 plt.close()
