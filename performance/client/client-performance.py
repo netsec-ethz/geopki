@@ -66,7 +66,7 @@ def main(
             for include_certificates in [False, True]
             for (longitude, latitude) in query_locations
         ),
-        total=location_count
+        total=location_count * 2
     ):
         p = subprocess.Popen(
             [
