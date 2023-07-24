@@ -205,6 +205,9 @@ z_depth_ticks = [0, 3, 6, 9, 12, 15]
 plt.yticks()
 plt.yticks(z_depth_ticks, z_depth_ticks, rotation=0)
 
+plt.xlabel("surface tree depth")
+plt.ylabel("altitude subtree depth")
+
 ax.invert_yaxis()
 
 for _, spine in ax.spines.items():
@@ -212,7 +215,7 @@ for _, spine in ax.spines.items():
     spine.set_linewidth(1)
 
 
-plt.savefig(f"{CURRENT_DIR}/leaves.png")
+plt.savefig(f"{CURRENT_DIR}/leaf-distribution.png")
 plt.close()
 
 
