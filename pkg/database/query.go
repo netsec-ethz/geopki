@@ -98,9 +98,11 @@ func BuildNodeQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uin
 		query.WriteString(" AND bit_string_51_int <= ")
 		query.WriteString(strconv.FormatUint(bitStringMaxInt, 10))
 		query.WriteString(" AND altitude_min <= ")
-		query.WriteString(strconv.FormatUint(uint64(maxAltitude), 10))
+		// note that we subtract one because 2^15 cannot be represented using signed smallint
+		// therefore we shifted the whole range down by 1 from [0, 32'768] to [-1, 32'767]
+		query.WriteString(strconv.FormatInt(int64(maxAltitude)-1, 10))
 		query.WriteString(" AND altitude_max >= ")
-		query.WriteString(strconv.FormatUint(uint64(minAltitude), 10))
+		query.WriteString(strconv.FormatInt(int64(minAltitude)-1, 10))
 		query.WriteString(")")
 	}
 
@@ -114,10 +116,12 @@ func BuildNodeQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uin
 	for bitString := range point_queries.Iter() {
 		query.WriteString(",'" + bitString + "'")
 	}
+	// note that we subtract one because 2^15 cannot be represented using signed smallint
+	// therefore we shifted the whole range down by 1 from [0, 32'768] to [-1, 32'767]
 	query.WriteString(") AND altitude_min <= ")
-	query.WriteString(strconv.FormatUint(uint64(maxAltitude), 10))
+	query.WriteString(strconv.FormatInt(int64(maxAltitude)-1, 10))
 	query.WriteString(" AND altitude_max >= ")
-	query.WriteString(strconv.FormatUint(uint64(minAltitude), 10))
+	query.WriteString(strconv.FormatInt(int64(minAltitude)-1, 10))
 
 	return query.String()
 }

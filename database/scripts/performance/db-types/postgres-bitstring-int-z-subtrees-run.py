@@ -129,7 +129,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                             )
                         ) + ") AND "
                         f"altitude_min <= 32767 AND "
-                        f"altitude_max >= 0 UNION " +
+                        f"altitude_max >= -1 UNION " +
                         "UNION".join(
                             [
                                 "(SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash "
@@ -138,7 +138,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                                 f"bit_string_51_int >= {imin} AND "
                                 f"bit_string_51_int <= {imax} AND "
                                 f"altitude_min <= 32767 AND "
-                                f"altitude_max >= 0"
+                                f"altitude_max >= -1"
                                 f")"
                                 for _, imin, imax in bit_strings
                             ]

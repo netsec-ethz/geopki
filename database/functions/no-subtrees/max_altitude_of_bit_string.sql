@@ -15,14 +15,15 @@ DECLARE
 BEGIN
 RETURN (
     CASE
-        -- if the length is less the 51, the full altitude is covered (2^15-1) * u
+        -- if the length is less the 51, the full altitude is covered 2^15
+        -- note that we subtract one because 2^15 cannot be represented using signed smallint
+        -- therefore we shifted the whole range down by 1 from [0, 32'768] to [-1, 32'767]
         WHEN len <= 51 THEN 32767
         -- else add a value on top
-        -- subtract one to prevent overflow
         -- could also be computed analogously to 'min_altitude_of_bit_string' but padding with
         -- ones instead. the hope is that the function result is re-used (function is marked as IMMUTABLE)
         ELSE (
-          (min_altitude - 1) + (
+          (min_altitude) + (
             1::smallint << (
               15 - altitude_precision
             )
@@ -32,6 +33,3 @@ RETURN (
 );
 END;
 $BODY$;
-
-ALTER FUNCTION public.max_altitude_of_bit_string(bit varying)
-    OWNER TO postgis_user;

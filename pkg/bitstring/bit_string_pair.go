@@ -335,8 +335,19 @@ func XYBitStringFromGeodeticCoordinates(longitude, latitude float64) (*XYBitStri
 		)
 	}
 
-	var x uint32 = uint32(((longitude + 180) / 360) * float64(C_X))
-	var y uint32 = uint32(((latitude + 90) / 180) * float64(C_Y))
+	var x uint32
+	if longitude == 180 {
+		x = C_X
+	} else {
+		x = uint32(((longitude + 180) / 360) * float64(C_X+1))
+	}
+
+	var y uint32
+	if latitude == 90 {
+		y = C_Y
+	} else {
+		y = uint32(((latitude + 90) / 180) * float64(C_Y+1))
+	}
 
 	// create an instance with the full precision
 	return &XYBitString{
@@ -353,16 +364,21 @@ func XYBitStringFromGeodeticCoordinates(longitude, latitude float64) (*XYBitStri
 // Creates a BitStringPair instance from a geodetic coordinate
 func ZBitStringFromGeodeticCoordinate(altitude float64) (*ZBitString, error) {
 
-	if altitude < float64(D) || altitude > float64(H) {
+	if altitude < float64(D) || altitude > float64(H+1) {
 		return nil, fmt.Errorf(
 			"altitudes must be in the range [%d, %d], %f given",
 			D,
-			H,
+			H+1,
 			altitude,
 		)
 	}
 
-	var z uint16 = uint16(altitude - float64(D))
+	var z uint16
+	if altitude == float64(H+1) {
+		z = C_Z
+	} else {
+		z = uint16(altitude - float64(D))
+	}
 
 	// create an instance with the full precision
 	return &ZBitString{
@@ -535,11 +551,11 @@ func (pair *BitStringPair) RawBitStringPair() RawBitStringPair {
 }
 
 func UndiscretizeX(x uint32) float64 {
-	return (float64(uint64(x)*360)/float64(C_X) - 180)
+	return (float64(uint64(x)*360)/float64(C_X+1) - 180)
 }
 
 func UndiscretizeY(y uint32) float64 {
-	return (float64(uint64(y)*180)/float64(C_Y) - 90)
+	return (float64(uint64(y)*180)/float64(C_Y+1) - 90)
 }
 
 func UndiscretizeZ(z uint16) float64 {

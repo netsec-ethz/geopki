@@ -132,14 +132,14 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                             )
                         ) + ") AND "
                         f"altitude_min <= 32767 AND "
-                        f"altitude_max >= 0 UNION " +
+                        f"altitude_max >= -1 UNION " +
                         "UNION".join(
                             [
                                 f"(SELECT bit_string, certificate_hashes, left_child_hash, right_child_hash "
                                 f"FROM nodes WHERE "
                                 f"bit_string_txt LIKE '{bit_string}%' AND "
                                 f"altitude_min <= 32767 AND "
-                                f"altitude_max >= 0"
+                                f"altitude_max >= -1"
                                 f")"
                                 for bit_string in bit_strings
                             ]
