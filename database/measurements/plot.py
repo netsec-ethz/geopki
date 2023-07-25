@@ -192,8 +192,10 @@ ax = sns.heatmap(
     pivoted_data,
     ax=ax,
     norm=LogNorm(),
-    cmap="viridis"
+    cmap="gray",
 )
+
+ax.patch.set(hatch='xx', edgecolor='black')
 
 # ax.set_ylim(bottom=0, top=15)
 # ax.set_xlim(left=0, right=51)
