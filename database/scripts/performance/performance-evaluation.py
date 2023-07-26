@@ -56,7 +56,7 @@ QUERY_RADIUS_VALUES = [10]
     '-r',
     'repetitions',
     type=int,
-    default=10
+    default=30
 )
 @click.option('--postgres-bitstrings', 'mode', flag_value='postgres_bitstrings', default=None)
 @click.option('--postgres-bitstrings-int', 'mode', flag_value='postgres_bitstrings_int', default=None)

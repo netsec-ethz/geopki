@@ -44,7 +44,7 @@ def sample_point_in_polygon(polygon: Polygon) -> tuple[float, float]:
     '-r',
     'repetitions',
     type=int,
-    default=100
+    default=30
 )
 def main(
     website_density_path: str,

@@ -134,7 +134,7 @@ def sample_random_altitude() -> tuple[float, float]:
     '-r',
     'repetitions',
     type=int,
-    default=10
+    default=30
 )
 @click.option('--with-altitude', 'with_altitude', flag_value=True, default=False)
 def main(

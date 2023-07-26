@@ -27,7 +27,7 @@ THREAD_VALUES = [1, 2, 4, 8, 16, 32, 64, 128]
     '-r',
     'repetitions',
     type=int,
-    default=10
+    default=30
 )
 def main(
     sampling_map_path: str,
