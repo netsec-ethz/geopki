@@ -5,16 +5,15 @@ import matplotlib.pyplot as plt
 
 FILE_PATH = os.path.realpath(__file__)
 
-# UNCOMMENT FOR PAPER PLOTS
 # https://stackoverflow.com/a/39566040/2897827
-# MEDIUM_SIZE = 13.5
-# plt.rc('font', size=MEDIUM_SIZE)       # controls default text sizes
-# plt.rc('axes', titlesize=MEDIUM_SIZE)  # fontsize of the axes title
-# plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
-# plt.rc('xtick', labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
-# plt.rc('ytick', labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
-# plt.rc('legend', fontsize=MEDIUM_SIZE)  # legend fontsize
-# plt.rc('figure', titlesize=MEDIUM_SIZE)  # fontsize of the figure title
+MEDIUM_SIZE = 16
+plt.rc('font', size=MEDIUM_SIZE)       # controls default text sizes
+plt.rc('axes', titlesize=MEDIUM_SIZE)  # fontsize of the axes title
+plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+plt.rc('xtick', labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
+plt.rc('ytick', labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
+plt.rc('legend', fontsize=MEDIUM_SIZE)  # legend fontsize
+plt.rc('figure', titlesize=MEDIUM_SIZE)  # fontsize of the figure title
 
 
 def cdf_plot(
@@ -52,11 +51,15 @@ def cdf_plot(
     )
     color = p[0].get_color()
 
-    if show_quantile:
-        ninety_five_row = stats_df[stats_df['cdf'] >= 0.95].iloc[0]
-        ninety_five_p = ninety_five_row['cdf']
-        ninety_five = ninety_five_row['value']
+    ninety_five_row = stats_df[stats_df['cdf'] >= 0.95].iloc[0]
+    ninety_five_p = ninety_five_row['cdf']
+    ninety_five = ninety_five_row['value']
 
+    print("-" * 80)
+    print(label)
+    print(f">= 95% of data points have a value <= {ninety_five}")
+
+    if show_quantile:
         plt.scatter(
             [ninety_five],
             [ninety_five_p],
@@ -100,12 +103,8 @@ def main(
 
     fig, ax = plt.subplots(dpi=300)
     fig.set_figheight(3)
-
-    fig.set_figwidth(6)
-    fig.subplots_adjust(bottom=0.16, left=0.13, right=0.99)
-    # UNCOMMENT FOR PAPER PLOTS
-    # fig.set_figwidth(9)
-    # fig.subplots_adjust(top=0.99, bottom=0.19, left=0.05, right=0.995)
+    fig.set_figwidth(9)
+    fig.subplots_adjust(top=0.99, bottom=0.2, left=0.07, right=0.995)
 
     ax.set_yscale("linear")
     # ax.set_ylabel("CDF")
@@ -131,7 +130,7 @@ def main(
     plt.xlim(0, right)
     plt.text(
         1,
-        0.97,
+        0.96,
         f'0.95',
         rotation=0,
         color='silver'

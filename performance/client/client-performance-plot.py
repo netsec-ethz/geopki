@@ -5,16 +5,15 @@ import matplotlib.pyplot as plt
 
 FILE_PATH = os.path.realpath(__file__)
 
-# UNCOMMENT FOR PAPER PLOTS
 # https://stackoverflow.com/a/39566040/2897827
-# MEDIUM_SIZE = 13.5
-# plt.rc('font', size=MEDIUM_SIZE)       # controls default text sizes
-# plt.rc('axes', titlesize=MEDIUM_SIZE)  # fontsize of the axes title
-# plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
-# plt.rc('xtick', labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
-# plt.rc('ytick', labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
-# plt.rc('legend', fontsize=MEDIUM_SIZE)  # legend fontsize
-# plt.rc('figure', titlesize=MEDIUM_SIZE)  # fontsize of the figure title
+MEDIUM_SIZE = 16
+plt.rc('font', size=MEDIUM_SIZE)       # controls default text sizes
+plt.rc('axes', titlesize=MEDIUM_SIZE)  # fontsize of the axes title
+plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+plt.rc('xtick', labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
+plt.rc('ytick', labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
+plt.rc('legend', fontsize=MEDIUM_SIZE)  # legend fontsize
+plt.rc('figure', titlesize=MEDIUM_SIZE)  # fontsize of the figure title
 
 
 def cdf_plot(
@@ -31,16 +30,14 @@ def cdf_plot(
     legend=False,
     show_quantile="circle",
     quantile_correction_factor=[1.2, 1.2],
-    quantile_y=[0.934, 0.934]
+    quantile_y=[0.934, 0.934],
+    circle_size=75,
 ) -> tuple[plt.Figure, plt.Axes]:
     if ax is None or fig is None:
         fig, ax = plt.subplots(dpi=300)
         fig.set_figheight(3)
-        fig.set_figwidth(6)
-        fig.subplots_adjust(bottom=0.16, left=0.09, right=0.99)
-        # UNCOMMENT FOR PAPER PLOTS
-        # fig.set_figwidth(9)
-        # fig.subplots_adjust(top=0.99, bottom=0.19, left=0.05, right=0.995)
+        fig.set_figwidth(9)
+        fig.subplots_adjust(top=0.99, bottom=0.2, left=0.07, right=0.995)
 
         ax.set_yscale("linear")
         # ax.set_ylabel("CDF")
@@ -88,6 +85,7 @@ def cdf_plot(
             [ninety_five],
             [ninety_five_p],
             marker="o",
+            s=circle_size,
             facecolors='none',
             edgecolors=color
         )
@@ -147,6 +145,7 @@ def cdf_plot(
                 [ninety_five],
                 [ninety_five_p],
                 marker="o",
+                s=circle_size,
                 facecolors='none',
                 edgecolors=color
             )
@@ -175,7 +174,7 @@ def cdf_plot(
             plt.xlim(left, right)
             plt.text(
                 left * quantile_correction_factor[0],
-                0.97,
+                quantile_y[0],
                 f'0.95',
                 rotation=0,
                 color='silver'
@@ -320,8 +319,8 @@ def main(
         f"{output_path}/request-response-size-cdf.png",
         base=2,
         labels=[
-            "response size excluding certs",
-            "response size including certs"
+            "response size exc. certs",
+            "response size inc. certs"
         ],
         linestyles=["dashed", "dotted"],
         ax=ax,
@@ -330,7 +329,7 @@ def main(
         show_quantile="line",
         quantile_correction_factor=[1.5, 1.5],
         # quantile_correction_factor=[0.4, 1.15],
-        quantile_y=[0.95, 0.92]
+        quantile_y=[0.96, 0.92]
     )
 
     # request_bit_string_count
@@ -340,8 +339,8 @@ def main(
         None,
         f"{output_path}/request-bit-string-count-cdf.png",
         base=None,
-        quantile_correction_factor=[0.995, 1],
-        quantile_y=[0.87, 1]
+        quantile_correction_factor=[0.993, 1],
+        quantile_y=[0.83, 1]
     )
 
     # response_node_count
@@ -450,7 +449,7 @@ def main(
         show_quantile="line",
         quantile_correction_factor=[1.1, 1.1],
         # quantile_correction_factor=[0.55, 1.15],
-        # quantile_y=[0.935, 0.935]
+        quantile_y=[0.96, 0.935]
     )
 
     # query_build fraction
@@ -500,8 +499,8 @@ def main(
         legend="best",
         # linestyles=[(0, (1, 10)), (0, (3, 5, 1, 5, 1, 5))],
         # show_quantile=False,
-        quantile_correction_factor=[1.01, 0.85],
-        quantile_y=[0.85, 0.95]
+        quantile_correction_factor=[1.01, 0.83],
+        quantile_y=[0.85, 0.95],
     )
 
 

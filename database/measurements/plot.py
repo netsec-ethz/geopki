@@ -6,15 +6,25 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from matplotlib.colors import LogNorm
 
+# https://stackoverflow.com/a/39566040/2897827
+MEDIUM_SIZE = 16
+plt.rc('font', size=MEDIUM_SIZE)       # controls default text sizes
+plt.rc('axes', titlesize=MEDIUM_SIZE)  # fontsize of the axes title
+plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+plt.rc('xtick', labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
+plt.rc('ytick', labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
+plt.rc('legend', fontsize=MEDIUM_SIZE)  # legend fontsize
+plt.rc('figure', titlesize=MEDIUM_SIZE)  # fontsize of the figure title
+
 FILE_PATH = os.path.realpath(__file__)
 CURRENT_DIR = os.path.dirname(FILE_PATH)
 
-fig, ax = plt.subplots(figsize=(6, 3), dpi=300)
-fig.subplots_adjust(bottom=0.16, left=0.09, right=0.99)
+fig, ax = plt.subplots(figsize=(9, 3), dpi=300)
+fig.subplots_adjust(top=0.99, bottom=0.2, left=0.1, right=0.995)
 ax.set_xscale("log", base=2)
 ax.set_xlabel("number of parallel processes")
 ax.set_yscale("linear")
-ax.set_ylabel("queries per second")
+# ax.set_ylabel("queries per second")
 
 file_to_fmt = {
     "performance-evaluation-spatial.csv": "o",
@@ -72,8 +82,8 @@ plt.legend(loc="upper left")
 plt.savefig(f"{CURRENT_DIR}/plot.png")
 plt.close()
 
-fig, ax = plt.subplots(figsize=(6, 3), dpi=300)
-fig.subplots_adjust(bottom=0.16, left=0.06, right=0.99)
+fig, ax = plt.subplots(figsize=(9, 3), dpi=300)
+fig.subplots_adjust(top=0.99, bottom=0.2, left=0.07, right=0.995)
 ax.set_xlabel("SMT depth")
 ax.set_yscale("linear")
 # ax.set_ylabel("CDF")
@@ -126,13 +136,14 @@ def plot_cdf(column, quantile=True):
             [ninety_five],
             [ninety_five_p],
             marker="o",
+            s=75,
             facecolors='none',
             edgecolors=color
         )
 
         plt.text(
             ninety_five * 0.98,
-            0.85,
+            0.8,
             # f'({ninety_five}, {ninety_five_p.round(2)})',
             f'{int(ninety_five) if ninety_five.is_integer() else ninety_five.round(4)}',
             rotation=0,
@@ -175,8 +186,8 @@ for xy_depth in range(52):
 
 df = df.reset_index()
 
-fig, ax = plt.subplots(figsize=(6, 3), dpi=300)
-fig.subplots_adjust(bottom=0.16, left=0.09, right=1.05)
+fig, ax = plt.subplots(figsize=(9, 3), dpi=300)
+fig.subplots_adjust(top=0.97, bottom=0.2, left=0.08, right=1.07)
 
 ax.set_xlabel("surface tree depth")
 
@@ -230,8 +241,8 @@ df = pd.read_csv(os.path.join(CURRENT_DIR, "altitude.csv"))
 df['altitude'] = df['altitude']
 df['altitude'] = df['altitude'].round(0).astype(int)
 
-fig, ax = plt.subplots(figsize=(6, 3), dpi=300)
-fig.subplots_adjust(bottom=0.16, left=0.06, right=0.99)
+fig, ax = plt.subplots(figsize=(9, 3), dpi=300)
+fig.subplots_adjust(top=0.99, bottom=0.2, left=0.07, right=0.995)
 
 plot_cdf(df['altitude'], quantile=False)
 
@@ -249,7 +260,7 @@ ax.vlines(
 plt.savefig(f"{CURRENT_DIR}/altitude-cdf.png")
 plt.close()
 
-fig, ax = plt.subplots(figsize=(6, 3), dpi=300)
+fig, ax = plt.subplots(figsize=(9, 3), dpi=300)
 fig.subplots_adjust(bottom=0.16, left=0.1, right=0.99)
 # ax.set_xscale("log")
 
