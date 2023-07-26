@@ -5,6 +5,17 @@ import matplotlib.pyplot as plt
 
 FILE_PATH = os.path.realpath(__file__)
 
+# UNCOMMENT FOR PAPER PLOTS
+# https://stackoverflow.com/a/39566040/2897827
+# MEDIUM_SIZE = 13.5
+# plt.rc('font', size=MEDIUM_SIZE)       # controls default text sizes
+# plt.rc('axes', titlesize=MEDIUM_SIZE)  # fontsize of the axes title
+# plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+# plt.rc('xtick', labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
+# plt.rc('ytick', labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
+# plt.rc('legend', fontsize=MEDIUM_SIZE)  # legend fontsize
+# plt.rc('figure', titlesize=MEDIUM_SIZE)  # fontsize of the figure title
+
 
 @click.command()
 @click.argument('input_path', type=click.Path(exists=True))
@@ -37,6 +48,8 @@ def main(
         fqps_std=('fqps', 'std'),
     ).reset_index()
 
+    print(df)
+
     # plt.rcParams["figure.autolayout"] = True
 
     fig, ax = plt.subplots(dpi=300)
@@ -44,7 +57,8 @@ def main(
     fig.set_figwidth(6)
     fig.subplots_adjust(bottom=0.16, left=0.13, right=0.99)
     # fig.set_figwidth(9)
-    # fig.subplots_adjust(bottom=0.16, left=0.09, right=0.99)
+    # fig.subplots_adjust(top=0.99, bottom=0.19, left=0.08, right=0.995)
+
     ax.set_xscale("log", base=2)
     ax.set_xlabel("number of parallel goroutines")
     ax.set_yscale("linear")

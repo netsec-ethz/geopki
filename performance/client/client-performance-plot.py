@@ -5,6 +5,17 @@ import matplotlib.pyplot as plt
 
 FILE_PATH = os.path.realpath(__file__)
 
+# UNCOMMENT FOR PAPER PLOTS
+# https://stackoverflow.com/a/39566040/2897827
+# MEDIUM_SIZE = 13.5
+# plt.rc('font', size=MEDIUM_SIZE)       # controls default text sizes
+# plt.rc('axes', titlesize=MEDIUM_SIZE)  # fontsize of the axes title
+# plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+# plt.rc('xtick', labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
+# plt.rc('ytick', labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
+# plt.rc('legend', fontsize=MEDIUM_SIZE)  # legend fontsize
+# plt.rc('figure', titlesize=MEDIUM_SIZE)  # fontsize of the figure title
+
 
 def cdf_plot(
     xlabel: str,
@@ -27,8 +38,9 @@ def cdf_plot(
         fig.set_figheight(3)
         fig.set_figwidth(6)
         fig.subplots_adjust(bottom=0.16, left=0.09, right=0.99)
+        # UNCOMMENT FOR PAPER PLOTS
         # fig.set_figwidth(9)
-        # fig.subplots_adjust(bottom=0.16, left=0.06, right=0.99)
+        # fig.subplots_adjust(top=0.99, bottom=0.19, left=0.08, right=0.995)
 
         ax.set_yscale("linear")
         ax.set_ylabel("CDF")
@@ -162,7 +174,7 @@ def cdf_plot(
             left, right = plt.xlim()
             plt.xlim(left, right)
             plt.text(
-                left * 1.1,
+                left * quantile_correction_factor[0],
                 0.97,
                 f'0.95',
                 rotation=0,
@@ -270,8 +282,8 @@ def main(
         (df['time_send_receive'] / df['time_total'])
 
     # longitude,latitude,radius,request_size,request_bit_string_count,response_size,response_node_count,certificate_hash_count,consistency_proof_size,time_building_query,time_send_receive,time_verification,time_consistency,time_total
-    # print(df[df['response_node_count'] == 4290])
-    # print(df[df['certificate_hash_count'] == 63])
+    # print(df[df['response_node_count'] == 5924])
+    # print(df[df['certificate_hash_count'] == 60])
     # exit()
     assert len(df[df['certificate_hash_count'] == 0]) == 0
 
@@ -315,8 +327,9 @@ def main(
         ax=ax,
         fig=fig,
         legend="lower right",
-        show_quantile='line',
-        quantile_correction_factor=[0.4, 1.15],
+        show_quantile="line",
+        quantile_correction_factor=[1.5, 1.5],
+        # quantile_correction_factor=[0.4, 1.15],
         quantile_y=[0.95, 0.92]
     )
 
@@ -435,6 +448,7 @@ def main(
         ],
         linestyles=["dotted", "dashdot"],
         show_quantile="line",
+        quantile_correction_factor=[1.1, 1.1],
         # quantile_correction_factor=[0.55, 1.15],
         # quantile_y=[0.935, 0.935]
     )
