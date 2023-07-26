@@ -96,7 +96,7 @@ def main(
     # fig.subplots_adjust(bottom=0.16, left=0.06, right=0.99)
 
     ax.set_yscale("linear")
-    ax.set_ylabel("CDF")
+    # ax.set_ylabel("CDF")
     ax.set_xlabel("certificate size in B")
 
     cdf_plot(
@@ -119,7 +119,7 @@ def main(
     # fig.subplots_adjust(bottom=0.16, left=0.06, right=0.99)
 
     ax.set_yscale("linear")
-    ax.set_ylabel("CDF")
+    # ax.set_ylabel("CDF")
     ax.set_xlabel("certificate size in B")
 
     df_reduced = df[df['length'] <= 3091]

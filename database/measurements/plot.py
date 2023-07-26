@@ -50,6 +50,10 @@ for file in files:
         queries_per_second_std=('queries_per_second', 'std'),
     ).reset_index()
 
+    print(file)
+    print(df)
+    print("-" * 80)
+
     for r in df['query_radius_m'].unique():
         x = df[(df['query_radius_m'] == r)]
 
@@ -69,10 +73,10 @@ plt.savefig(f"{CURRENT_DIR}/plot.png")
 plt.close()
 
 fig, ax = plt.subplots(figsize=(6, 3), dpi=300)
-fig.subplots_adjust(bottom=0.16, left=0.09, right=0.99)
+fig.subplots_adjust(bottom=0.16, left=0.06, right=0.99)
 ax.set_xlabel("SMT depth")
 ax.set_yscale("linear")
-ax.set_ylabel("CDF")
+# ax.set_ylabel("CDF")
 
 df = pd.read_csv(os.path.join(CURRENT_DIR, "depth.csv"))
 df['smt_depth'] = df['smt_depth_xy'] + df['smt_depth_z']

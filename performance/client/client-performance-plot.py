@@ -40,10 +40,10 @@ def cdf_plot(
         fig.subplots_adjust(bottom=0.16, left=0.09, right=0.99)
         # UNCOMMENT FOR PAPER PLOTS
         # fig.set_figwidth(9)
-        # fig.subplots_adjust(top=0.99, bottom=0.19, left=0.08, right=0.995)
+        # fig.subplots_adjust(top=0.99, bottom=0.19, left=0.05, right=0.995)
 
         ax.set_yscale("linear")
-        ax.set_ylabel("CDF")
+        # ax.set_ylabel("CDF")
         ax.set_xlabel(xlabel)
         if not base is None:
             ax.set_xscale("log", base=base)
