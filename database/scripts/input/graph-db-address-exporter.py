@@ -35,14 +35,14 @@ class GeoCertificate:
         self,
         domain: str,
         area: MultiPolygon,
-        area_id: str,
+        certificate_id: str,
         parents: np.ndarray,
         children: np.ndarray,
     ) -> None:
 
         self.domain = domain
         self.area = area
-        self.area_id = area_id
+        self.certificate_id = certificate_id
         self.parents: List[str] = parents.tolist()
         self.children: List[str] = children.tolist()
 
@@ -51,7 +51,7 @@ class GeoCertificate:
             {
                 'domain': self.domain,
                 'area': json.loads(to_geojson(self.area)),
-                # 'area_id': self.area_id,
+                # 'certificate_id': self.certificate_id,
                 # 'parents': self.parents,
                 # 'children': self.children,
             },
@@ -182,17 +182,17 @@ def main(
             continue
 
         # china
-        # if row['area_id'] != "rel:270056":
+        # if row['certificate_id'] != "rel:270056":
         #     continue
 
         # ethz
-        # if not "way:192151232" in row['area_id']:
+        # if not "way:192151232" in row['certificate_id']:
         #     continue
 
-        # 'area_id', 'polygons', 'parents', 'children', 'domain'
+        # 'certificate_id', 'list_of_multipolygons', 'parents', 'children', 'domain'
         valid_polygons = [
             polygon
-            for polygon in row['polygons']
+            for polygon in row['list_of_multipolygons']
             # exclude not proper areas
             if polygon[0] == polygon[-1]
         ]
@@ -200,10 +200,10 @@ def main(
         if len(valid_polygons) <= 0:
             continue
 
-        area_id = row['area_id']
+        certificate_id = row['certificate_id']
 
         # China
-        # if area_id == "rel:270056":
+        # if certificate_id == "rel:270056":
         #     plot = True
 
         parents = row['parents']
@@ -222,7 +222,7 @@ def main(
         geo_cert = GeoCertificate(
             domain=domain,
             area=multi_polygon,
-            area_id=area_id,
+            certificate_id=certificate_id,
             parents=parents,
             children=children,
         )

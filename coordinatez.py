@@ -679,20 +679,26 @@ class DiscretizedVoxel:
         assert coordinate.longitude >= -180
         assert coordinate.longitude <= 180
 
-        x = math.floor(
-            (
-                (coordinate.longitude + 180) / 360
-            ) * DiscretizedVoxel.C_X
-        )
+        if coordinate.longitude == 180:
+            x = DiscretizedVoxel.C_X
+        else:
+            x = math.floor(
+                (
+                    (coordinate.longitude + 180) / 360
+                ) * (DiscretizedVoxel.C_X + 1)
+            )
 
         assert coordinate.latitude >= -90
         assert coordinate.latitude <= 90
 
-        y = math.floor(
-            (
-                (coordinate.latitude + 90) / 180
-            ) * DiscretizedVoxel.C_Y
-        )
+        if coordinate.latitude == 90:
+            y = DiscretizedVoxel.C_Y
+        else:
+            y = math.floor(
+                (
+                    (coordinate.latitude + 90) / 180
+                ) * (DiscretizedVoxel.C_Y + 1)
+            )
 
         z = math.floor(
             (coordinate.altitude - DiscretizedVoxel.D) / DiscretizedVoxel.U
