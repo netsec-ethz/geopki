@@ -5,6 +5,16 @@ import matplotlib.pyplot as plt
 
 FILE_PATH = os.path.realpath(__file__)
 
+# https://stackoverflow.com/a/39566040/2897827
+MEDIUM_SIZE = 16
+plt.rc('font', size=MEDIUM_SIZE)       # controls default text sizes
+plt.rc('axes', titlesize=MEDIUM_SIZE)  # fontsize of the axes title
+plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+plt.rc('xtick', labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
+plt.rc('ytick', labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
+plt.rc('legend', fontsize=MEDIUM_SIZE)  # legend fontsize
+plt.rc('figure', titlesize=MEDIUM_SIZE)  # fontsize of the figure title
+
 
 def cdf_plot(
     label: str,
@@ -51,6 +61,7 @@ def cdf_plot(
             [ninety_five],
             [ninety_five_p],
             marker="o",
+            s=100,
             facecolors='none',
             edgecolors=color
         )
@@ -90,10 +101,8 @@ def main(
 
     fig, ax = plt.subplots(dpi=300)
     fig.set_figheight(3)
-    fig.set_figwidth(6)
-    fig.subplots_adjust(bottom=0.16, left=0.09, right=0.99)
-    # fig.set_figwidth(9)
-    # fig.subplots_adjust(bottom=0.16, left=0.06, right=0.99)
+    fig.set_figwidth(9)
+    fig.subplots_adjust(top=0.99, bottom=0.2, left=0.07, right=0.995)
 
     ax.set_yscale("linear")
     # ax.set_ylabel("CDF")
@@ -106,17 +115,15 @@ def main(
         "solid",
         quantile=0.99,
         quantile_correction_factor=40,
-        quantile_y=0.9
+        quantile_y=0.88
     )
 
     plt.savefig(f"{output_path}/cert-sizes-cdf.png")
 
     fig, ax = plt.subplots(dpi=300)
     fig.set_figheight(3)
-    fig.set_figwidth(6)
-    fig.subplots_adjust(bottom=0.16, left=0.09, right=0.99)
-    # fig.set_figwidth(9)
-    # fig.subplots_adjust(bottom=0.16, left=0.06, right=0.99)
+    fig.set_figwidth(9)
+    fig.subplots_adjust(top=0.99, bottom=0.2, left=0.07, right=0.995)
 
     ax.set_yscale("linear")
     # ax.set_ylabel("CDF")
@@ -131,7 +138,7 @@ def main(
         "solid",
         quantile=0.99,
         quantile_correction_factor=0.96,
-        quantile_y=0.875
+        quantile_y=0.85
     )
 
     # plt.legend()

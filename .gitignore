@@ -167,3 +167,4 @@ database/measurements/depth.csv
 database/measurements/leaves.csv
 database/measurements/altitude.csv
 performance/throughput/throughput.png
+performance/ingestion/ingestion.png
