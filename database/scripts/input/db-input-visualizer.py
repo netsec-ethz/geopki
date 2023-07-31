@@ -65,10 +65,12 @@ def grow_initial_area(initial_area: DiscretizedVoxel, area: float, f_grow: float
     type=float,
     default=1
 )
+@click.option('--voxels', 'voxels', flag_value=True, default=False)
 def main(
     input_path: str,
     output_path: str,
     f_grow: float,
+    voxels: bool,
 ):
 
     if input_path.endswith(".parquet"):
@@ -95,13 +97,13 @@ def main(
             continue
 
         # china
-        # if row['certificate_id'] != "rel:270056":
-        #     continue
-        # else:
-        #     # only show mainland china
-        #     row['list_of_multipolygons'] = [[
-        #         row['list_of_multipolygons'][0][0]
-        #     ]]
+        if row['certificate_id'] != "rel:270056":
+            continue
+        else:
+            # only show mainland china
+            row['list_of_multipolygons'] = [[
+                row['list_of_multipolygons'][0][0]
+            ]]
 
         # switzerland
         # if row['certificate_id'] != "rel:51701":
@@ -112,8 +114,8 @@ def main(
         #     continue
 
         # cab
-        if not "way:21976547" in row['certificate_id']:
-            continue
+        # if not "way:21976547" in row['certificate_id']:
+        #     continue
 
         # relation:10002398
         # if not "rel:10002398" in row['certificate_id']:
@@ -184,7 +186,7 @@ def main(
                     # area=multi_polygon.area,
                     area=polygon.area,
                     f_grow=f_grow,
-                    plot=True
+                    plot=(not voxels)
                 )
             )
 
@@ -219,7 +221,7 @@ def main(
                     a.y_min / (1 << (DiscretizedVoxel.Y_BITS - a.y_precision))
                 ) % 2 == 0
 
-                if ((is_even_row and is_even_column) or (not is_even_row and not is_even_column)):
+                if ((is_even_row and is_even_column) or (not is_even_row and not is_even_column)) and not voxels:
                     # gpd.GeoSeries(asa).plot(
                     #     ax=ax,
                     #     facecolor="tab:olive",
@@ -230,7 +232,7 @@ def main(
                         x,
                         y,
                         color="tab:blue",
-                        linestyle="solid",
+                        linestyle="dotted",
                         linewidth=1,
                         zorder=5
                     )
@@ -335,10 +337,21 @@ def main(
                 bit_string, ""
             ).to_shapely_area()
 
-            if border == None:
-                border = poly
+            if voxels:
+                x, y = poly.exterior.xy
+                plt.plot(
+                    x,
+                    y,
+                    color="tab:blue",
+                    linestyle="solid",
+                    linewidth=2,
+                    zorder=5
+                )
             else:
-                border = border.union(poly)
+                if border == None:
+                    border = poly
+                else:
+                    border = border.union(poly)
 
             #  plt.plot(x, y, color="tab:purple", linestyle="solid", linewidth=1)
 
@@ -348,19 +361,9 @@ def main(
         #     plt.plot(x, y, color="black", linestyle=(0, (1, 1)))
 
         # plot boundary
-        if isinstance(border, Polygon):
-            x, y = border.exterior.xy
-            plt.plot(
-                x,
-                y,
-                color="tab:blue",
-                linestyle="solid",
-                linewidth=2,
-                zorder=5
-            )
-        elif isinstance(border, MultiPolygon):
-            for polygon in border.geoms:
-                x, y = polygon.exterior.xy
+        if not voxels:
+            if isinstance(border, Polygon):
+                x, y = border.exterior.xy
                 plt.plot(
                     x,
                     y,
@@ -369,6 +372,17 @@ def main(
                     linewidth=2,
                     zorder=5
                 )
+            elif isinstance(border, MultiPolygon):
+                for polygon in border.geoms:
+                    x, y = polygon.exterior.xy
+                    plt.plot(
+                        x,
+                        y,
+                        color="tab:blue",
+                        linestyle="solid",
+                        linewidth=2,
+                        zorder=5
+                    )
 
         print("xlim:", plt.xlim())
         print("ylim:", plt.ylim())
@@ -382,7 +396,7 @@ def main(
         # plt.xlim(8.547981262207031, 8.549491882324219)
         # plt.ylim(47.3778018951416, 47.37893486022949)
         plt.tight_layout()
-        plt.savefig(output_path)
+        plt.savefig(output_path, bbox_inches='tight')
         plt.close()
         exit()
 
