@@ -55,7 +55,7 @@ def main(
         f = open(output_path, "a")
     else:
         f = open(output_path, "w")
-        f.write(f"longitude,latitude,radius,request_size,request_bit_string_count,response_size,response_node_count,certificate_hash_count,consistency_proof_size,time_building_query,time_send_receive,time_verification,time_consistency,time_total,include_certificates\n")
+        f.write(f"longitude,latitude,radius,request_size,request_bit_string_count,response_size,response_node_count,total_certificate_hash_count,certificate_hash_count,consistency_proof_size,time_building_query,time_send_receive,time_verification,time_consistency,time_total,include_certificates\n")
         f.flush()
 
     query_locations = sample(sampling_map_path, location_count)

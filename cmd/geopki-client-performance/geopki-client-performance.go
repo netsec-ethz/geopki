@@ -121,8 +121,13 @@ func main() {
 	consistency = time.Since(start)
 	total = time.Since(clientStart)
 
+	certificateHashCount := 0
+	for _, n := range response.Nodes {
+		certificateHashCount += len(n.GetCertificateHashes())
+	}
+
 	fmt.Printf(
-		"%f,%f,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%t\n",
+		"%f,%f,%d,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%t\n",
 		longitude,
 		latitude,
 		radius,
@@ -133,6 +138,8 @@ func main() {
 		// nodes in the response
 		len(response.Nodes),
 		// number of certificate hashes in the response
+		certificateHashCount,
+		// number of unique certificate hashes in the response
 		certificateHashes.Cardinality(),
 		// size of the consistency proof
 		len(response.InclusionProof),

@@ -1,6 +1,7 @@
 import click
 import os
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 
 FILE_PATH = os.path.realpath(__file__)
@@ -281,9 +282,20 @@ def main(
         (df['time_send_receive'] / df['time_total'])
 
     # longitude,latitude,radius,request_size,request_bit_string_count,response_size,response_node_count,certificate_hash_count,consistency_proof_size,time_building_query,time_send_receive,time_verification,time_consistency,time_total
-    # print(df[df['response_node_count'] == 5924])
+    print(df[df['response_node_count'] == 5924])
     # print(df[df['certificate_hash_count'] == 60])
-    # exit()
+    # print(df['request_bit_string_count'])
+    # print(df[df['request_bit_string_count'] >= 10])
+    # print(df[df['request_size'] == 94])
+
+    # print(df[['request_size', 'request_bit_string_count']])
+    # z = np.polyfit(
+    #     df["request_bit_string_count"],
+    #     df["request_size"],
+    #     1
+    # )
+    # print(z)
+    exit()
     assert len(df[df['certificate_hash_count'] == 0]) == 0
 
     df_excluding_certificates = df[df['include_certificates'] == False]
