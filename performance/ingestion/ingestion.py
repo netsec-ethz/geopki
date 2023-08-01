@@ -107,6 +107,13 @@ def sample_polygon_in_polygon(polygon: Polygon) -> Polygon:
 
 def sample_random_altitude() -> tuple[float, float]:
     height = np.random.uniform(MIN_HEIGHT, MAX_HEIGHT)
+    # altitude = max(
+    #     min(
+    #         np.random.normal(loc=0, scale=50),
+    #         MAX_ALTITUDE - height
+    #     ),
+    #     MIN_ALTITUDE
+    # )
     altitude = np.random.uniform(MIN_ALTITUDE, MAX_ALTITUDE - height)
 
     return (altitude, altitude + height)
