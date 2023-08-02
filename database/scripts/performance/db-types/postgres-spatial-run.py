@@ -25,7 +25,6 @@ class ProcessArgs:
             db_pass: str,
             query_radius: int,
             batch_size: int,
-            count_only: bool,
             query_set_size: int,
             start_event: Event,
             ready_event: Event,
@@ -39,7 +38,6 @@ class ProcessArgs:
         self.db_pass = db_pass
         self.query_radius = query_radius
         self.batch_size = batch_size
-        self.count_only = count_only
         self.query_set_size = query_set_size
         self.start_event = start_event
         self.ready_event = ready_event
@@ -81,7 +79,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
 
         cursor.execute(
             ";".join([
-                f"SELECT {'COUNT(*)' if args.count_only else '*'} FROM query_by_cylinder_full_height("
+                f"SELECT * FROM query_by_cylinder_full_height("
                 f"ST_SetSRID(ST_Point({longitude}, {latitude}),4326)::geography,"
                 f"{altitude}::smallint,"
                 f"{args.query_radius}"
@@ -179,7 +177,6 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
     type=int,
     default=5000
 )
-@click.option('--count-only', 'count_only', flag_value=True, default=False)
 @click.option(
     '--batch-size',
     '-b',
@@ -199,7 +196,6 @@ def main(
     query_radius: int,
     batch_size: int,
     qps_set_size: int,
-    count_only: bool
 ):
 
     sampling_map = load_sampling_map(sampling_map_path)
@@ -239,7 +235,6 @@ def main(
                     db_pass=db_pass,
                     query_radius=query_radius,
                     batch_size=batch_size,
-                    count_only=count_only,
                     query_set_size=int(qps_set_size * time_s / num_threads),
                     start_event=start_event,
                     ready_event=ready_event,

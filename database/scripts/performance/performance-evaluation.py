@@ -65,7 +65,7 @@ QUERY_RADIUS_VALUES = [10]
 @click.option('--postgres-baseline', 'mode', flag_value="postgres_baseline")
 @click.option('--neo4j', 'mode', flag_value='neo4j')
 @click.option('--excluding-bit-string-computation', 'excluding_bit_string_computation', flag_value=True, default=False)
-@click.option('--count-only', 'count_only', flag_value=True, default=False)
+@click.option('--include-certs', 'include_certs', flag_value=True, default=False)
 @click.option('--batch-size', '-b', 'batch_size', type=int, default=100)
 @click.option('--qps-set-size', '-q', 'qps_set_size', type=int, default=1000)
 def main(
@@ -79,7 +79,7 @@ def main(
     repetitions: int,
     mode: Optional[str],
     excluding_bit_string_computation: bool,
-    count_only: bool,
+    include_certs: bool,
     batch_size: Optional[int],
     qps_set_size: int,
 ):
@@ -157,8 +157,8 @@ def main(
                 if excluding_bit_string_computation else []
             )
             + (
-                [f"--count-only"]
-                if count_only else []
+                [f"--include-certs"]
+                if include_certs else []
             )
             + (
                 [f"--batch-size={batch_size}"]

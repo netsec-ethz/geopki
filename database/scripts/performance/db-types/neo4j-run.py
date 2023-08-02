@@ -27,7 +27,6 @@ class ProcessArgs:
             db_pass: str,
             query_radius: int,
             batch_size: int,
-            count_only: bool,
             excluding_bit_string_computation: bool,
             query_set_size: int,
             start_event: Event,
@@ -41,7 +40,6 @@ class ProcessArgs:
         self.db_pass = db_pass
         self.query_radius = query_radius
         self.batch_size = batch_size
-        self.count_only = count_only
         self.excluding_bit_string_computation = excluding_bit_string_computation
         self.query_set_size = query_set_size
         self.start_event = start_event
@@ -108,8 +106,6 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
             ]
 
         result = neo4j_session.run(
-
-            ("CALL {" if args.count_only else "") +
             " UNION ".join([
                 f"MATCH (n:GeoNode {{bit_string: \"{bit_string}\"}})-[:LEFT_CHILD|RIGHT_CHILD *0..]->(ns) "
                 f"RETURN DISTINCT ns "
@@ -119,7 +115,6 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                 for bit_strings in queries
                 for bit_string in bit_strings
             ])
-            + ("} WITH COUNT(ns) as ns RETURN ns" if args.count_only else "")
         )
 
         # fetch all results
@@ -206,7 +201,6 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
     default=1000
 )
 @click.option('--excluding-bit-string-computation', 'excluding_bit_string_computation', flag_value=True, default=False)
-@click.option('--count-only', 'count_only', flag_value=True, default=False)
 @click.option(
     '--batch-size',
     '-b',
@@ -225,7 +219,6 @@ def main(
     query_radius: int,
     qps_set_size: int,
     excluding_bit_string_computation: bool,
-    count_only: bool,
     batch_size: int
 ):
 
@@ -265,7 +258,6 @@ def main(
                     db_pass=db_pass,
                     query_radius=query_radius,
                     batch_size=batch_size,
-                    count_only=count_only,
                     excluding_bit_string_computation=excluding_bit_string_computation,
                     query_set_size=int(qps_set_size * time_s / num_threads),
                     start_event=start_event,
