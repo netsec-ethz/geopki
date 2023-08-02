@@ -27,7 +27,7 @@ const (
 	CERT_SIZE_DISTRIBUTION_WRITE_BUFFER = 1000
 	ALTITUDE_DISTRIBUTION_WRITE_BUFFER  = 1000
 	MAX_FILE_SIZE                       = 300 * 1000 * 1000 // 300 MB
-	MAX_CERTIFICATE_SIZE                = 3328              // ≈ 3kB
+	MAX_CERTIFICATE_SIZE                = 3328              // 3.25KiB / 99% is below this
 	INSERT_INTO_NODES_STR               = "INSERT INTO nodes(bit_string_51,bit_string_15,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes) VALUES\n"
 	INSERT_INTO_CERTS_STR               = "INSERT INTO certificates(certificate_hash,certificate,not_valid_after) VALUES\n"
 )
