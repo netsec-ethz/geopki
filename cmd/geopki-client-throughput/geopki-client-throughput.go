@@ -246,7 +246,7 @@ CollectResults:
 	}
 
 	fmt.Printf(
-		"%d,%d,%t,%d,%d,[%s]\n",
+		"%d,%d,%t,%d,%d,\"[%s]\"\n",
 		threads,
 		runningTime,
 		includeCertificates,
