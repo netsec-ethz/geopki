@@ -129,7 +129,13 @@ def main(
     # ax.set_ylabel("CDF")
     ax.set_xlabel("certificate size in B")
 
-    df_reduced = df[df['length'] <= 3091]
+    df_reduced = df[df['length'] <= 3328]
+
+    print(f"reduced dataset")
+    print(f"total of {len(df_reduced)} certificates")
+    print(f"mean {df_reduced['length'].mean()}")
+    print(f"std: {df_reduced['length'].std()}")
+    print(f"median: {df_reduced['length'].median()}")
 
     cdf_plot(
         r"size $\geq$ 3091",
