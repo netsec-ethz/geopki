@@ -282,7 +282,7 @@ def main(
         (df['time_send_receive'] / df['time_total'])
 
     # longitude,latitude,radius,request_size,request_bit_string_count,response_size,response_node_count,certificate_hash_count,consistency_proof_size,time_building_query,time_send_receive,time_verification,time_consistency,time_total
-    print(df[df['response_node_count'] == 5924])
+    # print(df[df['response_node_count'] == 5924])
     # print(df[df['certificate_hash_count'] == 60])
     # print(df['request_bit_string_count'])
     # print(df[df['request_bit_string_count'] >= 10])
@@ -295,7 +295,7 @@ def main(
     #     1
     # )
     # print(z)
-    exit()
+    # exit()
     assert len(df[df['certificate_hash_count'] == 0]) == 0
 
     df_excluding_certificates = df[df['include_certificates'] == False]
@@ -304,7 +304,7 @@ def main(
     print("all")
     print_stats(df)
     print("excluding certificates")
-    print_stats(df_excluding_certificates)
+    # print_stats(df_excluding_certificates)
     print("including certificates")
     print_stats(df_including_certificates)
 
