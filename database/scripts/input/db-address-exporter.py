@@ -324,7 +324,7 @@ def main(
         # if not "way:192151232" in row['certificate_id']:
         #     continue
 
-        # 'certificate_id', 'list_of_polygons', 'list_of_levels', 'domain', 'min_building_level', 'max_building_level', 'parents', 'children'
+        # 'certificate_id', 'list_of_multipolygons', 'list_of_levels', 'domain', 'min_building_level', 'max_building_level', 'parents', 'children'
 
         # China
         # if certificate_id == "rel:270056":
