@@ -162,7 +162,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
             cursor.execute(
                 "SELECT certificate FROM certificates WHERE certificate_hash IN(" +
                 ",".join(
-                    "E'\\\\x" + hex_cert
+                    f"E'\\\\x{hex_cert}'"
                     for hex_cert in certificates
                 ) +
                 ")"
