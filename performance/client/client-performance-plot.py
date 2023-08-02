@@ -3,8 +3,6 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from ast import literal_eval
-from itertools import chain
 
 FILE_PATH = os.path.realpath(__file__)
 
@@ -17,30 +15,6 @@ plt.rc('xtick', labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
 plt.rc('ytick', labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
 plt.rc('legend', fontsize=MEDIUM_SIZE)  # legend fontsize
 plt.rc('figure', titlesize=MEDIUM_SIZE)  # fontsize of the figure title
-
-
-def get_95_percentile(data):
-    # https://stackoverflow.com/a/54317197
-    s = pd.Series(data, name='value')
-    df = pd.DataFrame(s)
-
-    stats_df = df.groupby('value')['value'] \
-        .agg('count') \
-        .pipe(pd.DataFrame) \
-        .rename(columns={'value': 'frequency'})
-
-    # PDF
-    stats_df['pdf'] = stats_df['frequency'] / sum(stats_df['frequency'])
-
-    # CDF
-    stats_df['cdf'] = stats_df['pdf'].cumsum()
-    stats_df = stats_df.reset_index()
-
-    ninety_five_row = stats_df[stats_df['cdf'] >= 0.95].iloc[0]
-    # ninety_five_p = ninety_five_row['cdf']
-    ninety_five = ninety_five_row['value']
-
-    return ninety_five
 
 
 def cdf_plot(
@@ -286,11 +260,9 @@ def print_stats(df):
 @click.command()
 @click.argument('input_path', type=click.Path(exists=True))
 @click.argument('output_path', type=click.Path(exists=False))
-@click.option('--throughput', 'throughput_input_path', type=click.Path(exists=True), default=None)
 def main(
     input_path: str,
-    output_path: str,
-    throughput_input_path: str,
+    output_path: str
 ):
 
     if os.path.isdir(input_path):
@@ -472,70 +444,25 @@ def main(
     ax.set_xticks([10 ** i for i in range(0, 2)])
     ax.grid(axis='x', color='silver', which='both')
 
-    if throughput_input_path:
-        if os.path.isdir(throughput_input_path):
-            raise Exception(f"throughput input path has to point to a file")
-
-        if not throughput_input_path.endswith(".csv"):
-            raise Exception(f"throughput input path extension has to be .csv")
-
-        # plot latency at peak throughput
-        df_throughput = pd.read_csv(
-            throughput_input_path,
-            converters={
-                "latencies": literal_eval
-            }
-        )
-        df_throughput = df_throughput.groupby(
-            by=['threads', 'include_certificates']
-        ).agg(
-            latencies=('latencies', lambda x: list(chain.from_iterable(x))),
-        ).reset_index()
-
-        latencies_at_peak_throughput = df_throughput[
-            (df_throughput['threads'] == 128) & (
-                df_throughput['include_certificates'] == True)
-        ].iloc[0]
-
-        # time_total
-        cdf_plot(
-            "total request time in ms",
-            df_including_certificates['time_total'] * 1000,
-            pd.Series(latencies_at_peak_throughput['latencies']) * 1000,
-            f"{output_path}/time-total-cdf.png",
-            ax=ax,
-            fig=fig,
-            legend="lower right",
-            labels=[
-                "total time seq.",
-                "total time par."
-            ],
-            linestyles=["dotted", "dashdot"],
-            show_quantile="line",
-            quantile_correction_factor=[1.1, 1.1],
-            # quantile_correction_factor=[0.55, 1.15],
-            quantile_y=[0.96, 0.935]
-        )
-    else:
-        # time_total
-        cdf_plot(
-            "total request time in ms",
-            df_excluding_certificates['time_total'] * 1000,
-            df_including_certificates['time_total'] * 1000,
-            f"{output_path}/time-total-cdf.png",
-            ax=ax,
-            fig=fig,
-            legend="lower right",
-            labels=[
-                "total time exc. certs",
-                "total time inc. certs"
-            ],
-            linestyles=["dotted", "dashdot"],
-            show_quantile="line",
-            quantile_correction_factor=[1.1, 1.1],
-            # quantile_correction_factor=[0.55, 1.15],
-            quantile_y=[0.96, 0.935]
-        )
+    # time_total
+    cdf_plot(
+        "total request time in ms",
+        df_excluding_certificates['time_total'] * 1000,
+        df_including_certificates['time_total'] * 1000,
+        f"{output_path}/time-total-cdf.png",
+        ax=ax,
+        fig=fig,
+        legend="lower right",
+        labels=[
+            "total time exc. certs",
+            "total time inc. certs"
+        ],
+        linestyles=["dotted", "dashdot"],
+        show_quantile="line",
+        quantile_correction_factor=[1.1, 1.1],
+        # quantile_correction_factor=[0.55, 1.15],
+        quantile_y=[0.96, 0.935]
+    )
 
     # query_build fraction
     # _, ax = cdf_plot(
