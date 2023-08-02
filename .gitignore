@@ -168,3 +168,6 @@ database/measurements/leaves.csv
 database/measurements/altitude.csv
 performance/throughput/throughput.png
 performance/ingestion/ingestion.png
+performance/cert-sizes/cert-sizes-cdf.png
+performance/cert-sizes/cert-sizes-reduced-cdf.png
+performance/throughput/throughput.csv

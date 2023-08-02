@@ -20,15 +20,16 @@ import (
 )
 
 const (
-	F_GROW                             = 0.1
-	CERTIFICATE_WRITE_BUFFER           = 1000
-	NODE_WRITE_BUFFER                  = 1000
-	SAMPLE_WRITE_BUFFER                = 1000
-	ALTITUDE_DISTRIBUTION_WRITE_BUFFER = 1000
-	MAX_FILE_SIZE                      = 300 * 1000 * 1000 // 300 MB
-	MAX_CERTIFICATE_SIZE               = 3091              // ≈ 3kB
-	INSERT_INTO_NODES_STR              = "INSERT INTO nodes(bit_string_51,bit_string_15,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes) VALUES\n"
-	INSERT_INTO_CERTS_STR              = "INSERT INTO certificates(certificate_hash,certificate,not_valid_after) VALUES\n"
+	F_GROW                              = 0.1
+	CERTIFICATE_WRITE_BUFFER            = 1000
+	NODE_WRITE_BUFFER                   = 1000
+	SAMPLE_WRITE_BUFFER                 = 1000
+	CERT_SIZE_DISTRIBUTION_WRITE_BUFFER = 1000
+	ALTITUDE_DISTRIBUTION_WRITE_BUFFER  = 1000
+	MAX_FILE_SIZE                       = 300 * 1000 * 1000 // 300 MB
+	MAX_CERTIFICATE_SIZE                = 3328              // ≈ 3kB
+	INSERT_INTO_NODES_STR               = "INSERT INTO nodes(bit_string_51,bit_string_15,xy_left_child_hash,xy_right_child_hash,z_left_child_hash,z_right_child_hash,certificate_hashes) VALUES\n"
+	INSERT_INTO_CERTS_STR               = "INSERT INTO certificates(certificate_hash,certificate,not_valid_after) VALUES\n"
 )
 
 type Coordinate struct {
@@ -548,6 +549,46 @@ func sampleWriter(
 	done <- true
 }
 
+func certSizeWriter(
+	fileName string,
+	certificateSizes chan int,
+	done chan bool,
+) {
+	file, err := os.Create(fileName)
+	if err != nil {
+		log.Fatalf("failed opening file %s: %v", fileName, err)
+	}
+
+	_, err = file.Write(
+		[]byte("length\n"),
+	)
+	if err != nil {
+		log.Fatalf("failed writing header to %s: %v", fileName, err)
+	}
+
+	for certificateSize := range certificateSizes {
+		// write certificate row
+		_, err := file.Write(
+			[]byte(
+				fmt.Sprintf(
+					"%d\n",
+					certificateSize,
+				),
+			),
+		)
+		if err != nil {
+			log.Fatalf("failed writing to file %s: %v", fileName, err)
+		}
+	}
+
+	err = file.Close()
+	if err != nil {
+		log.Fatalf("failed closing file %s: %v", fileName, err)
+	}
+
+	done <- true
+}
+
 func surfaceAltitudeWriter(
 	fileName string,
 	surfaceAltitudes chan *float64,
@@ -593,12 +634,14 @@ func main() {
 	var nodesOutputPath string
 	var certificatesOutputPath string
 	var sampleOutputPath string
+	var certSizeOutputPath string
 	var surfaceAltitudeOutputPath string
 
 	flag.StringVar(&inputPath, "input", "", "The path to the input .parquet file")
 	flag.StringVar(&nodesOutputPath, "nodes", "", "The path to the nodes output directory")
 	flag.StringVar(&certificatesOutputPath, "certs", "", "The path to certificates output directory")
 	flag.StringVar(&sampleOutputPath, "sampling-map", "", "The path to the sampling-map file")
+	flag.StringVar(&certSizeOutputPath, "cert-size-dist", "", "The path to the certificate size distribution file")
 	flag.StringVar(&surfaceAltitudeOutputPath, "altitude-dist", "", "The path to the altitude distribution file")
 	flag.Parse()
 
@@ -616,6 +659,10 @@ func main() {
 
 	if sampleOutputPath == "" {
 		log.Fatalf("'sample-map' flag must be set")
+	}
+
+	if certSizeOutputPath == "" {
+		log.Fatalf("'cert-size-dist' flag must be set")
 	}
 
 	if surfaceAltitudeOutputPath == "" {
@@ -656,6 +703,16 @@ func main() {
 		samplesFinishedWriting,
 	)
 
+	// setup channels for concurrently writing the certificate size distribution to disk
+	certificateSizes := make(chan int, CERT_SIZE_DISTRIBUTION_WRITE_BUFFER)
+	certSizesFinishedWriting := make(chan bool)
+	// start writer routine
+	go certSizeWriter(
+		certSizeOutputPath,
+		certificateSizes,
+		certSizesFinishedWriting,
+	)
+
 	// setup channels for concurrently writing the surface altitude distribution to disk
 	altitudes := make(chan *float64, ALTITUDE_DISTRIBUTION_WRITE_BUFFER)
 	altitudeFinishedWriting := make(chan bool)
@@ -684,6 +741,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("failed converting to a certificate: %v", err)
 		}
+		certificateSizes <- len(certificate.MarshaledCert)
 		if len(certificate.MarshaledCert) > MAX_CERTIFICATE_SIZE {
 			progressBar.Add(1)
 			continue
@@ -772,6 +830,7 @@ func main() {
 	// tell writers that they have all data
 	close(certificates)
 	close(samples)
+	close(certificateSizes)
 	close(altitudes)
 	progressBar.Exit()
 
@@ -843,6 +902,10 @@ func main() {
 
 	fmt.Printf("Waiting until all samples are written to disk..\n")
 	<-samplesFinishedWriting
+	fmt.Printf("Done!\n")
+
+	fmt.Printf("Waiting until all certificate size values are written to disk..\n")
+	<-certSizesFinishedWriting
 	fmt.Printf("Done!\n")
 
 	fmt.Printf("Waiting until all altitude values are written to disk..\n")
