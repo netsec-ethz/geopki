@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +26,7 @@ type Query struct {
 type Results struct {
 	successfulRequests int
 	failedRequests     int
+	latencies          []time.Duration
 }
 
 // mutex controlling whether the threads are running
@@ -73,6 +75,7 @@ func measureThroughput(
 
 	successfulRequests := 0
 	failedRequests := 0
+	latencies := make([]time.Duration, 0, numQueries)
 
 	// signal that we're ready
 	readyMutex.Unlock()
@@ -86,6 +89,7 @@ func measureThroughput(
 			results <- Results{
 				successfulRequests: successfulRequests,
 				failedRequests:     failedRequests,
+				latencies:          latencies,
 			}
 
 			// release running mutex
@@ -95,6 +99,8 @@ func measureThroughput(
 			return
 		}
 
+		before := time.Now()
+
 		// otherwise send query
 		_, _, _, err := comm.QueryMapServer(
 			address,
@@ -103,6 +109,7 @@ func measureThroughput(
 		)
 
 		now := time.Now()
+		latencies = append(latencies, now.Sub(before))
 
 		if err != nil {
 			// write error to stderr but continue, might be to overloaded server
@@ -212,6 +219,7 @@ func main() {
 	successfulRequests := 0
 	failedRequests := 0
 	resultCount := 0
+	var latencies []time.Duration
 
 CollectResults:
 	for {
@@ -220,6 +228,7 @@ CollectResults:
 		case res := <-results:
 			successfulRequests += res.successfulRequests
 			failedRequests += res.failedRequests
+			latencies = append(latencies, res.latencies...)
 			resultCount++
 		default:
 			// if no results are available anymore, stop
@@ -231,12 +240,18 @@ CollectResults:
 		log.Fatalf("Spawned %d threads but received %d results?!\n", threads, resultCount)
 	}
 
+	stringLatencies := make([]string, len(latencies))
+	for i, latency := range latencies {
+		stringLatencies[i] = fmt.Sprintf("%f", latency.Seconds())
+	}
+
 	fmt.Printf(
-		"%d,%d,%t,%d,%d\n",
+		"%d,%d,%t,%d,%d,[%s]\n",
 		threads,
 		runningTime,
 		includeCertificates,
 		successfulRequests,
 		failedRequests,
+		strings.Join(stringLatencies, ","),
 	)
 }

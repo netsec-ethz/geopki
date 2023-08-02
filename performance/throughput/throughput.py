@@ -46,7 +46,7 @@ def main(
     else:
         f = open(output_path, "w")
         f.write(
-            f"threads,time,include_certificates,successful_requests,failed_requests\n"
+            f"threads,time,include_certificates,successful_requests,failed_requests,latencies\n"
         )
         f.flush()
 
