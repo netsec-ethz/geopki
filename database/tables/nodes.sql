@@ -14,7 +14,6 @@ CREATE TABLE IF NOT EXISTS nodes
     z_left_child_hash bytea,
     z_right_child_hash bytea,
     certificate_hashes bytea[] NOT NULL DEFAULT '{}'::bytea[],
-    CONSTRAINT nodes_pkey PRIMARY KEY (bit_string_51, bit_string_15)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS bit_string_bit_idx
