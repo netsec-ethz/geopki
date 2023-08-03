@@ -136,7 +136,8 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(ctx *fasthttp.RequestCtx) {
 		// nodes table
 		"DROP INDEX IF EXISTS bit_string_bit_idx;"+
 			"DROP INDEX IF EXISTS bit_string_len;"+
-			"DROP INDEX IF EXISTS bit_string_integer_idx;",
+			"DROP INDEX IF EXISTS bit_string_integer_idx;"+
+			"ALTER TABLE nodes_next DROP CONSTRAINT nodes_next_pkey;",
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "dropping indices failed: %v\n", err)
@@ -147,6 +148,7 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(ctx *fasthttp.RequestCtx) {
 	fmt.Printf("Dropping indices took %f minutes.\n", time.Since(start).Minutes())
 
 	// create indices with the same names on 'nodes_next' and cluster the data accordingly
+	// also create primary key constraint on 'nodes'
 	start = time.Now()
 	_, err = tx.Exec(
 		ctx,
@@ -154,7 +156,8 @@ func (env *EndpointHandlerEnv) postRelaseNewVersion(ctx *fasthttp.RequestCtx) {
 			"CREATE INDEX IF NOT EXISTS bit_string_len ON nodes_next (LENGTH(bit_string_51), LENGTH(bit_string_15));"+
 			"CREATE INDEX IF NOT EXISTS bit_string_integer_idx ON nodes_next USING btree (bit_string_51_int ASC NULLS LAST);"+
 			"ALTER TABLE IF EXISTS nodes_next CLUSTER ON bit_string_integer_idx;"+
-			"CLUSTER nodes_next USING bit_string_integer_idx;",
+			"CLUSTER nodes_next USING bit_string_integer_idx;"+
+			"ALTER TABLE nodes ADD CONSTRAINT nodes_next_pkey PRIMARY KEY (bit_string_51, bit_string_15);",
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "creating indices failed: %v\n", err)
