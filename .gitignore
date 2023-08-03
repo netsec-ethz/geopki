@@ -171,3 +171,12 @@ performance/ingestion/ingestion.png
 performance/cert-sizes/cert-sizes-cdf.png
 performance/cert-sizes/cert-sizes-reduced-cdf.png
 performance/throughput/throughput.csv
+database/measurements/altitude-pdf.png
+database/measurements/altitude-cdf.png
+database/measurements/depth.png
+database/measurements/leaf-distribution.png
+database/measurements/plot.png
+performance/throughput/throughput-f01.csv
+performance/throughput/throughput-f01.png
+performance/throughput/throughput-f01.csv
+performance/throughput/throughput-f1.csv
