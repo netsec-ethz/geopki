@@ -94,7 +94,7 @@ def main(
     fig.set_figwidth(9)
     fig.subplots_adjust(top=0.99, bottom=0.2, left=0.09, right=0.995)
 
-    ax.set_xscale("log", base=2)
+    # ax.set_xscale("log", base=2)
     ax.set_xlabel("number of parallel goroutines")
     ax.set_yscale("linear")
     # ax.set_ylabel("queries per second")
