@@ -282,11 +282,12 @@ def main(
         (df['time_send_receive'] / df['time_total'])
 
     # longitude,latitude,radius,request_size,request_bit_string_count,response_size,response_node_count,certificate_hash_count,consistency_proof_size,time_building_query,time_send_receive,time_verification,time_consistency,time_total
-    # print(df[df['response_node_count'] == 5924])
-    # print(df[df['certificate_hash_count'] == 60])
+    # print(df[df['response_node_count'] == 4389])
+    # print(df[df['certificate_hash_count'] == 62])
     # print(df['request_bit_string_count'])
     # print(df[df['request_bit_string_count'] >= 10])
     # print(df[df['request_size'] == 94])
+    # exit()
 
     # print(df[['request_size', 'request_bit_string_count']])
     # z = np.polyfit(
