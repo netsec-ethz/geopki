@@ -29,7 +29,6 @@ class ProcessArgs:
             query_radius: int,
             batch_size: int,
             excluding_bit_string_computation: bool,
-            include_certs: bool,
             start_event: Event,
             ready_event: Event,
             stop_event: Event
@@ -43,7 +42,6 @@ class ProcessArgs:
         self.query_radius = query_radius
         self.batch_size = batch_size
         self.excluding_bit_string_computation = excluding_bit_string_computation
-        self.include_certs = include_certs
         self.start_event = start_event
         self.ready_event = ready_event
         self.stop_event = stop_event
@@ -152,23 +150,6 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
         res = cursor.fetchall()
         result_count_tmp = len(res)
 
-        if args.include_certs:
-            row = next(row for row in res if len(row[2]) > 0)
-            certificates = set(
-                bytes(certificate).hex()
-                for row in res
-                for certificate in row[2]
-            )
-            cursor.execute(
-                "SELECT certificate FROM certificates WHERE certificate_hash IN(" +
-                ",".join(
-                    f"E'\\\\x{hex_cert}'"
-                    for hex_cert in certificates
-                ) +
-                ")"
-            )
-            res = cursor.fetchall()
-
         # check whether we need to stop
         if args.stop_event.is_set():
             break
@@ -249,7 +230,6 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
     default=11  # ceil(10m * 1.005)
 )
 @click.option('--excluding-bit-string-computation', 'excluding_bit_string_computation', flag_value=True, default=False)
-@click.option('--include-certs', 'include_certs', flag_value=True, default=False)
 @click.option(
     '--batch-size',
     '-b',
@@ -268,7 +248,6 @@ def main(
     time_s: int,
     query_radius: int,
     excluding_bit_string_computation: bool,
-    include_certs: bool,
     batch_size: bool
 ):
     sampling_map = load_bit_string_sampling_map(sampling_map_path)
@@ -315,7 +294,6 @@ def main(
                     query_radius=query_radius,
                     batch_size=batch_size,
                     excluding_bit_string_computation=excluding_bit_string_computation,
-                    include_certs=include_certs,
                     start_event=start_event,
                     ready_event=ready_event,
                     stop_event=stop_event,
