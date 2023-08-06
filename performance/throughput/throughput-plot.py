@@ -144,7 +144,7 @@ def main(
                 label=f"failed including certificates"
             )
 
-    plt.legend(loc="upper left")
+    plt.legend(loc="lower right")
     # fig.tight_layout()
     # plt.show()
     plt.savefig(f"{output_path}/throughput.png")
