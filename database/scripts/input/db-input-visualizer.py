@@ -297,8 +297,9 @@ def main(
 
         # after computing the intersecting voxels, prune them and add the certificates to a map
         bit_string_idx = 0
-
         border = None
+
+        count = 0
 
         while bit_string_idx < len(intersecting_areas):
             bit_string = intersecting_areas[bit_string_idx]
@@ -333,6 +334,8 @@ def main(
                 continue
 
             # from this point on bit_string is sucessfully taken
+            count += 1
+
             poly = DiscretizedVoxel.from_bit_string_tuple(
                 bit_string, ""
             ).to_shapely_area()
@@ -398,6 +401,8 @@ def main(
         plt.tight_layout()
         plt.savefig(output_path, bbox_inches='tight')
         plt.close()
+
+        print(f"voxels: {count}")
         exit()
 
         # if row_i > 1:
