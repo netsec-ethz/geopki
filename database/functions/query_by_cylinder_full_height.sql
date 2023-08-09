@@ -30,8 +30,8 @@ RETURN QUERY (
     query_point,
     query_radius
   ) AND
-  min_altitude_of_bit_string(nodes.bit_string) <= 32767 AND
-  max_altitude_of_bit_string(nodes.bit_string) >= -1
+  nodes.altitude_min <= 32767 AND
+  nodes.altitude_max >= -1
 );
 END;
 $BODY$;
