@@ -28,20 +28,20 @@ ax.set_yscale("linear")
 
 file_to_fmt = {
     "performance-evaluation-spatial.csv": "o",
-    "performance-evaluation-bitstring.csv": "x",
+    # "performance-evaluation-bitstring.csv": "x",
     "performance-evaluation-bitstring-int-f1.csv": "h",
 }
 
 file_to_label = {
-    "performance-evaluation-spatial.csv": "spatial",
-    "performance-evaluation-bitstring.csv": "bit strings",
-    "performance-evaluation-bitstring-int-f1.csv": "bit string integers",
+    "performance-evaluation-spatial.csv": "spatial index",
+    # "performance-evaluation-bitstring.csv": "bit strings",
+    "performance-evaluation-bitstring-int-f1.csv": "integer range queries",
 }
 
 file_to_color = {
-    "performance-evaluation-spatial.csv": "#3498db",
-    "performance-evaluation-bitstring.csv": "#e74c3c",
-    "performance-evaluation-bitstring-int-f1.csv": "#27ae60",
+    "performance-evaluation-spatial.csv": "tab:blue",
+    # "performance-evaluation-bitstring.csv": "#e74c3c",
+    "performance-evaluation-bitstring-int-f1.csv": "tab:orange",
 }
 
 files = file_to_fmt.keys()
