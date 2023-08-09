@@ -1,16 +1,15 @@
 CREATE OR REPLACE FUNCTION public.query_by_cylinder_full_height(
 	query_point geography,
-	query_z smallint,
 	query_radius integer
 )
     RETURNS TABLE (
-		bit_string_51 bit varying(51) NOT NULL,
-    bit_string_15 bit varying(15) NOT NULL,
+		bit_string_51 bit varying(51),
+    bit_string_15 bit varying(15),
 		certificate_hashes bytea[],
 		xy_left_child_hash bytea,
     xy_right_child_hash bytea,
     z_left_child_hash bytea,
-    z_right_child_hash bytea,
+    z_right_child_hash bytea
 		--, area geography
 	)
     LANGUAGE 'plpgsql'
@@ -32,10 +31,7 @@ RETURN QUERY (
     query_radius
   ) AND
   min_altitude_of_bit_string(nodes.bit_string) <= 32767 AND
-  max_altitude_of_bit_string(nodes.bit_string) >= 0
+  max_altitude_of_bit_string(nodes.bit_string) >= -1
 );
 END;
 $BODY$;
-
-ALTER FUNCTION public.query_by_cylinder(geography, smallint, integer)
-    OWNER TO postgis_user;

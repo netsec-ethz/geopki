@@ -4,13 +4,13 @@ CREATE OR REPLACE FUNCTION public.query_by_cylinder(
 	query_radius integer
 )
     RETURNS TABLE (
-		bit_string_51 bit varying(51) NOT NULL,
-    bit_string_15 bit varying(15) NOT NULL,
+		bit_string_51 bit varying(51),
+    bit_string_15 bit varying(15),
 		certificate_hashes bytea[],
 		xy_left_child_hash bytea,
     xy_right_child_hash bytea,
     z_left_child_hash bytea,
-    z_right_child_hash bytea,
+    z_right_child_hash bytea
 		--, area geography
 	)
     LANGUAGE 'plpgsql'

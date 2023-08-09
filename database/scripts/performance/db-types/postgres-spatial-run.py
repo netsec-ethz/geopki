@@ -81,10 +81,9 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
             ";".join([
                 f"SELECT * FROM query_by_cylinder_full_height("
                 f"ST_SetSRID(ST_Point({longitude}, {latitude}),4326)::geography,"
-                f"{altitude}::smallint,"
                 f"{args.query_radius}"
                 f")"
-                for longitude, latitude, altitude in queries
+                for longitude, latitude in queries
             ])
         )
 
