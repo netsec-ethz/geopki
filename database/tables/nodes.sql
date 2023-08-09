@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS nodes
     xy_right_child_hash bytea,
     z_left_child_hash bytea,
     z_right_child_hash bytea,
-    certificate_hashes bytea[] NOT NULL DEFAULT '{}'::bytea[],
+    certificate_hashes bytea[] NOT NULL DEFAULT '{}'::bytea[]
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS bit_string_bit_idx
