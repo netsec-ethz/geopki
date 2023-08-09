@@ -168,7 +168,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
     '-r',
     'query_radius',
     type=int,
-    default=11  # ceil(10m * 1.005)
+    default=11  # ceil(10m * 1.0052)
 )
 @click.option(
     '--qps-set-size',

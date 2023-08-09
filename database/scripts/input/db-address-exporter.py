@@ -11,32 +11,25 @@ import gc
 import hashlib
 
 sys.path.insert(1, os.path.join(sys.path[0], '../../..'))  # noqa - prevent auto formatting
-from coordinates import ZOrderBitString, GeodeticCoordinate, extruded_polygons_to_bit_strings, polygons_to_2d_bit_strings
-from coordinatez import DiscretizedVoxel, extruded_polygons_to_bit_string_tuples
+# from coordinates import ZOrderBitString, GeodeticCoordinate, extruded_polygons_to_bit_strings, polygons_to_2d_bit_strings
+from coordinatez import DiscretizedVoxel, GeodeticCoordinate, extruded_polygons_to_bit_string_tuples
 
 INITIAL_AREA_FRACTION = 0.1
 MAX_FILE_SIZE = 300 * 1000 * 1000  # 300 MB
+MAX_CERTIFICATE_SIZE = 3328        # 3.25KiB / 99% is below this
 
 DEFAULT_HASH = hashlib.sha256(b"\x00").digest()
 
 INSERT_INTO_NODES_STR = (
     f"INSERT INTO nodes (" +
     ",".join([
-        "bit_string",
-        "area",
-        "left_child_hash",
-        "right_child_hash",
-        "certificate_hashes"
-    ]) +
-    f") VALUES\n"
-)
-INSERT_INTO_NODES_BITSTRING_INT_STR = (
-    f"INSERT INTO nodes (" +
-    ",".join([
-        "bit_string",
         "bit_string_51",
-        "left_child_hash",
-        "right_child_hash",
+        "bit_string_15",
+        "area",
+        "xy_left_child_hash",
+        "xy_right_child_hash",
+        "z_left_child_hash",
+        "z_right_child_hash",
         "certificate_hashes"
     ]) +
     f") VALUES\n"
@@ -272,18 +265,15 @@ def level_to_altitude(
 @click.argument('output_path_nodes', type=click.Path(exists=False))
 @click.argument('output_path_certificates', type=click.Path(exists=False))
 @click.option('--bitstring-zsub', 'mode', flag_value='bitstring-int-z-subtrees', default='bitstring-int-z-subtrees')
-@click.option('--bitstring', 'mode', flag_value='bitstring-int')
 @click.option('--spatial', 'mode', flag_value='spatial')
-@click.option('--full', 'full', flag_value=True, default=False)
 def main(
     input_path: str,
     output_path_nodes: str,
     output_path_certificates: str,
     mode: str,
-    full: bool,
 ):
 
-    if not mode in ["bitstring-int-z-subtrees", "bitstring-int", "spatial"]:
+    if not mode in ["bitstring-int-z-subtrees", "spatial"]:
         raise Exception(f"Unsupported mode '{mode}'")
 
     if input_path.endswith(".parquet"):
@@ -368,6 +358,9 @@ def main(
             children=children,
         )
 
+        if len(geo_cert.to_cert()) > MAX_CERTIFICATE_SIZE:
+            continue
+
         geo_certificates.append(
             geo_cert
         )
@@ -381,82 +374,39 @@ def main(
                 for polygon in multipolygon
             ]
 
-            if mode == "bitstring-int-z-subtrees":
-                for xy_bit_string, z_bit_string in extruded_polygons_to_bit_string_tuples(
-                    polygons=shapely_polygons,
-                    altitude_min=altitude_min,
-                    altitude_max=altitude_max,
-                    f_grow=INITIAL_AREA_FRACTION
-                ):
-                    if (xy_bit_string, z_bit_string) in bit_string_map:
-                        bit_string_map[(xy_bit_string, z_bit_string)].certificate_hashes.add(
-                            geo_cert.hash()
-                        )
-                    else:
-                        bit_string_map[(xy_bit_string, z_bit_string)] = BitStringRow(
-                            certificate_hashes=set([geo_cert.hash()])
-                        )
+            for xy_bit_string, z_bit_string in extruded_polygons_to_bit_string_tuples(
+                polygons=shapely_polygons,
+                altitude_min=altitude_min,
+                altitude_max=altitude_max,
+                f_grow=INITIAL_AREA_FRACTION
+            ):
+                if (xy_bit_string, z_bit_string) in bit_string_map:
+                    bit_string_map[(xy_bit_string, z_bit_string)].certificate_hashes.add(
+                        geo_cert.hash()
+                    )
+                else:
+                    bit_string_map[(xy_bit_string, z_bit_string)] = BitStringRow(
+                        certificate_hashes=set([geo_cert.hash()])
+                    )
 
-                    # iterate over all prefixes of that bit string and add them to bit_string_map
-                    # first iterate over prefixes of z_bit_string, including the empty string ''
-                    for i in range(0, len(z_bit_string)):
-                        z_bit_string_prefix = z_bit_string[:i]
-                        if not ((xy_bit_string, z_bit_string_prefix) in bit_string_map):
-                            # add an empty entry
-                            bit_string_map[(xy_bit_string, z_bit_string_prefix)] = BitStringRow(
-                                certificate_hashes=set()
-                            )
-
-                    # next iterate over prefixes of xy_bit_string
-                    for i in range(0, len(xy_bit_string)):
-                        xy_bit_string_prefix = xy_bit_string[:i]
-                        if not ((xy_bit_string_prefix, '') in bit_string_map):
-                            # add an empty entry
-                            bit_string_map[(xy_bit_string_prefix, '')] = BitStringRow(
-                                certificate_hashes=set()
-                            )
-            else:
-
-                try:
-
-                    if full:
-                        bit_strings, _, _ = extruded_polygons_to_bit_strings(
-                            polygons=shapely_polygons,
-                            altitude_min=altitude_min,
-                            altitude_max=altitude_max,
-                            f_grow=INITIAL_AREA_FRACTION
-                        )
-                    else:
-                        bit_strings = polygons_to_2d_bit_strings(
-                            polygons=shapely_polygons,
-                            f_grow=INITIAL_AREA_FRACTION,
-                            # always over-approximate
-                            f_min=0
+                # iterate over all prefixes of that bit string and add them to bit_string_map
+                # first iterate over prefixes of z_bit_string, including the empty string ''
+                for i in range(0, len(z_bit_string)):
+                    z_bit_string_prefix = z_bit_string[:i]
+                    if not ((xy_bit_string, z_bit_string_prefix) in bit_string_map):
+                        # add an empty entry
+                        bit_string_map[(xy_bit_string, z_bit_string_prefix)] = BitStringRow(
+                            certificate_hashes=set()
                         )
 
-                    for bit_string in bit_strings:
-                        if (bit_string, '') in bit_string_map:
-                            bit_string_map[(bit_string, '')].certificate_hashes.add(
-                                geo_cert.hash()
-                            )
-                        else:
-                            bit_string_map[(bit_string, '')] = BitStringRow(
-                                certificate_hashes=set([geo_cert.hash()])
-                            )
-
-                        # iterate over all prefixes of that bit string and add them to bit_string_map
-                        for i in range(0, len(bit_string)):
-                            bit_string_prefix = bit_string[:i]
-                            if not ((bit_string_prefix, '') in bit_string_map):
-                                # add an empty entry
-                                bit_string_map[(bit_string_prefix, '')] = BitStringRow(
-                                    certificate_hashes=set()
-                                )
-
-                except Exception:
-                    # print the row that is the culprit
-                    print(row)
-                    raise
+                # next iterate over prefixes of xy_bit_string
+                for i in range(0, len(xy_bit_string)):
+                    xy_bit_string_prefix = xy_bit_string[:i]
+                    if not ((xy_bit_string_prefix, '') in bit_string_map):
+                        # add an empty entry
+                        bit_string_map[(xy_bit_string_prefix, '')] = BitStringRow(
+                            certificate_hashes=set()
+                        )
 
         # if row_i > 1:
         #     assert "1" in bit_string_map
@@ -484,12 +434,14 @@ def main(
         xy_left_child = (
             xy_bit_string + "0", ''
         ) if len(z_bit_string) == 0 else (
+            # some inexistent node
             "a", ""
         )
 
         xy_right_child = (
             xy_bit_string + "1", ''
         ) if len(z_bit_string) == 0 else (
+            # some inexistent node
             "a", ""
         )
 
@@ -560,22 +512,10 @@ def main(
         row = bit_string_map[bit_string_tuple]
 
         # string has to be of form POLYGON((lon lat, lon lat, ...))
-        if mode == "bitstring-int-z-subtrees":
-            polygon = voxel_bounds_to_2d_wkt_polygon(
-                DiscretizedVoxel.from_bit_string_tuple(
-                    bit_string_tuple[0], bit_string_tuple[1]
-                ).to_voxel_bounds()
-            )
-        else:
-            polygon = voxel_bounds_to_2d_wkt_polygon(
-                ZOrderBitString.from_bit_string(
-                    bit_string_tuple[0]
-                ).to_voxel_bounds()
-            )
-
-        bit_string_51_int = int(
-            bit_string_tuple[0][:51].ljust(51, '0'),
-            2
+        polygon = voxel_bounds_to_2d_wkt_polygon(
+            DiscretizedVoxel.from_bit_string_tuple(
+                bit_string_tuple[0], bit_string_tuple[1]
+            ).to_voxel_bounds()
         )
 
         xy_left_child_hash = "NULL" if (row.xy_left_child_hash is None or row.xy_left_child_hash ==
@@ -596,9 +536,7 @@ def main(
 
         # don't add comma on the first line
         if is_first_line:
-            if mode == "bitstring-int":
-                size += f.write(INSERT_INTO_NODES_BITSTRING_INT_STR)
-            elif mode == "bitstring-int-z-subtrees":
+            if mode == "bitstring-int-z-subtrees":
                 size += f.write(INSERT_INTO_NODES_BITSTRING_INT_Z_SUBTREES_STR)
             elif mode == "spatial":
                 size += f.write(INSERT_INTO_NODES_STR)
@@ -607,11 +545,7 @@ def main(
         else:
             size += f.write(",\n")
 
-        if mode == "bitstring-int":
-            size += f.write(
-                f"('{bit_string_tuple[0]}', {bit_string_51_int}, {xy_left_child_hash}, {xy_right_child_hash}, {certificate_hash_array})"
-            )
-        elif mode == "bitstring-int-z-subtrees":
+        if mode == "bitstring-int-z-subtrees":
             altitude_min = int(bit_string_tuple[1].ljust(15, "0"), 2)
             altitude_max = int(bit_string_tuple[1].ljust(15, "1"), 2) + 1
 
@@ -620,7 +554,7 @@ def main(
             )
         else:
             size += f.write(
-                f"(b'{bit_string_tuple[0]}', {polygon}, {xy_left_child_hash}, {xy_right_child_hash}, {certificate_hash_array})"
+                f"(b'{bit_string_tuple[0]}', b'{bit_string_tuple[1]}', {polygon}, {xy_left_child_hash}, {xy_right_child_hash}, {z_left_child_hash}, {z_right_child_hash}, {certificate_hash_array})"
             )
 
         if size >= MAX_FILE_SIZE:

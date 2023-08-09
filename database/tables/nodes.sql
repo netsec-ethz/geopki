@@ -1,7 +1,5 @@
 -- Table: nodes
 
--- DROP TABLE IF EXISTS nodes;
-
 CREATE TABLE IF NOT EXISTS nodes
 (
     bit_string_51 bit varying(51) NOT NULL,
@@ -21,7 +19,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS bit_string_bit_idx
     -- ON nodes USING hash
     (bit_string_51 ASC NULLS LAST, bit_string_15 ASC NULLS LAST);
 
-CREATE INDEX bit_string_len ON nodes (LENGTH(bit_string_51), LENGTH(bit_string_15));
+CREATE INDEX IF NOT EXISTS bit_string_len ON nodes (LENGTH(bit_string_51), LENGTH(bit_string_15));
 -- CREATE INDEX bit_string_len
 --     ON nodes USING hash
 --     (LENGTH(bit_string_51), LENGTH(bit_string_15));
