@@ -14,7 +14,7 @@ import os
 import psycopg2
 
 sys.path.insert(1, os.path.join(sys.path[0], '../../../../performance'))  # noqa - prevent auto formatting
-from sampling import load_bit_string_sampling_map, sample_df
+from sampling import load_bit_string_sampling_map
 
 
 class ProcessArgs:
@@ -78,8 +78,6 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
     )
 
     cursor = conn.cursor()
-
-    # pre-generate a query set
     query_set = args.query_set
 
     if args.excluding_bit_string_computation:

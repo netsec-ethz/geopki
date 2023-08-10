@@ -4,20 +4,23 @@ import pandas as pd
 import numpy as np
 from shapely import Point, Polygon
 from getpass import getpass
-from multiprocessing import Process, Event, Value
+from multiprocessing import Pool, Process, Event, Value
 import time
-import os
 import sys
+import os
+import itertools
+
 import psycopg2
 
 sys.path.insert(1, os.path.join(sys.path[0], '../../../../performance'))  # noqa - prevent auto formatting
-from sampling import load_sampling_map, sample_df
+sys.path.insert(1, os.path.join(sys.path[0], '../../../..'))  # noqa - prevent auto formatting
+from sampling import load_bit_string_sampling_map
 
 
 class ProcessArgs:
     def __init__(
             self,
-            sampling_map: pd.DataFrame,
+            query_set: list[str],
             db_host: str,
             db_port: int,
             db_name: str,
@@ -25,12 +28,12 @@ class ProcessArgs:
             db_pass: str,
             query_radius: int,
             batch_size: int,
-            query_set_size: int,
+            excluding_bit_string_computation: bool,
             start_event: Event,
             ready_event: Event,
             stop_event: Event
     ) -> None:
-        self.sampling_map = sampling_map
+        self.query_set = query_set
         self.db_host = db_host
         self.db_port = db_port
         self.db_name = db_name
@@ -38,10 +41,26 @@ class ProcessArgs:
         self.db_pass = db_pass
         self.query_radius = query_radius
         self.batch_size = batch_size
-        self.query_set_size = query_set_size
+        self.excluding_bit_string_computation = excluding_bit_string_computation
         self.start_event = start_event
         self.ready_event = ready_event
         self.stop_event = stop_event
+
+
+def bitstrings_to_query(bit_strings: Tuple[str]):
+    return [
+        (
+            # compute all prefixes of bit_string
+            [
+                f"b'{bit_string[:i]}'"
+                for i in range(1, bl)
+            ],
+            bit_string
+        )
+        for bit_string in bit_strings
+        # define local variable, requires python >= 3.8 (https://stackoverflow.com/a/55881984)
+        if (bl := len(bit_string))
+    ]
 
 
 def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_value: Value):
@@ -58,9 +77,13 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
     )
 
     cursor = conn.cursor()
+    query_set = args.query_set
 
-    # pre-generate a query set
-    query_set = sample_df(args.sampling_map, args.query_set_size)
+    if args.excluding_bit_string_computation:
+        query_set = [
+            bitstrings_to_query(q)
+            for q in query_set
+        ]
 
     # signal we're ready
     args.ready_event.set()
@@ -77,20 +100,52 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
 
         # execute query / queries
 
+        if not args.excluding_bit_string_computation:
+            queries = [
+                bitstrings_to_query(q)
+                for q in queries
+            ]
+
         cursor.execute(
-            ";".join([
-                f"SELECT * FROM query_by_cylinder_full_height("
-                f"ST_SetSRID(ST_Point({longitude}, {latitude}),4326)::geography,"
-                f"{args.query_radius}"
-                f")"
-                for longitude, latitude in queries
-            ])
+            ";".join(
+                [
+
+                    (
+                        f"SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash "
+                        f"FROM nodes "
+                        f"WHERE bit_string_51_txt IN (''," +
+                        ','.join(
+                            set(
+                                itertools.chain.from_iterable(
+                                    point_queries
+                                    for point_queries, _ in bit_strings
+                                )
+                            )
+                        ) + ") AND "
+                        f"altitude_min <= 32767 AND "
+                        f"altitude_max >= -1 UNION " +
+                        "UNION".join(
+                            [
+                                f"(SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash "
+                                f"FROM nodes WHERE "
+                                f"bit_string_txt LIKE '{bit_string}%' AND "
+                                f"altitude_min <= 32767 AND "
+                                f"altitude_max >= -1"
+                                f")"
+                                for _, bit_string in bit_strings
+                            ]
+                        )
+                    )
+                    for bit_strings in queries
+                ]
+            )
         )
 
         # simulate fetching all results
-        result_count_tmp = len(cursor.fetchall())
+        res = cursor.fetchall()
+        result_count_tmp = len(res)
 
-        # check whether we need to stop, if we have to do not count the last queries
+        # check whether we need to stop
         if args.stop_event.is_set():
             break
 
@@ -167,8 +222,9 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
     '-r',
     'query_radius',
     type=int,
-    default=11  # ceil(10m * 1.0052)
+    default=11  # ceil(10m * 1.005)
 )
+@click.option('--excluding-bit-string-computation', 'excluding_bit_string_computation', flag_value=True, default=False)
 @click.option(
     '--batch-size',
     '-b',
@@ -186,10 +242,11 @@ def main(
     num_threads: int,
     time_s: int,
     query_radius: int,
-    batch_size: int,
+    excluding_bit_string_computation: bool,
+    batch_size: bool
 ):
 
-    sampling_map = load_sampling_map(sampling_map_path)
+    sampling_map = load_bit_string_sampling_map(sampling_map_path)
 
     if db_pass is None:
         db_pass = getpass(
@@ -213,12 +270,18 @@ def main(
         for _ in range(num_threads)
     ]
 
+    queries_per_thread = len(sampling_map) // num_threads
+    query_set = sampling_map["bit_strings"].values
+
     processes: List[Process] = [
         Process(
             target=run_queries,
             args=(
                 ProcessArgs(
-                    sampling_map=sampling_map,
+                    query_set=query_set[
+                        i * queries_per_thread:
+                        (i + 1) * queries_per_thread
+                    ],
                     db_host=db_host,
                     db_port=db_port,
                     db_name=db_name,
@@ -226,6 +289,7 @@ def main(
                     db_pass=db_pass,
                     query_radius=query_radius,
                     batch_size=batch_size,
+                    excluding_bit_string_computation=excluding_bit_string_computation,
                     start_event=start_event,
                     ready_event=ready_event,
                     stop_event=stop_event,
@@ -252,7 +316,6 @@ def main(
         ready_event.wait()
 
     # give start signal
-    # start = time.time()
     start_event.set()
     # wait for the given time
     time.sleep(time_s)
@@ -262,8 +325,6 @@ def main(
     # wait for all of them to terminate
     for process in processes:
         process.join()
-
-    # stop = time.time()
 
     executed_queries = 0
     result_count = 0

@@ -58,15 +58,12 @@ QUERY_RADIUS_VALUES = [10]
     type=int,
     default=30
 )
-@click.option('--postgres-bitstrings', 'mode', flag_value='postgres_bitstrings', default=None)
+@click.option('--postgres-bitstrings-txt', 'mode', flag_value='postgres_bitstrings_txt', default=None)
 @click.option('--postgres-bitstrings-int', 'mode', flag_value='postgres_bitstrings_int', default=None)
-@click.option('--postgres-bitstrings-int-z', 'mode', flag_value='postgres_bitstrings_int_z', default=None)
 @click.option('--postgres-spatial', 'mode', flag_value='postgres_spatial', default=None)
 @click.option('--postgres-baseline', 'mode', flag_value="postgres_baseline")
-@click.option('--neo4j', 'mode', flag_value='neo4j')
 @click.option('--excluding-bit-string-computation', 'excluding_bit_string_computation', flag_value=True, default=False)
 @click.option('--batch-size', '-b', 'batch_size', type=int, default=100)
-@click.option('--qps-set-size', '-q', 'qps_set_size', type=int, default=1000)
 def main(
     sampling_map_path: str,
     output_path: str,
@@ -79,7 +76,6 @@ def main(
     mode: Optional[str],
     excluding_bit_string_computation: bool,
     batch_size: Optional[int],
-    qps_set_size: int,
 ):
 
     if not os.path.isfile(sampling_map_path):
@@ -111,8 +107,10 @@ def main(
         executable = "./db-types/postgres-baseline-run.py"
     elif mode == "postgres_spatial":
         executable = "./db-types/postgres-spatial-run.py"
-    elif mode == "postgres_bitstrings_int_z":
-        executable = "./db-types/postgres-bitstring-int-z-subtrees-run.py"
+    elif mode == "postgres_bitstrings_txt":
+        executable = "./db-types/postgres-bitstring-txt-run.py"
+    elif mode == "postgres_bitstrings_int":
+        executable = "./db-types/postgres-bitstring-int-run.py"
     else:
         raise Exception(f"Unkown mode '{mode}'")
 
@@ -140,10 +138,6 @@ def main(
                 f"--time={time_s}",
                 f"--query-radius={query_radius_m}",
             ]
-            + (
-                [f"--qps-set-size={qps_set_size}"]
-                if mode != "postgres_bitstrings_int_z" else []
-            )
             + (
                 [f"--excluding-bit-string-computation"]
                 if excluding_bit_string_computation else []
