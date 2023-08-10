@@ -128,7 +128,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                             [
                                 f"(SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash "
                                 f"FROM nodes WHERE "
-                                f"bit_string_txt LIKE '{bit_string}%' AND "
+                                f"bit_string_51_txt LIKE '{bit_string}%' AND "
                                 f"altitude_min <= 32767 AND "
                                 f"altitude_max >= -1"
                                 f")"
