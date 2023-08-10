@@ -52,7 +52,7 @@ def bitstrings_to_query(bit_strings: Tuple[str]):
         (
             # compute all prefixes of bit_string
             [
-                f"'{bit_string[:i]}'"
+                f"b'{bit_string[:i]}'"
                 for i in range(1, bl)
             ],
             bit_string
@@ -113,7 +113,7 @@ def run_queries(args: ProcessArgs, executed_queries_value: Value, result_count_v
                     (
                         f"SELECT bit_string_51, bit_string_15, certificate_hashes, xy_left_child_hash, xy_right_child_hash, z_left_child_hash, z_right_child_hash "
                         f"FROM nodes "
-                        f"WHERE bit_string_51_txt IN (''," +
+                        f"WHERE bit_string_51 IN (''," +
                         ','.join(
                             set(
                                 itertools.chain.from_iterable(
