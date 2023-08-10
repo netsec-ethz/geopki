@@ -52,7 +52,7 @@ def bitstrings_to_query(bit_strings: Tuple[str]):
         (
             # compute all prefixes of bit_string
             [
-                f"b'{bit_string[:i]}'"
+                f"'{bit_string[:i]}'"
                 for i in range(1, bl)
             ],
             bit_string
