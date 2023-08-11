@@ -21,27 +21,27 @@ CURRENT_DIR = os.path.dirname(FILE_PATH)
 
 fig, ax = plt.subplots(figsize=(9, 3), dpi=300)
 fig.subplots_adjust(top=0.99, bottom=0.2, left=0.1, right=0.995)
-ax.set_xscale("log", base=2)
+# ax.set_xscale("log", base=2)
 ax.set_xlabel("number of parallel processes")
 ax.set_yscale("linear")
 # ax.set_ylabel("queries per second")
 
 file_to_fmt = {
     "performance-evaluation-spatial.csv": "o",
-    # "performance-evaluation-bitstring.csv": "x",
+    "performance-evaluation-bitstring-txt-f1.csv": "x",
     "performance-evaluation-bitstring-int-f1.csv": "h",
 }
 
 file_to_label = {
     "performance-evaluation-spatial.csv": "spatial index",
-    # "performance-evaluation-bitstring.csv": "bit strings",
+    "performance-evaluation-bitstring-txt-f1.csv": "text-based prefix matching",
     "performance-evaluation-bitstring-int-f1.csv": "integer range queries",
 }
 
 file_to_color = {
     "performance-evaluation-spatial.csv": "tab:blue",
-    # "performance-evaluation-bitstring.csv": "#e74c3c",
-    "performance-evaluation-bitstring-int-f1.csv": "tab:orange",
+    "performance-evaluation-bitstring-txt-f1.csv": "tab:orange",
+    "performance-evaluation-bitstring-int-f1.csv": "tab:green",
 }
 
 files = file_to_fmt.keys()
@@ -78,7 +78,7 @@ for file in files:
         )
 
 # plt.grid()
-plt.legend(loc="upper left")
+plt.legend(loc="best")
 plt.savefig(f"{CURRENT_DIR}/plot.png")
 plt.close()
 

@@ -26,9 +26,9 @@ CREATE INDEX IF NOT EXISTS bit_string_len ON nodes (LENGTH(bit_string_51), LENGT
 
 -- create index for more efficient pattern matching
 -- https://dba.stackexchange.com/a/291250
-CREATE INDEX nodes_bit_string_text_pattern_ops_idx ON nodes(bit_string_txt COLLATE "C");
+CREATE INDEX nodes_bit_string_text_pattern_ops_idx ON nodes(bit_string_51_txt COLLATE "C");
 
--ALTER TABLE IF EXISTS nodes CLUSTER ON nodes_bit_string_text_pattern_ops_idx;
+ALTER TABLE IF EXISTS nodes CLUSTER ON nodes_bit_string_text_pattern_ops_idx;
 
 CLUSTER nodes USING nodes_bit_string_text_pattern_ops_idx;
 

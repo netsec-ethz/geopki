@@ -28,9 +28,7 @@ CREATE INDEX IF NOT EXISTS bit_string_integer_idx
     ON nodes USING btree
     (bit_string_51_int ASC NULLS LAST);
 
-ALTER TABLE IF EXISTS nodes
-    CLUSTER ON bit_string_integer_idx;
-
+ALTER TABLE IF EXISTS nodes CLUSTER ON bit_string_integer_idx;
 CLUSTER nodes USING bit_string_integer_idx;
 
 -- VACUUM FULL nodes;
