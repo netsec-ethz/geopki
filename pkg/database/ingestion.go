@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+// encodes a byte slice in a postgres compatible string
 func bytesSliceToPostgresArray(bs [][]byte) string {
 	encodedExpiredCertificateHashes := make([]string, len(bs))
 	for i, b := range bs {

@@ -10,19 +10,23 @@ import (
 	"geopki/pkg/bitstring"
 )
 
+// data type representing a SMT node
 type Node struct {
 	// the raw bit string associated with this node
 	bitstring.RawBitStringPair
 
+	// the node's children
 	xyLeftChild, xyRightChild, zLeftChild, zRightChild *Node
 
 	// the hashes of all children
 	// can be nil when sent as a response or when it is equal to the default hash
 	xyLeftChildHash, xyRightChildHash, zLeftChildHash, zRightChildHash SHA256Hash
 
+	// the certificate hashes associated with the SMT node
 	CertificateHashes []SHA256Hash
 }
 
+// initializes a new SMT node
 func NewNode(
 	XYBitString uint64,
 	XYBitStringLen uint8,
@@ -55,12 +59,12 @@ func NewNode(
 	}
 }
 
-// returns XYBitString and ZBitString as a pair struct
+// returns the node's bit string pair
 func (node *Node) Pair() bitstring.RawBitStringPair {
 	return node.RawBitStringPair
 }
 
-// returns the left xy child hash. if 'useDefault' is set, returns SHA256(0) if nil
+// returns the left xy child hash. if 'useDefault' is set, returns SHA256(0x00) if nil
 func (node *Node) XYLeftChildHash(useDefault bool) SHA256Hash {
 	if node.xyLeftChild != nil {
 		return node.xyLeftChild.Hash()
@@ -73,7 +77,7 @@ func (node *Node) XYLeftChildHash(useDefault bool) SHA256Hash {
 	return DEFAULT_HASH
 }
 
-// sets the xy left left hash
+// sets the xy left child hash
 func (node *Node) SetXYLeftChildHash(xyLeftChildHash SHA256Hash) error {
 	if node.xyLeftChild != nil {
 		return fmt.Errorf("tried setting xyLeftChild on node with non-nil xyLeftChild")
@@ -84,7 +88,7 @@ func (node *Node) SetXYLeftChildHash(xyLeftChildHash SHA256Hash) error {
 	return nil
 }
 
-// sets the xy left left node
+// sets the xy left child node
 func (node *Node) SetXYLeftChild(xyLeftChild *Node) error {
 	// can fail for non 2D nodes
 	child, err := node.RawBitStringPair.XYLeftChildPair()
@@ -112,7 +116,7 @@ func (node *Node) ClearXYLeftChild() {
 	node.xyLeftChildHash = nil
 }
 
-// returns the right xy child hash. if 'useDefault' is set, returns SHA256(0) if nil
+// returns the right xy child hash. if 'useDefault' is set, returns SHA256(0x00) if nil
 func (node *Node) XYRightChildHash(useDefault bool) SHA256Hash {
 	if node.xyRightChild != nil {
 		return node.xyRightChild.Hash()
@@ -164,7 +168,7 @@ func (node *Node) ClearXYRightChild() {
 	node.xyRightChildHash = nil
 }
 
-// returns the left z child hash. if 'useDefault' is set, returns SHA256(0) if nil
+// returns the left z child hash. if 'useDefault' is set, returns SHA256(0x00) if nil
 func (node *Node) ZLeftChildHash(useDefault bool) SHA256Hash {
 	if node.zLeftChild != nil {
 		return node.zLeftChild.Hash()
@@ -177,7 +181,7 @@ func (node *Node) ZLeftChildHash(useDefault bool) SHA256Hash {
 	return DEFAULT_HASH
 }
 
-// sets the z left left hash
+// sets the z left child hash
 func (node *Node) SetZLeftChildHash(zLeftChildHash SHA256Hash) error {
 	if node.zLeftChild != nil {
 		return fmt.Errorf("tried setting zLeftChild on node with non-nil zLeftChild")
@@ -188,7 +192,7 @@ func (node *Node) SetZLeftChildHash(zLeftChildHash SHA256Hash) error {
 	return nil
 }
 
-// sets the z left left node
+// sets the z left child node
 func (node *Node) SetZLeftChild(zLeftChild *Node) error {
 	if !node.RawBitStringPair.ZLeftChildPair().Equals(zLeftChild.RawBitStringPair) {
 		return fmt.Errorf("tried setting invalid z left child")
@@ -209,7 +213,7 @@ func (node *Node) ClearZLeftChild() {
 	node.zLeftChildHash = nil
 }
 
-// returns the right z child hash. if 'useDefault' is set, returns SHA256(0) if nil
+// returns the right z child hash. if 'useDefault' is set, returns SHA256(0x00) if nil
 func (node *Node) ZRightChildHash(useDefault bool) SHA256Hash {
 	if node.zRightChild != nil {
 		return node.zRightChild.Hash()
@@ -264,6 +268,7 @@ func (node *Node) SortedCertificateHashes() []SHA256Hash {
 	return hashes
 }
 
+// returns the sorted and concatenated certificate hashes
 func (node *Node) ConcatenatedCertificateHashes() []byte {
 	hashes := node.SortedCertificateHashes()
 
@@ -277,9 +282,13 @@ func (node *Node) ConcatenatedCertificateHashes() []byte {
 
 // computes the hash of the node
 func (node *Node) Hash() SHA256Hash {
+	// ensure the node is valid
 	if node.XYBitStringLen > bitstring.XY_BITS || node.ZBitStringLen > bitstring.Z_BITS {
 		log.Fatalf("invalid bit string pair with sizes (%d, %d)", node.XYBitStringLen, node.ZBitStringLen)
-	} else if node.XYBitStringLen == bitstring.XY_BITS && node.ZBitStringLen == bitstring.Z_BITS {
+	}
+
+	// handle special case of SMT leaves
+	if node.XYBitStringLen == bitstring.XY_BITS && node.ZBitStringLen == bitstring.Z_BITS {
 		// hash of a leaf
 		hash := sha256.Sum256(
 			append(
@@ -291,6 +300,8 @@ func (node *Node) Hash() SHA256Hash {
 
 		return hash[:]
 	}
+
+	// handle default case of intermediate nodes
 
 	// prepend 0x01
 	bytes := []byte{0x01}

@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// type to indentify a ct log server version, i.e. a specific STH
 type CTLogServer struct {
 	// the id of the log
 	LogId []byte
@@ -56,6 +57,7 @@ func (smh *MapHead) TBSBytes() []byte {
 	return tbsBytes
 }
 
+// signs the SMH
 func (smh *SignedMapHead) Sign(privateKey *ecdsa.PrivateKey) error {
 	signature, err := ecdsa.SignASN1(rand.Reader, privateKey, smh.TBSBytes())
 
@@ -68,10 +70,12 @@ func (smh *SignedMapHead) Sign(privateKey *ecdsa.PrivateKey) error {
 	return nil
 }
 
+// verifies the signature on the SMH using a public key
 func (smh *SignedMapHead) Verify(publicKey *ecdsa.PublicKey) bool {
 	return ecdsa.VerifyASN1(publicKey, smh.TBSBytes(), smh.Signature)
 }
 
+// serializes the SMH
 func (smh *SignedMapHead) Proto() *comm.SignedMapHead {
 	// create list of covered log servers
 	coveredCTLogServers := make([]*comm.CTLogServer, len(smh.CoveredCTLogServers))
@@ -95,6 +99,7 @@ func (smh *SignedMapHead) Marshal() ([]byte, error) {
 	return proto.Marshal(smh.Proto())
 }
 
+// returns a string representation for debugging
 func (smh *MapHead) String() string {
 	s := ""
 	s += fmt.Sprintf("%s at %d\n", base64.StdEncoding.EncodeToString(smh.RootHash), smh.Timestamp)
@@ -106,6 +111,7 @@ func (smh *MapHead) String() string {
 	return s
 }
 
+// creates a new SMH instance from received comm.SignedMapHead instances
 func NewSMHFromCommSMH(smh *comm.SignedMapHead) *SignedMapHead {
 
 	// create list of covered log servers
@@ -127,6 +133,7 @@ func NewSMHFromCommSMH(smh *comm.SignedMapHead) *SignedMapHead {
 	}
 }
 
+// creates a new SMH instanced based from received bytes
 func UnmarshalSignedMapHead(data []byte) (*SignedMapHead, error) {
 	smh := new(comm.SignedMapHead)
 

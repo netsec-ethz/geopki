@@ -21,6 +21,9 @@ type GeoCertArea struct {
 	Type        string                `json:"type"`
 }
 
+// compute S2 loops from a geo cert area
+// note that Loops are simply a polygon representation and no computations based on the shape
+// is performed in this function
 func (area *GeoCertArea) Loops() ([]*s2.Loop, error) {
 	if area.Type != "MultiPolygon" {
 		return nil, fmt.Errorf("area.Type must be equal to 'MultiPolygon'")
@@ -97,6 +100,7 @@ type GeoCertificate struct {
 	MarshaledCert []byte `json:"-"`
 }
 
+// unmarshals a geo certificate
 func UnmarshalGeoCertificate(marshaledCertificate []byte) (*GeoCertificate, error) {
 	certificate := new(GeoCertificate)
 	err := json.Unmarshal(marshaledCertificate, certificate)
@@ -119,11 +123,13 @@ func (cert *GeoCertificate) JSON() string {
 	return string(cert.MarshaledCert)
 }
 
+// computes the hash of a geo cert
 func (cert *GeoCertificate) Hash() SHA256Hash {
 	hash := sha256.Sum256(cert.MarshaledCert)
 	return hash[:]
 }
 
+// computes the SMT nodes for a given geo certificate and a relative grid suze 'fGrow'
 func (cert *GeoCertificate) BitStrings(fGrow float64) ([]*bitstring.RawBitStringPair, error) {
 	bitstrings := make([]*bitstring.RawBitStringPair, 0)
 

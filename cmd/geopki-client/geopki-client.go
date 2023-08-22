@@ -18,10 +18,12 @@ import (
 )
 
 const (
+	// the relative grid size used to compute bit strings based on the query volume
 	F_GROW = 1
 )
 
 func main() {
+	// CLI arguments described in the help messages below
 	var address string
 	var longitude, latitude, altitude float64
 	var radius uint64
@@ -41,14 +43,25 @@ func main() {
 	var publicKey *ecdsa.PublicKey
 
 	// set up timing variables
+	// shared start time for measuring durations
 	var start time.Time
 
+	// time for fetching and decoding the public key
 	var fetchingDecodingPublicKey time.Duration
+
+	// time for computing the query bit strings
 	var buildingQuery time.Duration
+
+	// time for sending a request and receiving a response
 	var request time.Duration
+
+	// time for locally verifying the response
 	var verification time.Duration
+
+	// time for locally verifiying the consistency
 	var consistency time.Duration
 
+	// start measuring 'fetchingDecodingPublicKey'
 	start = time.Now()
 
 	if len(publicKeyBase64) == 0 {
@@ -83,9 +96,10 @@ func main() {
 			)
 		}
 
-		// type assertion
+		// type assertion, crashes if the type does not match
 		publicKey = decodedPublicKey.(*ecdsa.PublicKey)
 	} else {
+		// if a public key was passed as a CLI argument, decode it
 		derPublicKey, err := base64.StdEncoding.DecodeString(publicKeyBase64)
 		if err != nil {
 			log.Fatalf(
@@ -94,8 +108,8 @@ func main() {
 			)
 		}
 
+		// and parse the decoded data
 		decodedPublicKey, err := x509.ParsePKIXPublicKey(derPublicKey)
-
 		if err != nil {
 			log.Fatalf(
 				"❌ failed parsing public key: %v",
@@ -103,19 +117,24 @@ func main() {
 			)
 		}
 
-		// type assertion
+		// type assertion, crashes if the type does not match
 		publicKey = decodedPublicKey.(*ecdsa.PublicKey)
 	}
 
+	// finish 'fetchingDecodingPublicKey' measurement
 	fetchingDecodingPublicKey = time.Since(start)
+	// start measuring 'buildingQuery'
 	start = time.Now()
 
+	// compute the query based on the input coordinates, radius and the relative grid size
 	query, err := comm.NewQuery(longitude, latitude, altitude, radius, F_GROW, &geometry.GdalCircleApproximator{})
 	if err != nil {
 		log.Fatalf("❌ building query: %v\n", err)
 	}
 
+	// finish 'buildingQuery' measurement
 	buildingQuery = time.Since(start)
+	// start measuring 'request'
 	start = time.Now()
 
 	response, requestSize, responseSize, err := comm.QueryMapServer(
@@ -127,7 +146,9 @@ func main() {
 		log.Fatalf("❌ request failed: %v\n", err)
 	}
 
+	// finish 'request' measurement
 	request = time.Since(start)
+	// start measuring 'verification'
 	start = time.Now()
 
 	// ensure the response is complete with respect to the query and
@@ -138,7 +159,9 @@ func main() {
 		log.Fatalf("❌ response verification failed: %v\n", err)
 	}
 
+	// finish 'verification' measurement
 	verification = time.Since(start)
+	// start measuring 'consistency'
 	start = time.Now()
 
 	// ensure the received signed map head is included in the consistency tree
@@ -148,7 +171,9 @@ func main() {
 		log.Fatalf("❌ consistency verification failed: %v\n", err)
 	}
 
+	// finish 'consistency' measurement
 	consistency = time.Since(start)
+
 	fmt.Printf("✅ Cryptographic verification of response succeeded!\n")
 
 	fmt.Printf("🏋️ Sizes\n")
@@ -169,6 +194,8 @@ func main() {
 	}
 
 	fmt.Printf("📡 Received %d certificates\n", len(response.GetCertificates()))
+
+	// iterate over received certificates and print their domain and id
 	for _, rawCertificate := range response.GetCertificates() {
 		// TODO: later this will probably parse a x509 certificate
 		certificate, err := crypto.UnmarshalGeoCertificate(rawCertificate)

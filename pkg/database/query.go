@@ -37,6 +37,8 @@ var pointQueryPool = sync.Pool{
 	},
 }
 
+// builds a query that selects all SMT nodes starting with one of the given bit strings
+// that intersect the provided altitude range
 func BuildNodeQuery(bitStrings []*comm.XYBitString, minAltitude, maxAltitude uint16) string {
 	// generate a query for each requested bit string pair
 	// and put them in an slice
@@ -178,6 +180,7 @@ var bitStringSetPool = sync.Pool{
 	},
 }
 
+// transforms queried rows into a set of SMT nodes. also filters out the SMT root hash
 func RowsToNodesAndRootHash(
 	rows pgx.Rows,
 	expectedResults int,
@@ -311,8 +314,11 @@ func RowsToNodesAndRootHash(
 	return responseNodes, rootHash, nil
 }
 
-// accepts a set of base64 encoded certificate hashes
-func BuildCertificateQuery(certificateStringHashes mapset.Set[string]) (string, error) {
+// builds a query selecting certificates with given hashes
+func BuildCertificateQuery(
+	// set of base64 encoded certificate hashes
+	certificateStringHashes mapset.Set[string],
+) (string, error) {
 	var query strings.Builder
 	query.WriteString("SELECT certificate FROM certificates WHERE certificate_hash IN(")
 

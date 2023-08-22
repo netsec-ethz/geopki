@@ -597,7 +597,7 @@ python3 performance/client/client-performance.py \
         --locations=100000
 ```
 
-For `f=0.1`, manually modify `cmd/bitstring-performance/bitstring-performance.go` and set `F_GROW=0.1` and re-build the binary using `make`.
+For `f=0.1`, manually modify `cmd/geopki-client-performance/geopki-client-performance.go` and set `F_GROW=0.1` and re-build the binary using `make`.
 
 ```
 make clean

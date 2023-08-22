@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+// checks if the certificates are properly json encoded
+// returns the number of certificates
 func checkValidity(certificatesJson []byte) (int, error) {
 	var certificates []*crypto.GeoCertificate
 	err := json.Unmarshal(certificatesJson, &certificates)
@@ -31,8 +33,9 @@ func main() {
 	flag.StringVar(&certificatesInput, "certificates", "[]", "The certificates that should be inserted")
 	flag.Parse()
 
+	// check if 'certificatesInput' points to a file
 	if _, err := os.Stat(certificatesInput); err == nil {
-		// read json from disk
+		// if it does, read json from disk
 		content, err := os.ReadFile(certificatesInput)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed reading file '%s': %v\n", certificatesInput, err)
@@ -41,15 +44,18 @@ func main() {
 
 		certificatesJson = content
 	} else {
+		// if it doesn't interpret the input as json directly
 		certificatesJson = []byte(certificatesInput)
 	}
 
+	// verify the input is valid json
 	certificateCount, err := checkValidity(certificatesJson)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "received invalid certificate set '%s': %v\n", certificatesInput, err)
 		os.Exit(1)
 	}
 
+	// gzip 'certificatesJson' before sending it to the server
 	var buf bytes.Buffer
 	zw, err := gzip.NewWriterLevel(&buf, gzip.BestCompression)
 	if err != nil {
@@ -68,8 +74,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	// start measuring ingestion time
 	start := time.Now()
 
+	// send request to ingest data
 	plainResponse, err := http.Post(
 		fmt.Sprintf("%s/v1/insert?key=%s", address, insertionKey),
 		"application/json",
@@ -80,6 +88,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// stop measuring ingestion time
 	runningTime := time.Since(start)
 
 	fmt.Printf(

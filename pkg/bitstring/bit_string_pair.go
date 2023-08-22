@@ -42,8 +42,10 @@ const (
 	H int16 = int16(C_Z) + int16(D)
 )
 
+// moving deltasfor the certificate to SMT node assignment algorithm
 var DELTAS = []int32{-1, 0, 1}
 
+// A surface bit string
 type XYBitString struct {
 	// The smallest x, and y coordinates of the voxel.
 	// Must be in `[0, C_X]` and `[0, C_Y]` respectively.
@@ -54,6 +56,7 @@ type XYBitString struct {
 	XPrecision, YPrecision uint8
 }
 
+// An altitude bit string
 type ZBitString struct {
 	// The smallest z coordinate of the voxel.
 	// Must be in `[0, C_Z]``
@@ -64,7 +67,7 @@ type ZBitString struct {
 	ZPrecision uint8
 }
 
-// this struct is analogous to the 'DiscretizedVoxel' class in '../coordinatez.py'
+// Bitstring pair consisting of a surface bit string and an altitude bit string
 type BitStringPair struct {
 	XYBitString
 	ZBitString
@@ -73,13 +76,20 @@ type BitStringPair struct {
 // generic interface for computing intersections
 // allows the dual use of gdal and s2 for the web demo
 type Geometry2D interface {
+	// given a bit string returns true or false if the geometry intersects the surface
+	// defined by the bit string
 	Intersects(bitstring *XYBitString) (bool, error)
+
+	// computes an initial surface bit string intersecting the geomtry.
+	// the surface bit string's precision is determined by the relative grid size 'fGrow'
 	InitialXYBitString(fGrow float64) (*XYBitString, error)
-	// some implementations might have to be freeded manually
+
+	// free's the allocated memory.
+	// some interface implementations' memory must be explicitly freed (GDAL)
 	Destroy()
 }
 
-// the s2 implementation of the 'Geometry2D' interface
+// the S2 implementation of the 'Geometry2D' interface
 type S2Geometry2D struct {
 	Loop *s2.Loop
 }
@@ -89,10 +99,13 @@ func (g *S2Geometry2D) Intersects(xyBitstring *XYBitString) (bool, error) {
 }
 
 func (g *S2Geometry2D) InitialXYBitString(fGrow float64) (*XYBitString, error) {
+	// get the geometry's polygon
 	polygon := g.Loop
 
+	// take the coordinates of some vertex
 	initialCoordinate := s2.LatLngFromPoint(polygon.Vertex(0))
 
+	// compute the most precise bit string corresponding to these coordinates
 	initialBitString, err := XYBitStringFromGeodeticCoordinates(
 		initialCoordinate.Lng.Degrees(),
 		initialCoordinate.Lat.Degrees(),
@@ -101,18 +114,22 @@ func (g *S2Geometry2D) InitialXYBitString(fGrow float64) (*XYBitString, error) {
 		return nil, err
 	}
 
-	// grow initial bitstring to 'maxArea'
+	// grow the bitstring until its area is at most 'maxArea'
 	maxArea := polygon.Area() * fGrow
 	currentArea := initialBitString.Loop().Area()
 
+	// every bit increases / decreases the area's size by a factor of two
+	// therefore, computing the logarithm of base two of this fraction
+	// tells us by how much the bit string's precision must be reduced
 	growSteps := math.Log2(maxArea / currentArea)
 
 	if growSteps < 0 {
-		// no shrinking is done so do nothing
+		// we cannot increase the precision -> noop, i.e. stay at the highest precision
 	} else if growSteps > float64(initialBitString.XPrecision+initialBitString.YPrecision) {
+		// it is not possible to decrease the precision beyond having a length of zero
 		return nil, fmt.Errorf("something seems off, cannot grow larger than the whole world (%f / %f = %f > %d;)", maxArea, currentArea, growSteps, initialBitString.XPrecision+initialBitString.YPrecision)
 	} else {
-
+		// decrease the surface bit string's precision by 'growSteps'
 		err = initialBitString.Grow2D(uint8(growSteps))
 		if err != nil {
 			return nil, err
@@ -748,8 +765,6 @@ func PolygonsTo2DBitStrings(polygons []Geometry2D, fGrow float64) ([]RawXYBitStr
 				continue
 			}
 
-			// println(LoopToGeoJson(voxel.Loop()))
-
 			// add to intersection list
 			intersectingAreas.Add(xyBitStringPair)
 
@@ -952,6 +967,7 @@ func ExtrudedPolygonsToBitStringPairs(
 	return bitStringPairs, nil
 }
 
+// turns a S2 loop into a geojson polygon
 func LoopToGeoPolygon(loop *s2.Loop) string {
 	vertices := loop.Vertices()
 	coordinates := make([]string, len(vertices)+1)
@@ -967,6 +983,7 @@ func LoopToGeoPolygon(loop *s2.Loop) string {
 	)
 }
 
+// turns a loop into a geojson feature
 func LoopToGeoJsonFeature(loop *s2.Loop) string {
 	return fmt.Sprintf(
 		"{\"type\":\"Feature\",\"properties\":{},\"geometry\":%s}",

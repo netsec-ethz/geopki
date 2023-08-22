@@ -217,6 +217,7 @@ func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa
 	return certificateStringHashes, nil
 }
 
+// ensure the consistency, i.e. verify the signature and the inclusion proof
 func EnsureConsistency(response *comm.Response, publicKey *ecdsa.PublicKey) error {
 	if response.GetSignedConsistencyHead() == nil {
 		return fmt.Errorf("response does not contain a SCH")

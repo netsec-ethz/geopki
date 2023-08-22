@@ -6,6 +6,7 @@ import (
 )
 
 var (
+	// a SMT root node instance
 	ROOT_NODE = RawBitStringPair{
 		RawXYBitString: RawXYBitString{
 			XYBitString:    0,
@@ -18,15 +19,17 @@ var (
 	}
 )
 
+// low-level representation of a surface bit string
 type RawXYBitString struct {
 	// the bit string encoding the x and y coordinate
-	//[7]byte interpreted as a big endian integer
+	// [7]byte interpreted as a big endian integer
 	XYBitString uint64
 	// the number of most siginifanct / first bits that are used
 	// has to be in [0, 52]
 	XYBitStringLen uint8
 }
 
+// low-level representation of an altitude bit string
 type RawZBitString struct {
 	// the bit string encoding the z coordinate
 	//[2]byte interpreted as a big endian integer
@@ -36,6 +39,7 @@ type RawZBitString struct {
 	ZBitStringLen uint8
 }
 
+// low-level representation of a bit string pair
 type RawBitStringPair struct {
 	// the bit string encoding the x and y coordinate
 	RawXYBitString
@@ -44,6 +48,7 @@ type RawBitStringPair struct {
 	RawZBitString
 }
 
+// returns the smaller number
 func min(a, b uint8) uint8 {
 	if a < b {
 		return a
@@ -51,16 +56,18 @@ func min(a, b uint8) uint8 {
 	return b
 }
 
-func deInterleaveOddBits(word uint64) uint32 {
+// given a 64 bit integer, returns the 32 bit integer consisting of all
+// bits with even indices (when starting to count at index 0)
+func deInterleaveEvenBits(word uint64) uint32 {
 	// 0xAA = 10101010, alternating ones and zeros; starting with one
 	// 0x55 = 01010101, alternating ones and zeros; starting with zero
 
-	// zero all even bits
+	// zero all odd bits
 	word = (word & 0x5555555555555555)
 	// after this we only want to move the bits closer together
 	// 0x33 = 00110011, alternating pairs of zeros and ones; starting with zeros
-	// copies odd bits to (cleared) even position to the right, leaves odd bits
-	// then masks out every other odd bit, they bits already moved closer together
+	// copies even bits to (cleared) odd position to the right, not touching even bits, or with 0 is noop
+	// then masks out every other even bit, the bits move closer together
 	// in groups of two
 	word = (word | (word >> 1)) & 0x3333333333333333
 	// 0x0F = 00001111, similar process to before but now groups of four
@@ -77,9 +84,8 @@ func deInterleaveOddBits(word uint64) uint32 {
 
 // de-interleaves the bits, returns the a pair of (even, odd) bits
 func deInterleaveUint64(input uint64) (uint32, uint32) {
-	// shift input by one bit to the right (make even bits odd and vice versa)
-	// last bit (51th) is an odd one, will become even but is then masked away
-	return deInterleaveOddBits(input >> 1), deInterleaveOddBits(input)
+	// shift input by one bit to the right to make even bits odd and vice versa
+	return deInterleaveEvenBits(input >> 1), deInterleaveEvenBits(input)
 }
 
 // returns an equivalent XYBitString instance
@@ -90,6 +96,7 @@ func (b RawXYBitString) BitString() *XYBitString {
 		// move the relevant bits to the end
 		XMin:       xMin >> (32 - X_BITS),
 		XPrecision: (b.XYBitStringLen + 1) / 2,
+
 		// move the relevant bits to the end
 		YMin:       yMin >> (32 - Y_BITS),
 		YPrecision: b.XYBitStringLen / 2,
@@ -99,6 +106,7 @@ func (b RawXYBitString) BitString() *XYBitString {
 // returns an equivalent ZBitString instance
 func (b RawZBitString) BitString() *ZBitString {
 	return &ZBitString{
+		// move the relevant bits to the end
 		ZMin:       b.ZBitString >> (16 - Z_BITS),
 		ZPrecision: b.ZBitStringLen,
 	}

@@ -112,6 +112,7 @@ func UnmarshalSignedConsistencyHead(data []byte) (*SignedConsistencyHead, error)
 	return NewSCHFromCommSCH(sch), nil
 }
 
+// signs the consistency head using a private key
 func SignConsistencyHead(consistencyHead *ConsistencyHead, privateKey *ecdsa.PrivateKey) (*SignedConsistencyHead, error) {
 	sch := &SignedConsistencyHead{
 		ConsistencyHead: *consistencyHead,

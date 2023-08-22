@@ -35,11 +35,14 @@ func (g *GdalGeometry2D) Intersects(xyBitstring *bitstring.XYBitString) (bool, e
 }
 
 func (g *GdalGeometry2D) InitialXYBitString(fGrow float64) (*bitstring.XYBitString, error) {
+	// get the geometry's polygon
 	polygon := g.Geometry
 
+	// take the coordinates of some vertex
 	exteriorRing := polygon.Geometry(0)
 	longitude, latitude, _ := exteriorRing.Point(0)
 
+	// compute the most precise bit string corresponding to these coordinates
 	initialBitString, err := bitstring.XYBitStringFromGeodeticCoordinates(
 		longitude,
 		latitude,
@@ -48,7 +51,7 @@ func (g *GdalGeometry2D) InitialXYBitString(fGrow float64) (*bitstring.XYBitStri
 		return nil, err
 	}
 
-	// grow initial bitstring to 'maxArea'
+	// grow the bitstring until its area is at most 'maxArea'
 	maxArea := polygon.Area() * fGrow
 
 	initialGeometry, err := BitStringToGdalGeometry(initialBitString)
@@ -61,13 +64,18 @@ func (g *GdalGeometry2D) InitialXYBitString(fGrow float64) (*bitstring.XYBitStri
 	// free memory
 	initialGeometry.Destroy()
 
+	// every bit increases / decreases the area's size by a factor of two
+	// therefore, computing the logarithm of base two of this fraction
+	// tells us by how much the bit string's precision must be reduced
 	growSteps := math.Log2(maxArea / currentArea)
 
 	if growSteps < 0 {
-		// polygon is smaller than the smallest bit string are -> do nothing
+		// we cannot increase the precision -> noop, i.e. stay at the highest precision
 	} else if growSteps > float64(initialBitString.XPrecision+initialBitString.YPrecision) {
+		// it is not possible to decrease the precision beyond having a length of zero
 		return nil, fmt.Errorf("something seems off, cannot grow larger than the whole world (%f / %f = %f > %d;)", maxArea, currentArea, growSteps, initialBitString.XPrecision+initialBitString.YPrecision)
 	} else {
+		// decrease the surface bit string's precision by 'growSteps'
 		err = initialBitString.Grow2D(uint8(growSteps))
 		if err != nil {
 			return nil, err
@@ -77,12 +85,14 @@ func (g *GdalGeometry2D) InitialXYBitString(fGrow float64) (*bitstring.XYBitStri
 	return initialBitString, nil
 }
 
+// de-allocate the geometry
 func (g *GdalGeometry2D) Destroy() {
 	g.Geometry.Destroy()
 }
 
 type GdalCircleApproximator struct{}
 
+// properly approximate a circle using GDAL
 func (s *GdalCircleApproximator) ApproximateCircle(longitude, latitude float64, radiusM uint8) (bitstring.Geometry2D, error) {
 	sphere := bitstring.ApproximateCircle(
 		longitude,

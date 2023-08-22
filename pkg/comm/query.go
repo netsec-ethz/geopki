@@ -36,6 +36,7 @@ type CircleApproximator interface {
 
 type S2CircleApproximator struct{}
 
+// approximate a circle using S2 possibly leading to inaccuracies
 func (s *S2CircleApproximator) ApproximateCircle(longitude, latitude float64, radiusM uint8) (bitstring.Geometry2D, error) {
 	sphere := bitstring.ApproximateCircle(
 		longitude,
@@ -197,6 +198,7 @@ func QueryMapServer(
 	return response, len(request), len(responseBody), nil
 }
 
+// same as 'QueryMapServer' but uses the standard http library instead of fasthttp
 func QueryMapServerSlow(
 	address string,
 	query *Query,

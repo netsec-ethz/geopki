@@ -16,12 +16,15 @@ import (
 )
 
 const (
+	// the relative grid size used to compute bit strings based on the query volume
 	F_GROW = 1
 )
 
 func main() {
+	// start measuring time for the total running time of the application
 	clientStart := time.Now()
 
+	// CLI arguments described by the help texts below
 	var address string
 	var longitude, latitude float64
 	var radius uint64
@@ -39,15 +42,23 @@ func main() {
 
 	var publicKey *ecdsa.PublicKey
 
-	// set up additional timing variables
-
-	// used as the start time for all measurements except the one for the whole program
+	// set up timing variables
+	// shared start time for measuring durations
 	var start time.Time
 
+	// time for computing the query bit strings
 	var buildingQuery time.Duration
+
+	// time for sending a request and receiving a response
 	var request time.Duration
+
+	// time for locally verifying the response
 	var verification time.Duration
+
+	// time for locally verifiying the consistency
 	var consistency time.Duration
+
+	// time for running the whole application
 	var total time.Duration
 
 	if len(publicKeyBase64) == 0 {
@@ -70,9 +81,11 @@ func main() {
 			)
 		}
 
-		// type assertion
+		// type assertion, will crash on mismatch
 		publicKey = decodedPublicKey.(*ecdsa.PublicKey)
 	}
+
+	// start measuring 'buildingQuery'
 	start = time.Now()
 
 	// set altitude to 0
@@ -85,7 +98,9 @@ func main() {
 	query.MinAltitude = 0
 	query.MaxAltitude = int16(bitstring.C_Z)
 
+	// stop 'buildingQuery' measurement
 	buildingQuery = time.Since(start)
+	// start measuring 'request'
 	start = time.Now()
 
 	response, requestSize, responseSize, err := comm.QueryMapServer(
@@ -97,7 +112,9 @@ func main() {
 		log.Fatalf("❌ request failed: %v\n", err)
 	}
 
+	// stop 'request' measurement
 	request = time.Since(start)
+	// start measuring 'verification'
 	start = time.Now()
 
 	// ensure the response is complete with respect to the query and
@@ -108,7 +125,9 @@ func main() {
 		log.Fatalf("❌ response verification failed: %v\n", err)
 	}
 
+	// stop 'verification' measurement
 	verification = time.Since(start)
+	// start measuring 'consistency'
 	start = time.Now()
 
 	// ensure the received signed map head is included in the consistency tree
@@ -118,9 +137,12 @@ func main() {
 		log.Fatalf("❌ consistency verification failed: %v\n", err)
 	}
 
+	// stop 'consistency' measurement
 	consistency = time.Since(start)
+	// stop 'total' measurement
 	total = time.Since(clientStart)
 
+	// count the total number of certificate hashes
 	certificateHashCount := 0
 	for _, n := range response.Nodes {
 		certificateHashCount += len(n.GetCertificateHashes())
