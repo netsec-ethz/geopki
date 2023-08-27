@@ -305,7 +305,7 @@ def main(
     print("all")
     print_stats(df)
     print("excluding certificates")
-    # print_stats(df_excluding_certificates)
+    print_stats(df_excluding_certificates)
     print("including certificates")
     print_stats(df_including_certificates)
 
