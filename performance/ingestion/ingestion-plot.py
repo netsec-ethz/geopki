@@ -119,7 +119,7 @@ def main(
     certificate_counts.reverse()
     for certificate_count, linestyle in zip(
         certificate_counts,
-        ["solid", "dotted", "dashed", "dashdot"]
+        ["solid", "dashed", "dotted", "dashdot"]
     ):
         x = df[df['certificate_count'] == certificate_count]
         cdf_plot(
