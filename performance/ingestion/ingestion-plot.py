@@ -2,6 +2,11 @@ import click
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib as mpl
+
+mpl.rcParams['pdf.fonttype'] = 42
+mpl.rcParams['ps.fonttype'] = 42
+mpl.rcParams['font.family'] = 'serif'
 
 FILE_PATH = os.path.realpath(__file__)
 

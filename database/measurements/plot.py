@@ -5,6 +5,11 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from matplotlib.colors import LogNorm
+import matplotlib as mpl
+
+mpl.rcParams['pdf.fonttype'] = 42
+mpl.rcParams['ps.fonttype'] = 42
+mpl.rcParams['font.family'] = 'serif'
 
 # https://stackoverflow.com/a/39566040/2897827
 MEDIUM_SIZE = 16

@@ -3,6 +3,11 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
+
+mpl.rcParams['pdf.fonttype'] = 42
+mpl.rcParams['ps.fonttype'] = 42
+mpl.rcParams['font.family'] = 'serif'
 
 FILE_PATH = os.path.realpath(__file__)
 
@@ -327,6 +332,42 @@ def main(
     # response_size
     cdf_plot(
         "response size in B",
+        df_including_certificates['response_size'],
+        None,
+        f"{output_path}/request-response-size-incl-certs-cdf.png",
+        base=2,
+        labels=[
+            "response size",
+            ""
+        ],
+        linestyles=["dashed", ""],
+        ax=ax,
+        fig=fig,
+        legend="lower right",
+        show_quantile="line",
+        quantile_correction_factor=[1.5, 1.5],
+        # quantile_correction_factor=[0.4, 1.15],
+        quantile_y=[0.96, 0.92]
+    )
+
+    # request_size
+    fig, ax = cdf_plot(
+        "request and response sizes in B",
+        df['request_size'],
+        None,
+        f"{output_path}/request-size-cdf.png",
+        base=2,
+        labels=["request size", ""],
+        plot=False,
+        show_quantile=False,
+    )
+
+    ax.set_xticks([2 ** i for i in range(4, 19)])
+    ax.grid(axis='x', color='silver')
+
+    # response_size
+    cdf_plot(
+        "response size in B",
         df_excluding_certificates['response_size'],
         df_including_certificates['response_size'],
         f"{output_path}/request-response-size-cdf.png",
@@ -385,6 +426,59 @@ def main(
     #     df_including_certificates['consistency_proof_size'],
     #     f"{output_path}/consistency-proof-size-cdf.png",
     # )
+
+    # time_building_query
+    fig, ax = cdf_plot(
+        "query time in ms",
+        df['time_building_query'] * 1000,
+        None,
+        f"{output_path}/time-build-query-cdf.png",
+        plot=False,
+        base=10,
+        labels=["query build time", ""],
+        linestyles=["solid", ""],
+        show_quantile=False,
+    )
+
+    # time_verification
+    cdf_plot(
+        "query time in ms",
+        df['time_verification'] * 1000,
+        None,
+        f"{output_path}/time-verification-cdf.png",
+        fig=fig,
+        ax=ax,
+        plot=False,
+        labels=[
+            "verification time",
+            ""
+        ],
+        linestyles=["dashed", ""],
+        show_quantile=False,
+    )
+
+    ax.set_xticks([10 ** i for i in range(0, 2)])
+    ax.grid(axis='x', color='silver', which='both')
+
+    # time_total
+    cdf_plot(
+        "total request time in ms",
+        df_including_certificates['time_total'] * 1000,
+        None,
+        f"{output_path}/time-total-incl-certs-cdf.png",
+        ax=ax,
+        fig=fig,
+        legend="lower right",
+        labels=[
+            "total time",
+            ""
+        ],
+        linestyles=["dotted", ""],
+        show_quantile="line",
+        quantile_correction_factor=[1.1, 1.1],
+        # quantile_correction_factor=[0.55, 1.15],
+        quantile_y=[0.96, 0.935]
+    )
 
     # time_building_query
     fig, ax = cdf_plot(

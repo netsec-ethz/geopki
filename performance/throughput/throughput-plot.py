@@ -5,6 +5,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from ast import literal_eval
 from itertools import chain
+import matplotlib as mpl
+
+mpl.rcParams['pdf.fonttype'] = 42
+mpl.rcParams['ps.fonttype'] = 42
+mpl.rcParams['font.family'] = 'serif'
 
 FILE_PATH = os.path.realpath(__file__)
 
@@ -148,6 +153,32 @@ def main(
     # fig.tight_layout()
     # plt.show()
     plt.savefig(f"{output_path}/throughput.png")
+
+
+    # plot including certificates
+    fig, ax = plt.subplots(dpi=300)
+    fig.set_figheight(3)
+    fig.set_figwidth(9)
+    fig.subplots_adjust(top=0.99, bottom=0.2, left=0.09, right=0.995)
+
+    ax.set_xlabel("number of parallel goroutines")
+    ax.set_yscale("linear")
+
+    ax.grid(axis='y', color='silver')
+
+    df_including_certificates = df[df['include_certificates'] == True]
+
+    if len(df_including_certificates) > 0:
+        ax.errorbar(
+            df_including_certificates['threads'],
+            df_including_certificates['qps'],
+            yerr=df_including_certificates['qps_std'],
+            fmt='h',
+            fillstyle='none',
+            label="including certificates"
+        )
+
+    plt.savefig(f"{output_path}/throughput-incl-certs.png")
 
 
 if __name__ == '__main__':
