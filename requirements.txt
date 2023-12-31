@@ -7,3 +7,4 @@ pandas==1.5.3
 psycopg2_binary==2.9.6
 shapely==2.0.1
 tqdm==4.64.1
+pyarrow==14.0.1
