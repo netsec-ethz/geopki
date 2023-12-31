@@ -8,20 +8,26 @@ This is analogous to [F-PKI](https://netsec.ethz.ch/publications/papers/chuat202
 - [geopki](#geopki)
   - [Table of Contents](#table-of-contents)
   - [Project Structure](#project-structure)
-    - [Go Server \& Client](#go-server--client)
+    - [Go Server \& Client](#go-server-client)
     - [Bitstring Computation Performance Measurements](#bitstring-computation-performance-measurements)
     - [Database Input](#database-input)
     - [Database Performance Measurements](#database-performance-measurements)
     - [Full System Performance Measurements](#full-system-performance-measurements)
-  - [Setup](#setup)
+  - [Setup \& Usage](#setup-usage)
     - [Prerequisites](#prerequisites)
+      - [Clone Repo](#clone-repo)
       - [Go](#go)
       - [Python](#python)
+      - [PostgreSQL](#postgresql)
+      - [Trillian](#trillian)
     - [GeoPKI Server](#geopki-server)
-      - [Import Dataset](#import-dataset)
-        - [Alternative](#alternative)
+      - [Quick Copy\&Paste](#quick-copypaste)
+    - [Import Dataset](#import-dataset)
+      - [Alternative in Python](#alternative-in-python)
     - [GeoPKI Client](#geopki-client)
-    - [Web Demo](#web-demo)
+    - [Web Demo Client](#web-demo-client)
+    - [Errors](#errors)
+      - [Incompatible GDAL Setup](#incompatible-gdal-setup)
   - [Performance Evaluation](#performance-evaluation)
     - [Sampling Maps](#sampling-maps)
       - [performance/sampling-map-generator.py](#performancesampling-map-generatorpy)
@@ -45,12 +51,13 @@ This is analogous to [F-PKI](https://netsec.ethz.ch/publications/papers/chuat202
         - [Plotting the Results](#plotting-the-results-3)
         - [Release](#release)
 
-
 ## Project Structure
 
 ### Go Server & Client
+
 Go Files, relevant for the server and client implementation
-```
+
+```text
 .
 ├── cmd                           # the go programs
 |   ├── geopki-client                 # program for querying a geopki server
@@ -108,7 +115,7 @@ Go Files, relevant for the server and client implementation
 
 ### Bitstring Computation Performance Measurements
 
-```
+```text
 .
 ├── cmd                           # the go programs
 |   └── bitstring                     # program for measuring the performance of the bit string computations given a volume
@@ -120,26 +127,24 @@ Go Files, relevant for the server and client implementation
         ├── bitstring-performance.csv     # output of of bitstring-performancy.py
         ├── f-count.png                   # plot output of of bitstring-performance-plot.py
         └── f-time.png                    # plot output of of bitstring-performance-plot.py
-
 ```
 
 ### Database Input
 
-```
+```text
 └── cmd                           # the go programs
     └── db-address-exporter       # generates SQL INSERT files based on the dataset in
                                   # https://gitlab.inf.ethz.ch/OU-PERRIG/theses/msc_nico_hauser/data/-/tree/main/osm-dataset
 ```
 
-```
+```text
 database/scripts/input
 ├── db-input-analyzer.py          # plots the number of bit strings used for DBs with and without z subtrees
 ├── db-input-visualizer.py        # plots the polygon of a specific OSM location
 └── db-sanity-check-generator.py  # generates sql files for a dummy table to verify the measurements
-
 ```
 
-```
+```text
 database/scripts/input
 ├── db-address-exporter.py        # generates SQL INSERT files based on the dataset in
 |                                 # https://gitlab.inf.ethz.ch/OU-PERRIG/theses/msc_nico_hauser/data/-/tree/main/osm-dataset
@@ -147,12 +152,11 @@ database/scripts/input
 ├── db-input-analyzer.py          # plots the number of bit strings used for DBs with and without z subtrees
 ├── db-sanity-check-generator.py  # generates sql files for a dummy table to verify the measurements
 └── graph-db-address-exporter.py  # generates CSV files that can be imported into neo4j 
-
 ```
 
 ### Database Performance Measurements
 
-```
+```text
 database/scripts/performance
 ├── db-types                      # the scripts for running performance tests on various schemes
 |   ├── postgres-baseline-run.py                  # performance test on postgres, baseline table
@@ -161,12 +165,11 @@ database/scripts/performance
 |   └── postgres-spatial-run.py                   # performance test on postgres using a spatial index
 |
 └── performance-evaluation.py     # runs one script in db-types several times and collects the results
-
 ```
 
 ### Full System Performance Measurements
 
-```
+```text
 .
 ├── cmd                           # the programs used by the performance measurement scripts
 |   ├── geopki-client-ingestion                   # inserts the passed certificates and measures the time
@@ -190,85 +193,176 @@ database/scripts/performance
     |
     ├── sampling-map-generator.py                  # generates .parquet sampling maps
     └── sampling-map-converter.py                  # converts .parquet sampling maps to .json sampling maps
-
 ```
 
-## Setup
+## Setup & Usage
 
 ### Prerequisites
 
+#### Clone Repo
+
+Clone the [GeoPKI repo](https://gitlab.inf.ethz.ch/OU-PERRIG/theses/msc_nico_hauser/geopki). We assume the directory is called `geopki`.
+
 #### Go
-For running the geopki client or server, go is required.
-Most dependencies are automatically downloaded and managed by go.
-The only exception is [Geospatial Data Abstraction Library (GDAL)](https://gdal.org/) which has to be [installed seperately](https://gdal.org/download.html).
+
+For running the geopki server or example client, GoLang is required.
+
+GoLang 1.19 is minimum.  
+GoLang 1.21 gives GDAL issues, see [errors](#errors).
+
+Install GoLang 1.19 or 1.20:
+At the time of writing (2023-11-25) on Ubuntu 22, Aptitude delivers GoLang 1.18, Snap delivers 1.21.
+Do: `snap install golang-go` (gives GoLang 1.21) and `snap refresh go --channel=1.20/stable` (downgrades to 1.20).
+
+Most dependencies are automatically downloaded and managed by GoLang.
+The only exception is the [GDAL (Geospatial Data Abstraction Library)](https://gdal.org/) which has to be installed seperately (see below).
 [Go bindings](https://github.com/lukeroth/gdal) are used to interact with GDAL unless with the exception of the wasm client that uses [S2](https://github.com/golang/geo).
 
-#### Python
-For running the python scripts, python and the relevant dependencies have to be installed.
-Note that python is **not** required to run the geopki client nor the server but scripts such as the performance measurements are written in python.
+1. GDAL
+   1. `apt install libgdal-dev`
+   2. `apt install gdal-bin`
+      - actually necessary ???
+2. GDAL GoLang: `go get github.com/lukeroth/gdal`
 
-1. Install `python3` (tested on version `3.11.3`), should probably work on later versions too
-2. Install pip dependencies using `pip3 install -r requirements.txt`
+#### Python
+
+For running the Python scripts, Python and the relevant dependencies have to be installed. It is recommended to do so in a Python venv.x
+Note that Python is **not** required to run the geopki client nor the server but scripts such as the performance measurements are written in Python.
+
+1. add repo: `add-apt-repository ppa:deadsnakes/ppa`
+2. install Python: `apt install python3.11`
+   - tested on version `3.11`, should probably work on later versions
+3. upgrade pip: `pip3 install --upgrade pip`
+4. install venv: `apt install python3.11-venv`
+5. create venv: `python3.11 -m venv venv`
+6. activate venv: `source ./venv/bin/activate`
+   - `deactivate` to deavtivate venv
+7. install requirements (in venv): `pip install -r requirements.txt`
+
+#### PostgreSQL
+
+1. install PostgreSQL: `apt install postgresql`
+2. start PostgreSQL: `systemctl start postgresql`
+3. create user in Postgres
+   1. connect to Postgres as default admin user: `sudo -u postgres psql`
+   2. `CREATE USER geopki PASSWORD 'geopkiPW';`
+4. create database
+   1. `CREATE DATABASE geopki;`
+   2. assign DB to new user (actually requried?) `ALTER DATABASE geopki OWNER TO geopki;`
+5. run commands from files  
+   `sudo -u postgres psql -d geopki -a -f <file.sql>`
+   1. define functions
+      - run `database/functions/array_difference.sql`
+      - run `database/functions/array_intersect.sql`
+      - run `database/functions/array_union.sql`
+      - run `database/functions/update_children_hashes.sql`
+      - run `database/functions/min_altitude_of_bit_string.sql`
+      - run `database/functions/max_altitude_of_bit_string.sql`
+      - run `database/functions/smt_hash.sql` (for release)
+   2. define tables
+      - run `database/tables/certificates.sql` to create the `certificates` table
+      - run `database/tables/nodes.sql` to create the `nodes` table
+      - fix permissions:
+        - `ALTER TABLE certificates OWNER TO geopki;`
+        - `ALTER TABLE nodes OWNER TO geopki;`
+        - `ALTER TABLE nodes_next OWNER TO geopki;`
+
+#### Trillian
+
+Setup a [Trillian](https://github.com/google/trillian) instance.
+
+1. Use the easy [local deployment with Docker](https://github.com/google/trillian/tree/v1.5.2/examples/deployment#local-deployments)
+   1. clone repo into a separate directory (not `geopki`): `git clone https://github.com/google/trillian.git`
+   2. `cd trillian`
+   3. switch to version 1.5.2: `git checkout v1.5.2`
+      - (didn't test newer versions)
+   4. set a random password: `export MYSQL_ROOT_PASSWORD="$(openssl rand -hex 16)"`
+      - (actually requried for local test?)
+   5. start docker-compose: `docker-compose -f examples/deployment/docker-compose.yml up`
+      - requries sudo or Docker priviledges
+2. Create a new tree: `go run ./cmd/createtree --admin_server=127.0.0.1:8090` (in `trillian` directory)
+3. Copy the log id from the output
+   - The output contains a line like `Initialised Log (4361164615329344703) with new SignedTreeHead` where `4361164615329344703` corresponds to the log id.
 
 ### GeoPKI Server
 
-1. Setup the database
-   1. Setup a postgres instance
-   2. Create a new database
-   3. Create the required tables
-      1. Run the code in `database/tables/certificates.sql` to create the `certificates` table
-      2. Run the code in `database/tables/nodes.sql` to create the `nodes` table
-   4. Define the required functions
-      1. Define functions for computing the difference, intersection and union of arrays
-         1. Run the code in `database/functions/array_difference.sql`
-         2. Run the code in `database/functions/array_intersect.sql`
-         3. Run the code in `database/functions/array_union.sql`
-      2. Define function for updating the hash of a node after ingestion of new data / deletion of expired data
-         1. Run the code in `database/functions/update_children_hashes.sql`
-   5. (Optional) Import the dataset as described [here](#import-dataset)
-2. Setup a [trillian](https://github.com/google/trillian) instance
-   1. Follow the instructions on the trillian repo: https://github.com/google/trillian/tree/v1.5.2/examples/deployment
-   2. The [local deployment with docker](https://github.com/google/trillian/tree/v1.5.2/examples/deployment#local-deployments) is straight forward
-   3. Create a new tree using `go run ./cmd/createtree --admin_server=127.0.0.1:8090`
-   4. Copy the log id from the output
-      1. The output should contain a line like `Initialised Log (2947592571015490951) with new SignedTreeHead` where `2947592571015490951` corresponds to the log id.
+1. In the cloned geopki directory, run: `make`
+2. (if not running already): In a secondary Terminal: run Trillian: `sudo docker-compose -f examples/deployment/docker-compose.yml up`
 3. Define environment variables
    1. `DATABASE_URL`
-      1. Set the database url for the postgres database using `export DATABASE_URL=postgresql://<username>:<password>@127.0.0.1:5432/<postgres database>` and replacing the `<>` with values set when setting up the postgres database.
+      - Set the database connection parameters for the Postgres database: `export DATABASE_URL=postgresql://<username>:<password>@127.0.0.1:5432/<postgres database>` replacing the `<>` with values.
+      - e.g. `export DATABASE_URL=postgresql://geopki:geopkiPW@127.0.0.1:5432/geopki`
    2. `PRIVATE_KEY`
-      1. Set the private key of the geopki server that is used to sign the map and consistency heads using `export PRIVATE_KEY=MHcCAQEEIGv4NvMEZL3JjuQ8BnWVkTwkwCtXZhpkozMu1iCUvXBdoAoGCCqGSM49AwEHoUQDQgAEvvlGuoiglGCYNXJ0rpbKwQuXIQnIHE2mCDrDtlm7KxF4//6w3quLK/4Q8DwkM27zkOpnjv701tdFuBbf5EloqA==`
-      2. The format is base64 encoded bytes that are accepted by go's `ParseECPrivateKey` function which according to the documentation means any EC private key in SEC 1, ASN.1 DER form.
-      3. The easiest way to obtain a correctly formatted value is to run the server once without having the value set. The server will then print a randomly generated key to the console.
+      - private key of GeoPKI server used to sign the map heads and consistency heads
+      - The format is base64 encoded bytes that are accepted by go's `ParseECPrivateKey` function which according to the documentation means any EC private key in SEC 1, ASN.1 DER form.
+      - The easiest way to obtain a correctly formatted value is to run the server once without having the value set. The server will then print a randomly generated key to the console.
+      - e.g. `export PRIVATE_KEY=MHcCAQEEILoQhmCA33qdj8EkpxXlaa9+vc30MCyJBck4ARgVIgPWoAoGCCqGSM49AwEHoUQDQgAEpyVhZ/HNRKVdp/jwnjM9xEagSMsB6VA07ftQ2jxResYL+JujTfb8YPKGDCykTP+ccJ+OYoNFUzYJd7niuXBsDA==`
    3. `CERT_INSERT_KEY`
-      1. The server exposes the endpoint `/v1/insert` for showcasing the ingestion and deletion functionality. Since this endpoint causes a lot of computation and allows the insertion of arbitrary data at the moment, it is protected by a secret. In the future no such endpoint should exist and the map server should on its own crawl the CT logs.
-      2. Use `export CERT_INSERT_KEY=xxxxxxxxx` to set that value.
-4. Run the server instance using `go run ./cmd/geopki-server --address=0.0.0.0 --port=1234 --trillian-address=127.0.0.1:8090 --clog-id=<trillian log id>`.
-   1. All arguments except `clog-id` can be omitted if the just shown default values should be used.
-   2. If you forgot the log id, you can use `cmd/list-trees` (in the geopki repo) to list all trees: `go run ./cmd/list-trees --admin_server=127.0.0.1:8090`
+      - The server exposes the endpoint `/v1/insert` for showcasing the ingestion and deletion functionality. Since this endpoint causes a lot of computation and allows the insertion of arbitrary data at the moment, it is protected by a secret. In the future no such endpoint should exist and the map server should on its own crawl the CT logs.
+      - Needed even if you don't want to use this functionality.
+      - e.g. `export CERT_INSERT_KEY=abc`
+      - Note: There has to be some sort of length limit or other limitation on this, as the following will be accepted, but won't work. comparison will always fail. `MHcCAQEEIJ6Z1Wqd/PTXbc9D3tBaJz3FwFk0D+QNXxkbm4UX1tSwoAoGCCqGSM49AwEHoUQDQgAEJvP8VNjGv1W2qne8NXUXlWlSUbUsz795+x1ilPtg2SADjpR8we9EeI5SMz8eiSfdG8HFS/lT87OZEYYI0ZBTDw==`
+4. Run the server: `go run ./cmd/geopki-server --address=0.0.0.0 --port=1234 --trillian-address=127.0.0.1:8090 --clog-id=<trillian log id>`.
+   - All arguments except `clog-id` can be omitted if the just shown default values should be used.
+   - If you forgot the log id, you can use `cmd/list-trees` (in the geopki directory) to list all trees: `go run ./cmd/list-trees --admin_server=127.0.0.1:8090`
+   - e.g. `go run ./cmd/geopki-server --address=0.0.0.0 --port=1234 --trillian-address=127.0.0.1:8090 --clog-id=4361164615329344703`.
+     - adapt the `--clog-id`
 
-#### Import Dataset
+Import dataset, see [below](#import-dataset).
 
-To import the [dataset](https://gitlab.inf.ethz.ch/OU-PERRIG/theses/msc_nico_hauser/data/-/blob/main/osm-dataset/world.parquet), i.e. `osm-dataset/world.parquet`, the binary `./cmd/db-address-exporter` is used.
+#### Quick Copy&Paste
 
-It requires the following parameters:
+If everything was setup, run these commands to start the server:
+
+Terminal 1, Trillian:
+
+```bash
+sudo docker-compose -f examples/deployment/docker-compose.yml up
+```
+
+Terminal 2, GeoPKI (adapt the `--clog-id`):
+
+```bash
+export DATABASE_URL=postgresql://geopki:geopkiPW@127.0.0.1:5432/geopki
+export PRIVATE_KEY=MHcCAQEEILoQhmCA33qdj8EkpxXlaa9+vc30MCyJBck4ARgVIgPWoAoGCCqGSM49AwEHoUQDQgAEpyVhZ/HNRKVdp/jwnjM9xEagSMsB6VA07ftQ2jxResYL+JujTfb8YPKGDCykTP+ccJ+OYoNFUzYJd7niuXBsDA==
+export CERT_INSERT_KEY=abc
+go run ./cmd/geopki-server --address=0.0.0.0 --port=1234 --trillian-address=127.0.0.1:8090 --clog-id=4361164615329344703
+```
+
+Helpful commands for playing around:
+
+To connect to the DB: `sudo -u postgres psql geopki`
+
+To run SQL commands from file: `sudo -u postgres psql -d geopki -a -f <file.sql>`
+
+### Import Dataset
+
+Clone the [data repo](https://gitlab.inf.ethz.ch/OU-PERRIG/theses/msc_nico_hauser/data) (large!) or download individual parts. The full dataset is [world.parquet](https://gitlab.inf.ethz.ch/OU-PERRIG/theses/msc_nico_hauser/data/-/blob/main/osm-dataset/world.parquet).
+
+Use the binary `./cmd/db-address-exporter`.
+
+Parameters:
+
 - `--input` to specify the `.parquet` certificate dataset
-- `--nodes` to specify the output folder where to write the `.sql` files that insert data into the `nodes` table
-- `--certs` to specify the output folder where to write the `.sql` files that insert data into the `certificates` table
+- `--nodes`: output folder for `.sql` files that insert data into the `nodes` table. Directory must exist.
+- `--certs`: output folder for `.sql` files that insert data into the `certificates` table. Directory must exist.
 - `--cert-size-dist` to specify the path where the `.csv` certificate size distribution should be written
 - `--altitude-dist` to specify the path where the `.csv` altitude distribution of certificates should be written
 
-**Example:**
-```
+The import procedure takes >1h, uses all memory and sometimes goes to 100% CPU usage.
+Run it inside a separate terminal, an IDE terminal won't work as the high memory usage will crash the IDE (incl. the terminal).
+
+```bash
 go run ./cmd/db-address-exporter/ \
-        --input=../location-correlation/dist/world.parquet \
-        --nodes=/db-import/nodes/ \
-        --certs=/db-import/certificates/ \
-        --sampling-map=./performance/sampling-map.csv \
-        --cert-size-dist=./performance/cert-sizes/cert-sizes.csv \
-        --altitude-dist=./database/measurements/altitude.csv
+    --input=../geopki-data/world.parquet \
+    --nodes=../geopki-data/db-import/nodes/ \
+    --certs=../geopki-data/db-import/certificates/ \
+    --sampling-map=./performance/sampling-map.csv \
+    --cert-size-dist=./performance/cert-sizes/cert-sizes.csv \
+    --altitude-dist=./database/measurements/altitude.csv
 ```
 
-##### Alternative
+#### Alternative in Python
 
 Alternatively, the script `./database/scripts/input/db-address-exporter.py` can be used for the same purpose.
 In constrast, this script is slower, consumes more RAM and only writes sql files.
@@ -276,48 +370,105 @@ Therefore, for importing data for the actual system, this script is not recommen
 
 Howerver, for measuring the performance of the different indices, this script is the only way to generate the data in the respective format.
 
-The script accepts three positional arguments, the input path pointing to the OSM `.parquet` certificates dataset and two output paths, one for the `.sql` files for the `nodes` table and one for the `certificates` table.
+The script accepts three positional arguments: The input path pointing to the OSM `.parquet` certificates dataset and two output paths, one for the `.sql` files for the `nodes` table and one for the `certificates` table.
 
 It then accepts an optional `--spatial` flag that generates the data for the [evaluation of the spatial index](#spatial-index).
 If the flag is omitted, the database format for integer range queries is generated.
 
-**Examples:**
-```
-python3 database/scripts/input/db-address-exporter.py \
-        ../location-correlation/dist/world.parquet \
-        /db-import/nodes/ \
-        /db-import/certificates/ \
-        --spatial
+Example:
+
+```bash
+source ./venv/bin/activate
+python3.11 database/scripts/input/db-address-exporter.py \
+    ../geopki-data/world.parquet \
+    ../geopki-data/db-import/nodes/ \
+    ../geopki-data/db-import/certificates/ \
+    --spatial
 ```
 
 ### GeoPKI Client
 
-The client program can be run using `go run ./cmd/geopki-client --address=http://127.0.0.1:1234 --longitude=<lon> --latitude=<lat> --altitude=<alt> --radius=<rad> --include-certificates`.
-When run without the `--include-certificates` flag, only the certificate hashes are obtained.
+1. build client: `make client`
+2. optain public key of GeoPKI server's private key
+   - from server
+     - `go run ./cmd/geopki-public-key -address='http://127.0.0.1:1234'`
+   - locally
+     1. save base64 encoded public key from server in file `private.base64`
+     2. base64 decode: `openssl base64 -d -in private.base64 -out private.der`
+     3. get public key: `openssl ec -in private.der -pubout -out public.der -inform der -outform der`
+     4. encode public key in base64: `openssl base64 -in public.der -out public.base64`
+     5. public key in base64 is in file `public.base64`
+3. make client request using `./dist/geopki-client`
+   - parameters:
+     - `-latitude` / `-longitude`: latitude/longitude in degrees
+     - `-altitude`: meters above sea level
+     - `-radius`: meters
+     - `-include-certificates`: Boolean: False: return only certificate hashes. True: Return full certificates.
+     - `-address`: GeoPKI server address
+     - `-public-key` The GeoPKI server's public key.
+   - example:  
+   ```bash
+   ./dist/geopki-client \
+       -latitude=0.0 \
+       -longitude=0.0 \
+       -altitude=0.0 \
+       -radius=100 \
+       -include-certificates=true \
+       -address='http://127.0.0.1:1234' \
+       -public-key='MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEpyVhZ/HNRKVdp/jwnjM9xEagSMsB6VA07ftQ2jxResYL+JujTfb8YPKGDCykTP+ccJ+OYoNFUzYJd7niuXBsDA=='
+   ```
 
-### Web Demo
+### Web Demo Client
 
-To compile the web demo, use `make demo`.
-This compiles `./cmd/geopki-client-wasm` and copies the binary to `./demo/geopki-web-client/geopki-client.wasm`.
-Afterwards you only need to run a http server that serves `./demo/geopki-web-client`.
+1. `make demo`
+   - Compiles `./cmd/geopki-client-wasm` and copies the binary to `./demo/geopki-web-client/geopki-client.wasm`.
+2. Run an HTTP server that serves `./demo/geopki-web-client`.
+   - e.g. locally for testing: `python3 -m http.server 9000 --directory ./demo/geopki-web-client`
 
-**Example:**
+Note that the user's location can usually only be accessed if access via HTTP_S_.
+
+### Errors
+
+Some possible errors encountered along the setup process and how to resolve them.
+
+#### Incompatible GDAL Setup
+
+"GoLang 1.21" & "gdal-bin 3.4.1+dfsg-1build4 amd64" & "github.com/lukeroth/gdal v0.0.0-20230422025444-05e99f726ff9" don't work together (neither does "github.com/lukeroth/gdal v0.0.0-20230818145556-62d5095a1cda").
+lukeroth/gdal [issue #97](https://github.com/lukeroth/gdal/issues/97) suggests to upgrade to gdal 3.6. However, on Ubuntu 22 LTS, this is not an option, as it comes with many dependencies that are only availablei in Debian (as of 2023-11-28).
+
+Observed errors in this case:
+
+```txt
+go build -o ./dist/geopki-client ./cmd/geopki-client
+# github.com/lukeroth/gdal
+../../../../go/pkg/mod/github.com/lukeroth/gdal@v0.0.0-20230422025444-05e99f726ff9/gdal.go:44:11: cannot define new methods on non-local type C.CPLErr
+../../../../go/pkg/mod/github.com/lukeroth/gdal@v0.0.0-20230422025444-05e99f726ff9/gdal.go:60:11: cannot define new methods on non-local type C.OGRErr
+make: *** [Makefile:4: client] Error 1
 ```
-python3 -m http.server 9000 --directory ./demo/geopki-web-client
-```
 
-Note that the location can usually only be accessed if access via HTTP**S**.
+or:
+
+```bash
+# github.com/lukeroth/gdal
+../../../../go/pkg/mod/github.com/lukeroth/gdal@v0.0.0-20230818145556-62d5095a1cda/algorithms.go:457:4: unknown field nSizeOfStructure in struct literal of type _Ctype_struct___2
+../../../../go/pkg/mod/github.com/lukeroth/gdal@v0.0.0-20230818145556-62d5095a1cda/algorithms.go:475:4: unknown field nSizeOfStructure in struct literal of type _Ctype_struct___1
+../../../../go/pkg/mod/github.com/lukeroth/gdal@v0.0.0-20230818145556-62d5095a1cda/algorithms.go:489:4: unknown field nSizeOfStructure in struct literal of type _Ctype_struct___4
+../../../../go/pkg/mod/github.com/lukeroth/gdal@v0.0.0-20230818145556-62d5095a1cda/algorithms.go:502:4: unknown field nSizeOfStructure in struct literal of type _Ctype_struct___5
+../../../../go/pkg/mod/github.com/lukeroth/gdal@v0.0.0-20230818145556-62d5095a1cda/algorithms.go:515:4: unknown field nSizeOfStructure in struct literal of type _Ctype_struct___0
+../../../../go/pkg/mod/github.com/lukeroth/gdal@v0.0.0-20230818145556-62d5095a1cda/algorithms.go:528:4: unknown field nSizeOfStructure in struct literal of type _Ctype_struct___3
+```
 
 ## Performance Evaluation
 
 This section explains how to reproduce the results from the thesis.
 First and foremost, the sampling map produced by `./cmd/db-address-exporter` is required.
 
-The output for the dataset from the thesis ([`/osm-dataset/word.parquet`](https://gitlab.inf.ethz.ch/OU-PERRIG/theses/msc_nico_hauser/data/-/tree/main/osm-dataset) in the [data repository](https://gitlab.inf.ethz.ch/OU-PERRIG/theses/msc_nico_hauser/data/-/tree/main/)) should result in [the sampling map `/sampling-maps/sampling-map.csv`](https://gitlab.inf.ethz.ch/OU-PERRIG/theses/msc_nico_hauser/data/-/blob/main/sampling-maps/sampling-map.csv) in the [data repository](https://gitlab.inf.ethz.ch/OU-PERRIG/theses/msc_nico_hauser/data/-/tree/main/).
+The output for the dataset from the thesis (`/osm-dataset/word.parquet` in the [data repository](https://gitlab.inf.ethz.ch/OU-PERRIG/theses/msc_nico_hauser/data/-/tree/main/)) should result in [the sampling map](https://gitlab.inf.ethz.ch/OU-PERRIG/theses/msc_nico_hauser/data/-/blob/main/sampling-maps/sampling-map.csv)`/sampling-maps/sampling-map.csv` in the [data repository](https://gitlab.inf.ethz.ch/OU-PERRIG/theses/msc_nico_hauser/data/-/tree/main/).
 
-The next section explains how this file is used to derive the various sampling maps in [`/sampling-maps/`](https://gitlab.inf.ethz.ch/OU-PERRIG/theses/msc_nico_hauser/data/-/tree/main/sampling-maps).
+The next section explains how this file is used to derive the various sampling maps in `/sampling-maps/`.
 
 ### Sampling Maps
+
 There are three types of sampling maps differentiated by their extension.
 
 - `sampling-map.csv` is the output of `./cmd/db-address-exporter`
@@ -327,38 +478,38 @@ There are three types of sampling maps differentiated by their extension.
 The following sections detail the interface of the sampling map scripts.
 
 #### performance/sampling-map-generator.py
+
 Accepts three positional arguments, the path to `sampling-map.csv`, an output path ending in `.parquet` and a float specifying the relative grid size.
 
 **Examples:**
-```
+
+```bash
 python3 performance/sampling-map-generator.py /sampling-maps/sampling-map.csv \
                                               /sampling-maps/sampling-map-bitstrings-f1.parquet \
                                               1
-
 ```
 
-```
+```bash
 python3 performance/sampling-map-generator.py /sampling-maps/sampling-map.csv \
                                               /sampling-maps/sampling-map-bitstrings-f01.parquet \
                                               0.1
-
 ```
 
 #### performance/sampling-map-converter.py
+
 Accepts two positional arguments, the path to a `.parquet` sampling map and an output path ending in `.json`.
 It converts the given `.parquet` sampling map to a json one.
 
 **Examples:**
-```
+
+```bash
 python3 performance/sampling-map-converter.py /sampling-maps/sampling-map-bitstrings-f1.parquet \
                                               /sampling-maps/sampling-map-bitstrings-f1.json
-
 ```
 
-```
+```bash
 python3 performance/sampling-map-converter.py /sampling-maps/sampling-map-bitstrings-f01.parquet \
                                               /sampling-maps/sampling-map-bitstrings-f01.json
-
 ```
 
 ### Database Only
@@ -368,16 +519,18 @@ It accepts two position arguments, a path to a sampling map and an output path.
 The output path must end with `.csv`.
 
 The script then requires a set of database parameters:
+
 - `--db-host=127.0.0.1` to specify the database host address
 - `--db-port=5432` to specify the database port
 - `--db-name=geopki` to specify the database name
 - `--db-user=geopki` to specify the database user
 - `--db-pass=...` to specify the database password. This parameter is optional and the program asks for user input if it is omited.
-  
+
 With `--repetitions=30`, the number of repetitions for the measurement are specified.
 The `--excluding-bit-string-computation` flag decides whether the bit string computation is part of the measured time or not.
 By default it is included but for all measurements shown in the thesis it is not.
 The parameter `--batch-size=1` specifies the number of queries to be issued per iteration and finally there are flags that determine the test that is run:
+
 - `--postgres-spatial` for the spatial index
 - `--postgres-bitstrings-txt` for prefix matching
 - `--postgres-bitstrings-int` for integer range queries
@@ -385,9 +538,10 @@ The parameter `--batch-size=1` specifies the number of queries to be issued per 
 To reproduce the measurements from the thesis, use the following commands:
 
 #### Spatial Index
+
 Set up the database using the spatial data as described [here](#alternative).
 
-```
+```bash
 python3 database/scripts/performance/performance-evaluation.py \
         ~/sampling-map.csv \
         ~/evaluation/database/spatial.csv \
@@ -419,7 +573,8 @@ CLUSTER nodes USING nodes_bit_string_text_pattern_ops_idx;
 Finally, run the following commands:
 
 For `f=1`
-```
+
+```bash
 python3 database/scripts/performance/performance-evaluation.py \
         /sampling-maps//sampling-map-bitstrings-f1.parquet \
         /evaluation/database/bitstrings-txt-f1.csv \
@@ -435,7 +590,8 @@ python3 database/scripts/performance/performance-evaluation.py \
 ```
 
 For `f=0.1`
-```
+
+```bash
 python3 database/scripts/performance/performance-evaluation.py \
         /sampling-maps/sampling-map-bitstrings-f01.parquet \
         /evaluation/database/bitstrings-txt-f01.csv \
@@ -455,7 +611,8 @@ python3 database/scripts/performance/performance-evaluation.py \
 Set up the database using the data as described [here](#import-dataset).
 
 For `f=1`
-```
+
+```bash
 python3 database/scripts/performance/performance-evaluation.py \
         /sampling-maps/sampling-map-bitstrings-f1.parquet \
         /evaluation/database/bitstrings-int-f1.csv \
@@ -471,7 +628,8 @@ python3 database/scripts/performance/performance-evaluation.py \
 ```
 
 For `f=0.1`
-```
+
+```bash
 python3 database/scripts/performance/performance-evaluation.py \
         /sampling-maps/sampling-map-bitstrings-f01.parquet \
         /evaluation/database/bitstrings-int-f01.csv \
@@ -497,6 +655,7 @@ To collect statistics on the maximum depth of locations, the script `./database/
 It accepts one positional argument, the output path.
 
 The script then requires a set of database parameters:
+
 - `--db-host=127.0.0.1` to specify the database host address
 - `--db-port=5432` to specify the database port
 - `--db-name=geopki` to specify the database name
@@ -509,7 +668,8 @@ This parameter should point to the `.csv` sampling map.
 Our measurements can be found in `./database/measurements/depth.csv.zip`.
 
 **Example:**
-```
+
+```bash
 python3 database/scripts/depth/smt-depth-analysis.py \
         ./database/measurements/depth.csv \
         --sampling-map=/sampling-maps/sampling-map.csv \
@@ -543,7 +703,6 @@ The script assumes the following files to be in the same directory as `plot.py`:
 - `depth.csv` (Certificate Depths, contained in `./database/measurements/depth.csv.zip`)
 - `altitude.csv` (Altitude SMT Node Depths, contained in `./database/measurements/altitude.csv.zip`)
 
-
 #### Plotting Certificate Size Distribution
 
 To plot `cert-sizes.csv` of `./cmd/db-address-exporter` (contained in `./performance/cert-sizes/cert-sizes-measurements.zip`), the script `./performance/cert-sizes/cert-sizes.py` is used.
@@ -552,7 +711,8 @@ It accepts two position arguments, the path to `cert-sizes.csv` and an output di
 It then plots the data and writes the images to the output directory.
 
 **Example:**
-```
+
+```bash
 python3 performance/cert-sizes/cert-sizes.py performance/cert-sizes/cert-sizes.csv performance/cert-sizes
 ```
 
@@ -575,7 +735,8 @@ For measurements, the python script `performance/client/client-performance.py` i
 It accepts three positional arguments, the path to `sampling-map.csv`, an output path ending in `.csv` and the Base64 encoded public key of the server.
 
 The Base64 encoded public key can be obtained using the helper utilitty `./cmd/geopki-public-key`:
-```
+
+```bash
 go run ./cmd/geopki-public-key --address=http://127.0.0.1:1234
 ```
 
@@ -585,7 +746,7 @@ To reproduce the measurements from the thesis, use the following parameters:
 
 For `f=1`
 
-```
+```bash
 make clean
 make client-performance
 
@@ -599,7 +760,7 @@ python3 performance/client/client-performance.py \
 
 For `f=0.1`, manually modify `cmd/geopki-client-performance/geopki-client-performance.go` and set `F_GROW=0.1` and re-build the binary using `make`.
 
-```
+```bash
 make clean
 make client-performance
 
@@ -620,7 +781,8 @@ It plots the measurement and writes the images to the given output folder.
 The thesis measurements are contained in `./performance/client/client-performance-measurements.zip`.
 
 **Example:**
-```
+
+```bash
 python3 performance/client/client-performance-plot.py performance/client/client-performance.csv performance/client
 ```
 
@@ -643,7 +805,7 @@ To reproduce the measurements from the thesis, use the following parameters:
 
 For `f=1`
 
-```
+```bash
 make clean
 make client-throughput
 
@@ -656,7 +818,7 @@ python3 performance/throughput/throughput.py \
 
 For `f=0.1`
 
-```
+```bash
 python3 performance/throughput/throughput.py \
         /sampling-maps/sampling-map-bitstrings-f01.json \
         /evaluation/throughput-f01.csv \
@@ -673,7 +835,8 @@ It plots the measurement and writes the images to the given output folder.
 The thesis measurements are contained in `./performance/throughput/throughput-measurements.zip`.
 
 **Example:**
-```
+
+```bash
 python3 performance/throughput/throughput-plot.py performance/throughput/throughput.csv performance/throughput
 ```
 
@@ -698,7 +861,7 @@ The script measures different batch sizes, i.e. different numbers of certificate
 
 To reproduce the measurements from the thesis, use the following parameters:
 
-```
+```bash
 make clean
 make client-ingestion
 
@@ -710,7 +873,6 @@ python3 performance/ingestion/ingestion.py \
         --repetitions=30 \
         --with-altitude
 ```
-
 
 Note that the ingestion only modifies the `nodes_next` table.
 To swap the `nodes` and `nodes_next` table, a release must be issued.
@@ -726,7 +888,8 @@ It plots the measurement and writes the images to the given output folder.
 The thesis measurements are contained in `./performance/ingestion/ingestion.csv`.
 
 **Example:**
-```
+
+```bash
 python3 performance/ingestion/ingestion-plot.py performance/ingestion/ingestion.csv performance/ingestion
 ```
 
@@ -739,6 +902,6 @@ The timing measurements of how long the release takes is written to the server's
 
 **Example:**
 
-```
+```bash
 go run ./cmd/release --address=http://127.0.0.1:1234 --insertion-key=abc
 ```
