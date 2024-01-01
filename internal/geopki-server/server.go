@@ -14,12 +14,13 @@ func (env *EndpointHandlerEnv) newRequestHandler(
 ) fasthttp.RequestHandler {
 
 	return func(ctx *fasthttp.RequestCtx) {
+		// CORS headers
+		ctx.Response.Header.Set("Access-Control-Allow-Origin", "*")
+		ctx.Response.Header.Set("Access-Control-Allow-Methods", "GET,POST,HEAD")
+		ctx.Response.Header.Set("Access-Control-Allow-Headers", "Content-Length, Content-Type")
+		ctx.Response.Header.Set("Access-Control-Max-Age", "86400")
+		// terminate pre-flight requests
 		if ctx.IsOptions() {
-			//set CORS headers for preflight requests
-			ctx.Response.Header.Set("Access-Control-Allow-Origin", "*")
-			ctx.Response.Header.Set("Access-Control-Allow-Methods", "GET,POST,HEAD")
-			ctx.Response.Header.Set("Access-Control-Request-Headers", "Content-Length,Content-Type")
-			ctx.Response.Header.Set("Access-Control-Max-Age", "86400")
 			ctx.SetStatusCode(fasthttp.StatusNoContent)
 			return
 		}
