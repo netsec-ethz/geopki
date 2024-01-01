@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -221,6 +223,15 @@ func getJSONCertificates(
 		certificate, err := crypto.UnmarshalGeoCertificate(rawCertificate)
 		if err != nil {
 			return nil, fmt.Errorf("❌ failed parsing certificate: %v\n", err)
+		}
+
+		// print certificate as pretty JSON
+		var prettyJSON bytes.Buffer
+		errJ := json.Indent(&prettyJSON, []byte(certificate.JSON()), "    ", "  ")
+		if errJ == nil {
+			fmt.Printf("    %s\n", &prettyJSON)
+		} else {
+			fmt.Printf("    failed prettyfying JSON: %v\n", errJ)
 		}
 
 		results[i] = certificate.JSON()
