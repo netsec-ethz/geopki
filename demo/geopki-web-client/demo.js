@@ -37,8 +37,8 @@ async function fetchCertificates(longitude, latitude, altitude, radius) {
   const certificates = await window
     // set manually to e.g. http://server.tyratox.ch:1234 if you want to use a different server
     .getJSONCertificates(
-      // "http://server.tyratox.ch:1234",
-      location.protocol + "//" + location.host,
+      // "http://server.tyratox.ch:1234", // CUSTOM
+      location.protocol + "//" + location.hostname + ":1234",
       longitude,
       latitude,
       altitude,
