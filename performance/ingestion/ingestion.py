@@ -134,7 +134,7 @@ def sample_random_altitude() -> tuple[float, float]:
     '-i',
     'insertion_key',
     type=str,
-    default='http://localhost:1234',
+    default='abc',
 )
 @click.option(
     '--repetitions',
