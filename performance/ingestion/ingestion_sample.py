@@ -10,12 +10,16 @@ import json
 import time
 import datetime
 
+#
 # How to:
 #
 # ```bash
 # source ./venv/bin/activate
 # python3 performance/ingestion/ingestion_sample.py
 # ```
+#
+# Release is done by the script, too.
+#
 
 SERVER_ADDRESS = "http://127.0.0.1:1234"
 INSERTION_KEY = "abc"
@@ -106,12 +110,29 @@ def main():
                 f"--certificates={fp.name}",
             ],
             stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             cwd=CURRENT_DIR,
         )
 
         print(p.stdout.read().decode("ascii"))
-        if p.stderr != None:
-            print(p.stderr.read().decode("ascii"), file=sys.stderr)
+        print(p.stderr.read().decode("ascii"), file=sys.stderr)
+    
+    # release
+    print("release")
+    p = subprocess.Popen(
+        [
+            "go",
+            "run",
+            "../../cmd/release",
+            f"--address={SERVER_ADDRESS}",
+            f"--insertion-key={INSERTION_KEY}"
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=CURRENT_DIR,
+    )
+    print(p.stdout.read().decode("ascii"))
+    print(p.stderr.read().decode("ascii"), file=sys.stderr)
 
 
 if __name__ == "__main__":
