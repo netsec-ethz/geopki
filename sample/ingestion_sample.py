@@ -29,6 +29,7 @@ MAX_ALTITUDE = 21767
 
 FILE_PATH = os.path.realpath(__file__)
 CURRENT_DIR = os.path.dirname(FILE_PATH)
+GEOPKI_DIR = os.path.dirname(CURRENT_DIR)
 
 
 class GeoCertificate:
@@ -104,7 +105,7 @@ def main():
 
         p = subprocess.Popen(
             [
-                "../../dist/geopki-client-ingestion",
+                f"{GEOPKI_DIR}/dist/geopki-client-ingestion",
                 f"--address={SERVER_ADDRESS}",
                 f"--insertion-key={INSERTION_KEY}",
                 f"--certificates={fp.name}",
@@ -123,7 +124,7 @@ def main():
         [
             "go",
             "run",
-            "../../cmd/release",
+            f"{GEOPKI_DIR}/cmd/release",
             f"--address={SERVER_ADDRESS}",
             f"--insertion-key={INSERTION_KEY}"
         ],
