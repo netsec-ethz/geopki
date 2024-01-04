@@ -73,8 +73,8 @@ def main():
     uid = hashlib.sha256(str(time.time()).encode("ascii")).digest().hex()[:8]
 
     # ETH
-    lon = 47.376389  # N
-    lat = 8.548056  # E
+    lat = 47.376389  # N
+    lon = 8.548056  # E
     radius = 10  # m
 
     # certificate as .pem file
@@ -95,10 +95,10 @@ def main():
                 [
                     Polygon(
                         [
-                            (lat - radius, lon - radius),
-                            (lat - radius, lon + radius),
-                            (lat + radius, lon + radius),
-                            (lat + radius, lon - radius),
+                            (lon - radius, lat - radius),
+                            (lon - radius, lat + radius),
+                            (lon + radius, lat + radius),
+                            (lon + radius, lat - radius),
                         ]
                     )
                 ]
