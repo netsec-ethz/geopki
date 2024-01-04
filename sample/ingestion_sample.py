@@ -40,18 +40,18 @@ class GeoCertificate:
         list_of_multipolygons: List[MultiPolygon],
         # in meters
         list_of_altitudes: List[Tuple[float, float]],
-        domain: str,
+        x509_certificate: str,
         not_valid_after: datetime,
     ) -> None:
         self.certificate_id = certificate_id
         self.list_of_multipolygons = list_of_multipolygons
         self.list_of_altitudes = list_of_altitudes
-        self.domain = domain
+        self.x509_certificate = x509_certificate
         self.not_valid_after = not_valid_after
 
     def to_cert(self) -> dict[str, Any]:
         return {
-            "domain": self.domain,
+            "x509_certificate": self.x509_certificate,
             "areas": [
                 json.loads(to_geojson(multipolygon))
                 for multipolygon in self.list_of_multipolygons
@@ -77,6 +77,17 @@ def main():
     lat = 8.548056  # E
     radius = 10  # m
 
+    # certificate as .pem file
+    x509_file = f"{CURRENT_DIR}/certificates/eduroam-ethz-extracted.pem"
+
+    if not x509_file.endswith(".pem"):
+        raise ValueError("X509 Certificate must be in .pem format.")
+    with open(x509_file, "rb") as cert_file:
+        x509_cert_bytes = cert_file.read()
+
+    from cryptography import x509
+    x509_cert = x509.load_pem_x509_certificate(x509_cert_bytes)
+
     cert = GeoCertificate(
         certificate_id=f"ingestion:{date}-{uid}",
         list_of_multipolygons=[
@@ -94,8 +105,8 @@ def main():
             )
         ],
         list_of_altitudes=[(MIN_ALTITUDE, MAX_ALTITUDE)],
-        domain="insert-test.ethz.ch",
-        not_valid_after=datetime.datetime.now() + datetime.timedelta(weeks=52),
+        x509_certificate=x509_cert_bytes.decode("utf-8"),
+        not_valid_after=x509_cert.not_valid_after
     )
 
     with tempfile.NamedTemporaryFile() as fp:
@@ -103,6 +114,7 @@ def main():
         fp.write(json.dumps([cert.to_cert()]).encode("utf-8"))
         fp.flush()
 
+        print("INSERT CERTIFICATE")
         p = subprocess.Popen(
             [
                 f"{GEOPKI_DIR}/dist/geopki-client-ingestion",
@@ -119,7 +131,7 @@ def main():
         print(p.stderr.read().decode("ascii"), file=sys.stderr)
     
     # release
-    print("release")
+    print("RELEASE")
     p = subprocess.Popen(
         [
             "go",

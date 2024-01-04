@@ -68,7 +68,7 @@ async function fetchCertificates(longitude, latitude, altitude, radius) {
         {
           type: "Feature",
           properties: {
-            domain: certificate.domain,
+            X509Certificate: certificate.X509Certificate,
             certificate_id: certificate.certificate_id,
             not_valid_after: certificate.not_valid_after,
           },
@@ -76,7 +76,7 @@ async function fetchCertificates(longitude, latitude, altitude, radius) {
         },
         {
           style: {
-            color: "#" + intToRGB(hashCode(certificate.domain)),
+            color: "#" + intToRGB(hashCode(certificate.X509Certificate)),
           },
         }
       );
@@ -86,7 +86,7 @@ async function fetchCertificates(longitude, latitude, altitude, radius) {
           const popup = L.DomUtil.create("div", "info-window");
           popup.innerHTML = `
       <ul class="feature-props">
-      <li><strong>Domain:</strong> <code>${certificate.domain}</code></li>
+      <li><strong>X509Certificate:</strong> <code>${certificate.X509Certificate}</code></li>
       <li><strong>Min Altitude:</strong> <time>${Math.round(
         minAltitude
       )}m</time></li>

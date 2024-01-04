@@ -195,7 +195,7 @@ func main() {
 
 	fmt.Printf("📡 Received %d certificates\n", len(response.GetCertificates()))
 
-	// iterate over received certificates and print their domain and id
+	// iterate over received certificates and print them
 	for _, rawCertificate := range response.GetCertificates() {
 		// TODO: later this will probably parse a x509 certificate
 		certificate, err := crypto.UnmarshalGeoCertificate(rawCertificate)
@@ -203,6 +203,7 @@ func main() {
 			log.Fatalf("❌ failed parsing certificate: %v\n", err)
 		}
 
-		fmt.Printf("    %s, %s\n", certificate.Domain, certificate.CertificateId)
+		fmt.Printf("    - %s, %s\n", certificate.CertificateId)
+		fmt.Printf("      %s\n", certificate.JSON())
 	}
 }

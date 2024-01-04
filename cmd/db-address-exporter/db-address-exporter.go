@@ -219,7 +219,9 @@ func (r *CertificateRow) Certificate() (*crypto.GeoCertificate, error) {
 
 	// optionally set the geo cert's domain
 	if r.Domain != nil {
-		cert.Domain = *r.Domain
+		// TODO: set cert.X509Certificate to something meaningful
+		cert.X509Certificate = ""
+		// cert.Domain = *r.Domain // <- original, before there was an `X509Certificate` field and still a `Domain` field in `crypto.GeoCertificate`
 	}
 
 	// perform a sanity check, the number of areas an altitude bounds must match, i.e.
