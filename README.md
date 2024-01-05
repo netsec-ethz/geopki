@@ -22,10 +22,14 @@ This is analogous to [F-PKI](https://netsec.ethz.ch/publications/papers/chuat202
       - [Trillian](#trillian)
     - [GeoPKI Server](#geopki-server)
       - [Quick Copy\&Paste](#quick-copypaste)
-    - [Import Dataset](#import-dataset)
-      - [Alternative in Python](#alternative-in-python)
+    - [Import Data](#import-data)
+      - [Release](#release)
+      - [Truncate Database](#truncate-database)
+      - [Sample](#sample)
+      - [World](#world)
+        - [Alternative in Python](#alternative-in-python)
     - [GeoPKI Client](#geopki-client)
-    - [Web Demo Client](#web-demo-client)
+      - [Web Demo Client](#web-demo-client)
     - [Errors](#errors)
       - [Incompatible GDAL Setup](#incompatible-gdal-setup)
   - [Performance Evaluation](#performance-evaluation)
@@ -49,7 +53,7 @@ This is analogous to [F-PKI](https://netsec.ethz.ch/publications/papers/chuat202
         - [Plotting the Results](#plotting-the-results-2)
       - [Ingestion](#ingestion)
         - [Plotting the Results](#plotting-the-results-3)
-        - [Release](#release)
+        - [Release](#release-1)
 
 ## Project Structure
 
@@ -308,7 +312,7 @@ Setup a [Trillian](https://github.com/google/trillian) instance.
    - e.g. `go run ./cmd/geopki-server --address=0.0.0.0 --port=1234 --trillian-address=127.0.0.1:8090 --clog-id=4361164615329344703`.
      - adapt the `--clog-id`
 
-Import dataset, see [below](#import-dataset).
+Import data, see [below](#import-data).
 
 #### Quick Copy&Paste
 
@@ -335,7 +339,40 @@ To connect to the DB: `sudo -u postgres psql geopki`
 
 To run SQL commands from file: `sudo -u postgres psql -d geopki -a -f <file.sql>`
 
-### Import Dataset
+### Import Data
+
+After importing data, you must do a [release](#release) to update GeoPKI's working dataset.
+
+#### Release
+
+A release updates GeoPKI's working set. Run:
+
+```bash
+go run ./cmd/release \
+    --address=http://127.0.0.1:1234 \
+    --insertion-key=abc
+```
+
+#### Truncate Database
+
+If you want to start from an empty database, truncate all tables.
+
+WARNING: This deletes all data from the database!
+
+```bash
+sudo -u postgres psql -d geopki -a -f 'sample/truncate-db.sql'
+```
+
+Then, do a [release](#release). Or import new data first, and then do a release.
+
+#### Sample
+
+Use `./sample/ingestion_sample.py` to import a single certificate.
+The values (e.g. geographic location of the certificate) can be easily customised by slightly adapting the script.
+
+This script does a [release](#release) automatically.
+
+#### World
 
 Clone the [data repo](https://gitlab.inf.ethz.ch/OU-PERRIG/theses/msc_nico_hauser/data) (large!) or download individual parts. The full dataset is [world.parquet](https://gitlab.inf.ethz.ch/OU-PERRIG/theses/msc_nico_hauser/data/-/blob/main/osm-dataset/world.parquet).
 
@@ -362,7 +399,9 @@ go run ./cmd/db-address-exporter/ \
     --altitude-dist=./database/measurements/altitude.csv
 ```
 
-#### Alternative in Python
+Then, do a [release](#release).
+
+##### Alternative in Python
 
 Alternatively, the script `./database/scripts/input/db-address-exporter.py` can be used for the same purpose.
 In constrast, this script is slower, consumes more RAM and only writes sql files.
@@ -385,6 +424,8 @@ python3.11 database/scripts/input/db-address-exporter.py \
     ../geopki-data/db-import/certificates/ \
     --spatial
 ```
+
+Then, do a [release](#release).
 
 ### GeoPKI Client
 
@@ -409,21 +450,22 @@ python3.11 database/scripts/input/db-address-exporter.py \
    - example:  
    ```bash
    ./dist/geopki-client \
-       -latitude=0.0 \
-       -longitude=0.0 \
-       -altitude=0.0 \
-       -radius=100 \
-       -include-certificates=true \
-       -address='http://127.0.0.1:1234' \
-       -public-key='MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEpyVhZ/HNRKVdp/jwnjM9xEagSMsB6VA07ftQ2jxResYL+JujTfb8YPKGDCykTP+ccJ+OYoNFUzYJd7niuXBsDA=='
+       --latitude=0.0 \
+       --longitude=0.0 \
+       --altitude=0.0 \
+       --radius=100 \
+       --include-certificates=true \
+       --address='http://127.0.0.1:1234' \
+       --public-key='MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEpyVhZ/HNRKVdp/jwnjM9xEagSMsB6VA07ftQ2jxResYL+JujTfb8YPKGDCykTP+ccJ+OYoNFUzYJd7niuXBsDA=='
    ```
 
-### Web Demo Client
+#### Web Demo Client
 
 1. `make demo`
    - Compiles `./cmd/geopki-client-wasm` and copies the binary to `./demo/geopki-web-client/geopki-client.wasm`.
 2. Run an HTTP server that serves `./demo/geopki-web-client`.
    - e.g. locally for testing: `python3 -m http.server 9000 --directory ./demo/geopki-web-client`
+3. open [localhost:9000](localhost:9000) (not 0.0.0.0, there the geo location prompt won't work)
 
 Note that the user's location can usually only be accessed if access via HTTP_S_.
 
@@ -557,7 +599,7 @@ python3 database/scripts/performance/performance-evaluation.py \
 
 #### Prefix Matching
 
-Set up the database using the data as described [here](#import-dataset).
+Set up the database using the data as described [here](#import-data).
 
 Then use the following SQL commands to change the format of the database to use a text-based index.
 The goal is to add the column `bit_string_51_txt` equal to the text representation of `bit_string_51` and created a clustered index on it.
@@ -608,7 +650,7 @@ python3 database/scripts/performance/performance-evaluation.py \
 
 #### Integer Range Query
 
-Set up the database using the data as described [here](#import-dataset).
+Set up the database using the data as described [here](#import-data).
 
 For `f=1`
 
