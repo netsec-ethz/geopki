@@ -4,12 +4,14 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"math"
 	"net/http"
+	"strings"
 	"time"
 
 	"geopki/pkg/comm"
@@ -28,6 +30,7 @@ func main() {
 	var longitude, latitude, altitude float64
 	var radius uint64
 	var includeCertificates bool
+	var machineReadable bool
 
 	var publicKeyBase64 string
 
@@ -38,7 +41,12 @@ func main() {
 	flag.Uint64Var(&radius, "radius", 10, "The radius for the query in meters")
 	flag.BoolVar(&includeCertificates, "include-certificates", false, "Whether to include the certificates")
 	flag.StringVar(&publicKeyBase64, "public-key", "", "The public key used to verify the signatures.")
+	flag.BoolVar(&machineReadable, "machine-readable", false, "True: Machine readable output: only output certs, as JSON. False: Human readable output & debug info: timing info, cert hashes.")
 	flag.Parse()
+
+	if machineReadable && !includeCertificates {
+		log.Fatalf("❌ machine-readable can only be used together with include-certificates.\n")
+	}
 
 	var publicKey *ecdsa.PublicKey
 
@@ -155,6 +163,8 @@ func main() {
 	// that the server included exactly all data it knows in that area by
 	// recomputing the root hash
 	certificateHashes, err := crypto.VerifyResponse(response, query, publicKey)
+	// CUSTOM PRINT
+	// log.Println(response)
 	if err != nil {
 		log.Fatalf("❌ response verification failed: %v\n", err)
 	}
@@ -174,28 +184,31 @@ func main() {
 	// finish 'consistency' measurement
 	consistency = time.Since(start)
 
-	fmt.Printf("✅ Cryptographic verification of response succeeded!\n")
+	if !machineReadable {
+		fmt.Printf("✅ Cryptographic verification of response succeeded!\n")
 
-	fmt.Printf("🏋️ Sizes\n")
-	fmt.Printf("    Request size: %dB, %d bit strings\n", requestSize, len(query.XYBitStrings))
-	fmt.Printf("    Response size: %dB, %d nodes\n", responseSize, len(response.Nodes))
-	fmt.Printf("    Consistency proof response size: %dB\n", len(response.InclusionProof))
+		fmt.Printf("🏋️ Sizes\n")
+		fmt.Printf("    Request size: %dB, %d bit strings\n", requestSize, len(query.XYBitStrings))
+		fmt.Printf("    Response size: %dB, %d nodes\n", responseSize, len(response.Nodes))
+		fmt.Printf("    Consistency proof response size: %dB\n", len(response.InclusionProof))
 
-	fmt.Printf("⌛️ Timing\n")
-	fmt.Printf("    Fetch & Parse Public Key: %fs\n", fetchingDecodingPublicKey.Seconds())
-	fmt.Printf("    Build Query: %fs\n", buildingQuery.Seconds())
-	fmt.Printf("    Send Request & Receive Response: %fs\n", request.Seconds())
-	fmt.Printf("    Verify Response: %fs\n", verification.Seconds())
-	fmt.Printf("    Verify Consistency: %fs\n", consistency.Seconds())
+		fmt.Printf("⌛️ Timing\n")
+		fmt.Printf("    Fetch & Parse Public Key: %fs\n", fetchingDecodingPublicKey.Seconds())
+		fmt.Printf("    Build Query: %fs\n", buildingQuery.Seconds())
+		fmt.Printf("    Send Request & Receive Response: %fs\n", request.Seconds())
+		fmt.Printf("    Verify Response: %fs\n", verification.Seconds())
+		fmt.Printf("    Verify Consistency: %fs\n", consistency.Seconds())
 
-	fmt.Printf("📡 Received %d certificate hashes:\n", certificateHashes.Cardinality())
-	for certificateHash := range certificateHashes.Iter() {
-		fmt.Printf("    %s\n", certificateHash)
+		fmt.Printf("📡 Received %d certificate hashes:\n", certificateHashes.Cardinality())
+		for certificateHash := range certificateHashes.Iter() {
+			fmt.Printf("    %s\n", certificateHash)
+		}
+
+		fmt.Printf("📡 Received %d certificates\n", len(response.GetCertificates()))
 	}
 
-	fmt.Printf("📡 Received %d certificates\n", len(response.GetCertificates()))
-
-	// iterate over received certificates and print them
+	// iterate over received certificates
+	var certsJson []string
 	for _, rawCertificate := range response.GetCertificates() {
 		// TODO: later this will probably parse a x509 certificate
 		certificate, err := crypto.UnmarshalGeoCertificate(rawCertificate)
@@ -203,7 +216,15 @@ func main() {
 			log.Fatalf("❌ failed parsing certificate: %v\n", err)
 		}
 
-		fmt.Printf("    - %s, %s\n", certificate.CertificateId)
-		fmt.Printf("      %s\n", certificate.JSON())
+		if !machineReadable {
+			fmt.Printf("    - id: %s, hash (hex): %s\n", certificate.CertificateId, hex.EncodeToString(certificate.Hash()))
+			// fmt.Printf("      %s\n", certificate.JSON())
+		} else {
+			certsJson = append(certsJson, certificate.JSON())
+		}
+	}
+	if machineReadable {
+		var allCerts = "[" + strings.Join(certsJson, ",") + "]"
+		fmt.Print(allCerts)
 	}
 }
