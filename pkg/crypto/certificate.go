@@ -86,16 +86,20 @@ func (area *GeoCertArea) Loops() ([]*s2.Loop, error) {
 
 // this is a mock certificate format until proper x509 extensions are defined
 type GeoCertificate struct {
-	CertificateId string `json:"certificate_id"`
-	// Domain        string `json:"domain"`
-	X509Certificate string `json:"x509_certificate"`
+	CertificateId string `json:"id"`
+	// Validity of geo cert.
+	NotValidAfter string `json:"not_valid_after"`
 
 	// a list of areas associated with this certificate
 	Areas []GeoCertArea `json:"areas"`
 	// for each of the areas the minimum and maximum altitudes
 	AreasAltitude [][2]float64 `json:"areas_altitude"`
 
-	NotValidAfter string `json:"not_valid_after"`
+	// what kind of geo cert this is (e.g. a `wifi` geo cert)
+	Domain string `json:"domain"`
+	// domain specific data (in the case of Wi-Fi geo cert: SSID and WPA/link certificate)
+	// type any, but be aware that if it is an object it will be de-json-ified into an object and not kept as string
+	Payload any `json:"payload"`
 
 	// the marshaled json string
 	MarshaledCert []byte `json:"-"`

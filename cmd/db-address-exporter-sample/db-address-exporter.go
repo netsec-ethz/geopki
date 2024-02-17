@@ -823,7 +823,9 @@ func main() {
 	}
 
 	// initialize a progress bar
-	num := int(pr.GetNumRows())
+	// HARD LIMIT NUMBER OF INPORTED RECORDS!!!
+	num := 100
+	//num := int(pr.GetNumRows())
 	progressBar := progressbar.Default(int64(num), "locate certificates")
 
 	// setup channels for the different go-routines writing data to disk

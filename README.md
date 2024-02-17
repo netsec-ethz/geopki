@@ -113,6 +113,10 @@ Go Files, relevant for the server and client implementation
 |   ├── request.proto                 # protobuf message for a query request sent by a client
 |   └── response.proto                # protobuf message for a query response sent by a server
 |
+├── proto                         # samples
+|   ├── ingestion_sample.py           # python script to easily add single geo certs into the DB
+|   └── certs/                        # directory with real sample certificate chains
+|
 ├── go.mod                        # standard go dependency managment file
 └── go.sum                        # standard go dependency managment file
 ```
@@ -316,7 +320,7 @@ Import data, see [below](#import-data).
 
 #### Quick Copy&Paste
 
-If everything was setup, run these commands to start the server:
+If everything is set up, run these commands to start the geo map server:
 
 Terminal 1, Trillian:
 
@@ -368,7 +372,7 @@ Then, do a [release](#release). Or import new data first, and then do a release.
 #### Sample
 
 Use `./sample/ingestion_sample.py` to import a single certificate.
-The values (e.g. geographic location of the certificate) can be easily customised by slightly adapting the script.
+The values (geographic location of the certificate, domain, payload, etc.) can be easily customized by slightly adapting the script.
 
 This script does a [release](#release) automatically.
 
@@ -447,7 +451,7 @@ Then, do a [release](#release).
      - `-include-certificates`: Boolean: False: return only certificate hashes. True: Return full certificates.
      - `-address`: GeoPKI server address
      - `-public-key` The GeoPKI server's public key.
-   - example:  
+   - example using the keys used in the setup:  
    ```bash
    ./dist/geopki-client \
        --latitude=0.0 \
@@ -467,7 +471,7 @@ Then, do a [release](#release).
    - e.g. locally for testing: `python3 -m http.server 9000 --directory ./demo/geopki-web-client`
 3. open [localhost:9000](localhost:9000) (not 0.0.0.0, there the geo location prompt won't work)
 
-Note that the user's location can usually only be accessed if access via HTTP_S_.
+Note that the user's location can usually only be accessed under HTTP_S_.
 
 ### Errors
 
