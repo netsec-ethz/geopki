@@ -107,7 +107,7 @@ def main():
     # ETH
     lat = 47.376389  # °N
     lon = 8.548056  # °E
-    radius = 10  # ° of a square
+    radius = 1  # ° of a square
 
     domain = "wifi"
     # payload for Wi-Fi geo cert: SSID and link (~WPA) cert path (as PEM)
@@ -121,7 +121,7 @@ def main():
     }
 
     geoCert = GeoCertificate(
-        id=f"ingestion:{date}-{uid}",
+        id=f"{lat}N-{lon}E_{uid}",
         not_valid_after=cert_path[0].not_valid_after,
         list_of_multipolygons=[
             MultiPolygon(
