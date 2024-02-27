@@ -163,8 +163,6 @@ func main() {
 	// that the server included exactly all data it knows in that area by
 	// recomputing the root hash
 	certificateHashes, err := crypto.VerifyResponse(response, query, publicKey)
-	// CUSTOM PRINT
-	// log.Println(response)
 	if err != nil {
 		log.Fatalf("❌ response verification failed: %v\n", err)
 	}

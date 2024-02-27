@@ -179,8 +179,8 @@ func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa
 
 	// verify root hash against SMH
 	if !bytes.Equal(rootHash, smh.RootHash) {
-		// DISABLE CHECK HERE, CUSTOM
-		// return nil, fmt.Errorf("computed root hash does not match the SMH")
+		// CUSTOM: issue # 7: DISABLE FAILING CHECK HERE
+		return nil, fmt.Errorf("computed root hash does not match the SMH")
 	}
 
 	// ensure all requested nodes have been returned, or, the omitted subtrees are empty
