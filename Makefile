@@ -8,7 +8,7 @@ server: ./cmd/geopki-server/geopki-server.go $(wildcard pkg/**/*)
 
 wasm-client: ./cmd/geopki-client-wasm/geopki-client-wasm.go $(wildcard pkg/**/*)
 	GOOS=js GOARCH=wasm go build -o ./dist/geopki-client.wasm ./cmd/geopki-client-wasm
-	
+
 demo: wasm-client
 	cp ./dist/geopki-client.wasm ./demo/geopki-web-client/geopki-client.wasm
 
@@ -33,3 +33,7 @@ clean:
 	rm -f ./dist/client-performance
 	rm -f ./dist/bitstring-throughput
 	rm -f ./dist/bitstring-ingestion
+
+find-leaks:
+	# Uses gitleaks https://github.com/gitleaks/gitleaks
+	gitleaks git -v
