@@ -146,7 +146,7 @@ database/scripts/input
 |                                 # *requires a lot of RAM*, worked with 64GB
 ├── db-input-analyzer.py          # plots the number of bit strings used for DBs with and without z subtrees
 ├── db-sanity-check-generator.py  # generates sql files for a dummy table to verify the measurements
-└── graph-db-address-exporter.py  # generates CSV files that can be imported into neo4j 
+└── graph-db-address-exporter.py  # generates CSV files that can be imported into neo4j
 
 ```
 
@@ -202,6 +202,13 @@ For running the geopki client or server, go is required.
 Most dependencies are automatically downloaded and managed by go.
 The only exception is [Geospatial Data Abstraction Library (GDAL)](https://gdal.org/) which has to be [installed seperately](https://gdal.org/download.html).
 [Go bindings](https://github.com/lukeroth/gdal) are used to interact with GDAL unless with the exception of the wasm client that uses [S2](https://github.com/golang/geo).
+
+The Go bindings are cgo-based, so GDAL's **development** files are needed at build time, not just the runtime library.
+On Debian/Ubuntu:
+
+```
+sudo apt install libgdal-dev
+```
 
 #### Python
 For running the python scripts, python and the relevant dependencies have to be installed.
@@ -373,7 +380,7 @@ The script then requires a set of database parameters:
 - `--db-name=geopki` to specify the database name
 - `--db-user=geopki` to specify the database user
 - `--db-pass=...` to specify the database password. This parameter is optional and the program asks for user input if it is omited.
-  
+
 With `--repetitions=30`, the number of repetitions for the measurement are specified.
 The `--excluding-bit-string-computation` flag decides whether the bit string computation is part of the measured time or not.
 By default it is included but for all measurements shown in the thesis it is not.
