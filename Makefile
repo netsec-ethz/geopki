@@ -1,3 +1,9 @@
+# The lukeroth/gdal cgo bindings wrap GDALGetDataTypeSize.
+# With GDAL >= 3.5 it is marked as deprecated.
+# We never call it, so silence the noise rather than patch the dependency.
+# Appended to Go's own default CGO_CFLAGS instead of replacing it.
+export CGO_CFLAGS := $(shell go env CGO_CFLAGS) -Wno-deprecated-declarations
+
 all: client server wasm-client demo db-address-exporter client-performance client-throughput client-ingestion
 
 client: ./cmd/geopki-client/geopki-client.go $(wildcard pkg/**/*)
