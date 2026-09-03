@@ -222,16 +222,24 @@ Note that python is **not** required to run the geopki client nor the server but
 1. Setup the database
    1. Setup a postgres instance
    2. Create a new database
-   3. Create the required tables
-      1. Run the code in `database/tables/certificates.sql` to create the `certificates` table
-      2. Run the code in `database/tables/nodes.sql` to create the `nodes` table
-   4. Define the required functions
-      1. Define functions for computing the difference, intersection and union of arrays
+   3. Define the required functions
+      1. Define functions for computing the min/max altitude covered by a bit string (required by generated columns on the `nodes` table)
+         1. Run the code in `database/functions/min_altitude_of_bit_string.sql`
+         2. Run the code in `database/functions/max_altitude_of_bit_string.sql`
+      2. Define functions for computing the difference, intersection and union of arrays
          1. Run the code in `database/functions/array_difference.sql`
          2. Run the code in `database/functions/array_intersect.sql`
          3. Run the code in `database/functions/array_union.sql`
-      2. Define function for updating the hash of a node after ingestion of new data / deletion of expired data
+      3. Define functions for computing bit string prefixes (required by queries)
+         1. Run the code in `database/functions/prefix_set.sql`
+         2. Run the code in `database/functions/prefixes.sql`
+      4. Define the function for computing the hash of a single SMT node
+         1. Run the code in `database/functions/smt_hash.sql`
+      5. Define function for updating the hash of a node after ingestion of new data / deletion of expired data
          1. Run the code in `database/functions/update_children_hashes.sql`
+   4. Create the required tables
+      1. Run the code in `database/tables/certificates.sql` to create the `certificates` table
+      2. Run the code in `database/tables/nodes.sql` to create the `nodes` table
    5. (Optional) Import the dataset as described [here](#import-dataset)
 2. Setup a [trillian](https://github.com/google/trillian) instance
    1. Follow the instructions on the trillian repo: https://github.com/google/trillian/tree/v1.5.2/examples/deployment
