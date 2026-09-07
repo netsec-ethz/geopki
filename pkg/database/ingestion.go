@@ -18,11 +18,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// encodes a byte slice in a postgres compatible string
-func bytesSliceToPostgresArray(bs [][]byte) string {
+// encodes a slice of hashes in a postgres compatible string
+func bytesSliceToPostgresArray(bs []crypto.SHA256Hash) string {
 	encodedExpiredCertificateHashes := make([]string, len(bs))
 	for i, b := range bs {
-		encodedExpiredCertificateHashes[i] = fmt.Sprintf("E'\\\\x%s'::bytea", hex.EncodeToString(b))
+		encodedExpiredCertificateHashes[i] = fmt.Sprintf("E'\\\\x%s'::bytea", hex.EncodeToString(b[:]))
 	}
 
 	expiredCertificateHashesArray := "ARRAY[" + strings.Join(encodedExpiredCertificateHashes, ",") + "]::bytea[]"
@@ -60,7 +60,7 @@ func expiredCertificateHashes(
 			return nil, err
 		}
 
-		certificateHashes = append(certificateHashes, dbCertificateHash)
+		certificateHashes = append(certificateHashes, crypto.BytesToHash(dbCertificateHash))
 	}
 
 	err = rows.Err()
@@ -195,7 +195,7 @@ func insertCertificates(
 		query.WriteString(
 			fmt.Sprintf(
 				"(%s, %s, %s)",
-				fmt.Sprintf("E'\\\\x%s'", hex.EncodeToString(certificateHash)),
+				fmt.Sprintf("E'\\\\x%s'", hex.EncodeToString(certificateHash[:])),
 				fmt.Sprintf("E'\\\\x%s'", hex.EncodeToString(certificate.Marshal())),
 				fmt.Sprintf("'%s'", certificate.NotValidAfter),
 			),

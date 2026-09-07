@@ -152,7 +152,7 @@ func QueryRootHash(
 	)
 
 	if err != nil {
-		return nil, err
+		return crypto.SHA256Hash{}, err
 	}
 
 	// create new node instance from loaded data
@@ -160,12 +160,12 @@ func QueryRootHash(
 		// root node has zero length for both
 		0, 0, 0, 0,
 
-		dbXYLeftChildHash,
-		dbXYRightChildHash,
-		dbZLeftChildHash,
-		dbZRightChildHash,
+		crypto.BytesToHashPtr(dbXYLeftChildHash),
+		crypto.BytesToHashPtr(dbXYRightChildHash),
+		crypto.BytesToHashPtr(dbZLeftChildHash),
+		crypto.BytesToHashPtr(dbZRightChildHash),
 
-		dbCertificateHashes.Elements,
+		crypto.BytesSliceToHashes(dbCertificateHashes.Elements),
 	)
 
 	return node.Hash(), nil
@@ -219,7 +219,7 @@ func RowsToNodesAndRootHash(
 		)
 
 		if err != nil {
-			return nil, nil, err
+			return nil, crypto.SHA256Hash{}, err
 		}
 
 		// grow bit strings to 8 and 2 byte arrays respectively
@@ -242,12 +242,12 @@ func RowsToNodesAndRootHash(
 			binary.BigEndian.Uint16(ZBitString),
 			uint8(dbZBitString.Len),
 
-			dbXYLeftChildHash,
-			dbXYRightChildHash,
-			dbZLeftChildHash,
-			dbZRightChildHash,
+			crypto.BytesToHashPtr(dbXYLeftChildHash),
+			crypto.BytesToHashPtr(dbXYRightChildHash),
+			crypto.BytesToHashPtr(dbZLeftChildHash),
+			crypto.BytesToHashPtr(dbZRightChildHash),
 
-			dbCertificateHashes.Elements,
+			crypto.BytesSliceToHashes(dbCertificateHashes.Elements),
 		)
 		// append new instance to the list, will be returned to the client after
 		// some additional processing
@@ -265,7 +265,7 @@ func RowsToNodesAndRootHash(
 	// Any errors encountered by rows.Next or rows.Scan will be returned here
 	err := rows.Err()
 	if err != nil {
-		return nil, nil, err
+		return nil, crypto.SHA256Hash{}, err
 	}
 
 	responseNodes := make([]*comm.Node, len(nodes))
@@ -301,11 +301,11 @@ func RowsToNodesAndRootHash(
 			ZBitString:     uint32(node.ZBitString),
 			ZBitStringLen:  uint32(node.ZBitStringLen),
 			// do not fill with default hashes, can be omitted for smaller response sizes
-			XYLeftChildHash:   node.XYLeftChildHash(false),
-			XYRightChildHash:  node.XYRightChildHash(false),
-			ZLeftChildHash:    node.ZLeftChildHash(false),
-			ZRightChildHash:   node.ZRightChildHash(false),
-			CertificateHashes: node.CertificateHashes,
+			XYLeftChildHash:   crypto.HashPtrToBytes(node.XYLeftChildHash(false)),
+			XYRightChildHash:  crypto.HashPtrToBytes(node.XYRightChildHash(false)),
+			ZLeftChildHash:    crypto.HashPtrToBytes(node.ZLeftChildHash(false)),
+			ZRightChildHash:   crypto.HashPtrToBytes(node.ZRightChildHash(false)),
+			CertificateHashes: crypto.HashesToBytesSlice(node.CertificateHashes),
 		}
 
 		responseNodes[i] = responseNode

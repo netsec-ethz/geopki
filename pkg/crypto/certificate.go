@@ -125,8 +125,7 @@ func (cert *GeoCertificate) JSON() string {
 
 // computes the hash of a geo cert
 func (cert *GeoCertificate) Hash() SHA256Hash {
-	hash := sha256.Sum256(cert.MarshaledCert)
-	return hash[:]
+	return sha256.Sum256(cert.MarshaledCert)
 }
 
 // computes the SMT nodes for a given geo certificate and a relative grid suze 'fGrow'

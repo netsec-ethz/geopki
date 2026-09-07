@@ -70,11 +70,11 @@ func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa
 			uint8(n.XYBitStringLen),
 			zBitString,
 			uint8(n.ZBitStringLen),
-			n.GetXYLeftChildHash(),
-			n.GetXYRightChildHash(),
-			n.GetZLeftChildHash(),
-			n.GetZRightChildHash(),
-			n.GetCertificateHashes(),
+			BytesToHashPtr(n.GetXYLeftChildHash()),
+			BytesToHashPtr(n.GetXYRightChildHash()),
+			BytesToHashPtr(n.GetZLeftChildHash()),
+			BytesToHashPtr(n.GetZRightChildHash()),
+			BytesSliceToHashes(n.GetCertificateHashes()),
 		)
 
 		_, ok := bitStringMap[node.RawBitStringPair]
@@ -178,7 +178,7 @@ func VerifyResponse(response *comm.Response, query *comm.Query, publicKey *ecdsa
 	rootHash := rootNode.Hash()
 
 	// verify root hash against SMH
-	if !bytes.Equal(rootHash, smh.RootHash) {
+	if !bytes.Equal(rootHash[:], smh.RootHash[:]) {
 		return nil, fmt.Errorf("computed root hash does not match the SMH")
 	}
 
@@ -248,5 +248,5 @@ func EnsureConsistency(response *comm.Response, publicKey *ecdsa.PublicKey) erro
 	}
 
 	// https://github.com/google/trillian/blob/master/client/log_verifier.go#L90
-	return proof.VerifyInclusion(rfc6962.DefaultHasher, uint64(pf.LeafIndex), sch.Size, leafHash, pf.Hashes, sch.RootHash)
+	return proof.VerifyInclusion(rfc6962.DefaultHasher, uint64(pf.LeafIndex), sch.Size, leafHash, pf.Hashes, sch.RootHash[:])
 }

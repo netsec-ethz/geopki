@@ -43,7 +43,7 @@ type SignedMapHead struct {
 
 // returns the bytes to be signed
 func (smh *MapHead) TBSBytes() []byte {
-	tbsBytes := smh.RootHash
+	tbsBytes := smh.RootHash[:]
 
 	timestampBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(timestampBytes, smh.Timestamp)
@@ -87,7 +87,7 @@ func (smh *SignedMapHead) Proto() *comm.SignedMapHead {
 	}
 
 	return &comm.SignedMapHead{
-		RootHash:            smh.RootHash,
+		RootHash:            smh.RootHash[:],
 		Timestamp:           smh.Timestamp,
 		Signature:           smh.Signature,
 		CoveredCTLogServers: coveredCTLogServers,
@@ -102,7 +102,7 @@ func (smh *SignedMapHead) Marshal() ([]byte, error) {
 // returns a string representation for debugging
 func (smh *MapHead) String() string {
 	s := ""
-	s += fmt.Sprintf("%s at %d\n", base64.StdEncoding.EncodeToString(smh.RootHash), smh.Timestamp)
+	s += fmt.Sprintf("%s at %d\n", base64.StdEncoding.EncodeToString(smh.RootHash[:]), smh.Timestamp)
 
 	for _, coveredCTLogServers := range smh.CoveredCTLogServers {
 		s += fmt.Sprintf("    %s, %s\n", base64.StdEncoding.EncodeToString(coveredCTLogServers.LogId), base64.StdEncoding.EncodeToString(coveredCTLogServers.SignedTreeHead))
@@ -125,7 +125,7 @@ func NewSMHFromCommSMH(smh *comm.SignedMapHead) *SignedMapHead {
 
 	return &SignedMapHead{
 		MapHead: MapHead{
-			RootHash:            smh.RootHash,
+			RootHash:            BytesToHash(smh.RootHash),
 			Timestamp:           smh.Timestamp,
 			CoveredCTLogServers: coveredCTLogServers,
 		},

@@ -40,7 +40,7 @@ type SignedConsistencyHead struct {
 
 // returns the bytes to be signed
 func (smh *ConsistencyHead) TBSBytes() []byte {
-	bytes := smh.RootHash
+	bytes := smh.RootHash[:]
 
 	timestampBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(timestampBytes, smh.Timestamp)
@@ -76,7 +76,7 @@ func (sch *SignedConsistencyHead) Verify(publicKey *ecdsa.PublicKey) bool {
 // creates a protobuf message based on the SCH
 func (smh *SignedConsistencyHead) Proto() *comm.SignedConsistencyHead {
 	return &comm.SignedConsistencyHead{
-		RootHash:  smh.RootHash,
+		RootHash:  smh.RootHash[:],
 		Timestamp: smh.Timestamp,
 		Size:      smh.Size,
 		Signature: smh.Signature,
@@ -92,7 +92,7 @@ func (sch *SignedConsistencyHead) Marshal() ([]byte, error) {
 func NewSCHFromCommSCH(sch *comm.SignedConsistencyHead) *SignedConsistencyHead {
 	return &SignedConsistencyHead{
 		ConsistencyHead: ConsistencyHead{
-			RootHash:  sch.RootHash,
+			RootHash:  BytesToHash(sch.RootHash),
 			Timestamp: sch.Timestamp,
 			Size:      sch.Size,
 		},
@@ -200,7 +200,7 @@ func (p *ConsistencyTreeClient) getConsistencyHead(ctx context.Context) (*Consis
 	}
 
 	return &ConsistencyHead{
-		RootHash:  logRoot.RootHash,
+		RootHash:  BytesToHash(logRoot.RootHash),
 		Timestamp: logRoot.TimestampNanos,
 		Size:      logRoot.TreeSize,
 	}, nil

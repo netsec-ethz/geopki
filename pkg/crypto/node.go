@@ -20,7 +20,7 @@ type Node struct {
 
 	// the hashes of all children
 	// can be nil when sent as a response or when it is equal to the default hash
-	xyLeftChildHash, xyRightChildHash, zLeftChildHash, zRightChildHash SHA256Hash
+	xyLeftChildHash, xyRightChildHash, zLeftChildHash, zRightChildHash *SHA256Hash
 
 	// the certificate hashes associated with the SMT node
 	CertificateHashes []SHA256Hash
@@ -34,7 +34,7 @@ func NewNode(
 	ZBitString uint16,
 	ZBitStringLen uint8,
 
-	xyLeftChildHash, xyRightChildHash, zLeftChildHash, zRightChildHash SHA256Hash,
+	xyLeftChildHash, xyRightChildHash, zLeftChildHash, zRightChildHash *SHA256Hash,
 	certificateHashes []SHA256Hash,
 ) *Node {
 
@@ -65,16 +65,18 @@ func (node *Node) Pair() bitstring.RawBitStringPair {
 }
 
 // returns the left xy child hash. if 'useDefault' is set, returns SHA256(0x00) if nil
-func (node *Node) XYLeftChildHash(useDefault bool) SHA256Hash {
+func (node *Node) XYLeftChildHash(useDefault bool) *SHA256Hash {
 	if node.xyLeftChild != nil {
-		return node.xyLeftChild.Hash()
+		h := node.xyLeftChild.Hash()
+		return &h
 	}
 
 	if (!useDefault) || node.xyLeftChildHash != nil {
 		return node.xyLeftChildHash
 	}
 
-	return DEFAULT_HASH
+	d := DEFAULT_HASH
+	return &d
 }
 
 // sets the xy left child hash
@@ -83,7 +85,7 @@ func (node *Node) SetXYLeftChildHash(xyLeftChildHash SHA256Hash) error {
 		return fmt.Errorf("tried setting xyLeftChild on node with non-nil xyLeftChild")
 	}
 
-	node.xyLeftChildHash = xyLeftChildHash
+	node.xyLeftChildHash = &xyLeftChildHash
 
 	return nil
 }
@@ -117,16 +119,18 @@ func (node *Node) ClearXYLeftChild() {
 }
 
 // returns the right xy child hash. if 'useDefault' is set, returns SHA256(0x00) if nil
-func (node *Node) XYRightChildHash(useDefault bool) SHA256Hash {
+func (node *Node) XYRightChildHash(useDefault bool) *SHA256Hash {
 	if node.xyRightChild != nil {
-		return node.xyRightChild.Hash()
+		h := node.xyRightChild.Hash()
+		return &h
 	}
 
 	if (!useDefault) || node.xyRightChildHash != nil {
 		return node.xyRightChildHash
 	}
 
-	return DEFAULT_HASH
+	d := DEFAULT_HASH
+	return &d
 }
 
 // sets the xy right child hash
@@ -135,7 +139,7 @@ func (node *Node) SetXYRightChildHash(xyRightChildHash SHA256Hash) error {
 		return fmt.Errorf("tried setting xyRightChildHash on node with non-nil xyRightChild")
 	}
 
-	node.xyRightChildHash = xyRightChildHash
+	node.xyRightChildHash = &xyRightChildHash
 
 	return nil
 }
@@ -169,16 +173,18 @@ func (node *Node) ClearXYRightChild() {
 }
 
 // returns the left z child hash. if 'useDefault' is set, returns SHA256(0x00) if nil
-func (node *Node) ZLeftChildHash(useDefault bool) SHA256Hash {
+func (node *Node) ZLeftChildHash(useDefault bool) *SHA256Hash {
 	if node.zLeftChild != nil {
-		return node.zLeftChild.Hash()
+		h := node.zLeftChild.Hash()
+		return &h
 	}
 
 	if (!useDefault) || node.zLeftChildHash != nil {
 		return node.zLeftChildHash
 	}
 
-	return DEFAULT_HASH
+	d := DEFAULT_HASH
+	return &d
 }
 
 // sets the z left child hash
@@ -187,7 +193,7 @@ func (node *Node) SetZLeftChildHash(zLeftChildHash SHA256Hash) error {
 		return fmt.Errorf("tried setting zLeftChild on node with non-nil zLeftChild")
 	}
 
-	node.zLeftChildHash = zLeftChildHash
+	node.zLeftChildHash = &zLeftChildHash
 
 	return nil
 }
@@ -214,16 +220,18 @@ func (node *Node) ClearZLeftChild() {
 }
 
 // returns the right z child hash. if 'useDefault' is set, returns SHA256(0x00) if nil
-func (node *Node) ZRightChildHash(useDefault bool) SHA256Hash {
+func (node *Node) ZRightChildHash(useDefault bool) *SHA256Hash {
 	if node.zRightChild != nil {
-		return node.zRightChild.Hash()
+		h := node.zRightChild.Hash()
+		return &h
 	}
 
 	if (!useDefault) || node.zRightChildHash != nil {
 		return node.zRightChildHash
 	}
 
-	return DEFAULT_HASH
+	d := DEFAULT_HASH
+	return &d
 }
 
 // sets the xy right child hash
@@ -232,7 +240,7 @@ func (node *Node) SetZRightChildHash(zRightChildHash SHA256Hash) error {
 		return fmt.Errorf("tried setting zRightChildHash on node with non-nil zRightChild")
 	}
 
-	node.zRightChildHash = zRightChildHash
+	node.zRightChildHash = &zRightChildHash
 
 	return nil
 }
@@ -262,7 +270,7 @@ func (node *Node) SortedCertificateHashes() []SHA256Hash {
 	hashes := node.CertificateHashes
 
 	sort.Slice(hashes, func(i, j int) bool {
-		return bytes.Compare(hashes[i], hashes[j]) <= 0
+		return bytes.Compare(hashes[i][:], hashes[j][:]) <= 0
 	})
 
 	return hashes
@@ -274,7 +282,7 @@ func (node *Node) ConcatenatedCertificateHashes() []byte {
 
 	concatenatedBytes := []byte{}
 	for _, certificateHash := range hashes {
-		concatenatedBytes = append(concatenatedBytes, certificateHash...)
+		concatenatedBytes = append(concatenatedBytes, certificateHash[:]...)
 	}
 
 	return concatenatedBytes
@@ -298,7 +306,7 @@ func (node *Node) Hash() SHA256Hash {
 			),
 		)
 
-		return hash[:]
+		return hash
 	}
 
 	// handle default case of intermediate nodes
@@ -306,15 +314,15 @@ func (node *Node) Hash() SHA256Hash {
 	// prepend 0x01
 	bytes := []byte{0x01}
 	// append all child hashes or DEFAULT_HASH if one of them is nil
-	bytes = append(bytes, node.XYLeftChildHash(true)...)
-	bytes = append(bytes, node.XYRightChildHash(true)...)
-	bytes = append(bytes, node.ZLeftChildHash(true)...)
-	bytes = append(bytes, node.ZRightChildHash(true)...)
+	bytes = append(bytes, node.XYLeftChildHash(true)[:]...)
+	bytes = append(bytes, node.XYRightChildHash(true)[:]...)
+	bytes = append(bytes, node.ZLeftChildHash(true)[:]...)
+	bytes = append(bytes, node.ZRightChildHash(true)[:]...)
 
 	// hash of an intermediate node
 	if len(node.CertificateHashes) == 0 {
 		hash := sha256.Sum256(bytes)
-		return hash[:]
+		return hash
 	} else {
 		certificateHash := sha256.Sum256(node.ConcatenatedCertificateHashes())
 
@@ -325,7 +333,7 @@ func (node *Node) Hash() SHA256Hash {
 			),
 		)
 
-		return hash[:]
+		return hash
 	}
 }
 
