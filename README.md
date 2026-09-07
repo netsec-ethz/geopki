@@ -230,12 +230,9 @@ Note that python is **not** required to run the geopki client nor the server but
          1. Run the code in `database/functions/array_difference.sql`
          2. Run the code in `database/functions/array_intersect.sql`
          3. Run the code in `database/functions/array_union.sql`
-      3. Define functions for computing bit string prefixes (required by queries)
-         1. Run the code in `database/functions/prefix_set.sql`
-         2. Run the code in `database/functions/prefixes.sql`
-      4. Define the function for computing the hash of a single SMT node
+      3. Define the function for computing the hash of a single SMT node
          1. Run the code in `database/functions/smt_hash.sql`
-      5. Define function for updating the hash of a node after ingestion of new data / deletion of expired data
+      4. Define function for updating the hash of a node after ingestion of new data / deletion of expired data
          1. Run the code in `database/functions/update_children_hashes.sql`
    4. Create the required tables
       1. Run the code in `database/tables/certificates.sql` to create the `certificates` table
