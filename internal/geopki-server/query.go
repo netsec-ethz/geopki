@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"geopki/pkg/comm"
+	"geopki/pkg/crypto"
 	"geopki/pkg/database"
 
 	mapset "github.com/deckarep/golang-set/v2"
@@ -52,7 +53,7 @@ func (env *EndpointHandlerEnv) postQuery(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	if rootHash == nil {
+	if rootHash == (crypto.SHA256Hash{}) {
 		fmt.Fprintf(os.Stderr, "integrity check failed, root node was not returned by the query")
 		errorHandler(ctx, fasthttp.StatusInternalServerError, "integrity check failed, root node was not returned by the query")
 		return

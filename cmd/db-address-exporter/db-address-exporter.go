@@ -375,12 +375,21 @@ func levelToAltitude(
 
 }
 
-// encodes a hash in a way suitable for postgres
-func encodeHashForDatabase(hash crypto.SHA256Hash) string {
+// encodes an optional hash in a way suitable for postgres (nil -> NULL)
+func encodeHashForDatabase(hash *crypto.SHA256Hash) string {
 	if hash == nil {
 		return "NULL"
 	} else {
-		return fmt.Sprintf("E'\\\\x%s'", hex.EncodeToString(hash))
+		return fmt.Sprintf("E'\\\\x%s'", hex.EncodeToString(hash[:]))
+	}
+}
+
+// encodes an optional byte slice in a way suitable for postgres (nil -> NULL)
+func encodeBytesForDatabase(b []byte) string {
+	if b == nil {
+		return "NULL"
+	} else {
+		return fmt.Sprintf("E'\\\\x%s'", hex.EncodeToString(b))
 	}
 }
 
@@ -433,12 +442,13 @@ func certificateWriter(
 		size += n
 
 		// now write the certificate row values
+		certificateHash := certificate.Hash()
 		n, err = file.Write(
 			[]byte(
 				fmt.Sprintf(
 					"(%s, %s, '%s')",
-					encodeHashForDatabase(certificate.Hash()),
-					encodeHashForDatabase(certificate.MarshaledCert),
+					encodeHashForDatabase(&certificateHash),
+					encodeBytesForDatabase(certificate.MarshaledCert),
 					certificate.NotValidAfter,
 				),
 			),
@@ -554,7 +564,7 @@ func nodeWriter(
 		// transform the array of certifcate hashes into a postgres-compatible format
 		certificateHashes := make([]string, len(node.CertificateHashes))
 		for i, certificateHash := range node.SortedCertificateHashes() {
-			certificateHashes[i] = encodeHashForDatabase(certificateHash)
+			certificateHashes[i] = encodeHashForDatabase(&certificateHash)
 		}
 		certificateHashArray := "ARRAY[" + strings.Join(certificateHashes, ",") + "]::bytea[]"
 
