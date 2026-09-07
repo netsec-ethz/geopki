@@ -11,8 +11,8 @@ BEGIN
 IF LENGTH(input_bit_string_15) = 0 THEN
   WITH node_hashes AS (
     SELECT
-      nodes.bit_string_51 as bit_string_51,
-      nodes.bit_string_15 as bit_string_15,
+      nodes_next.bit_string_51 as bit_string_51,
+      nodes_next.bit_string_15 as bit_string_15,
       -- compute the children hashes of in the 2D tree using the joined data
       smt_hash(
         xy_left_child.bit_string_51,
@@ -52,50 +52,50 @@ IF LENGTH(input_bit_string_15) = 0 THEN
         z_right_child.certificate_hashes
       ) as new_z_right_child_hash
     FROM
-      nodes
+      nodes_next
       -- left child in the 2D tree
-      LEFT JOIN nodes as xy_left_child
+      LEFT JOIN nodes_next as xy_left_child
         ON (
-          xy_left_child.bit_string_51 = nodes.bit_string_51 || b'0' AND
-          xy_left_child.bit_string_15 = nodes.bit_string_15  -- b''
+          xy_left_child.bit_string_51 = nodes_next.bit_string_51 || b'0' AND
+          xy_left_child.bit_string_15 = nodes_next.bit_string_15  -- b''
         )
       -- right child in the 2D tree
-      LEFT JOIN nodes as xy_right_child
+      LEFT JOIN nodes_next as xy_right_child
         ON (
-          xy_right_child.bit_string_51 = nodes.bit_string_51 || b'1' AND
-          xy_right_child.bit_string_15 = nodes.bit_string_15  -- b''
+          xy_right_child.bit_string_51 = nodes_next.bit_string_51 || b'1' AND
+          xy_right_child.bit_string_15 = nodes_next.bit_string_15  -- b''
         )
       -- left child in the z subtree
-      LEFT JOIN nodes as z_left_child
+      LEFT JOIN nodes_next as z_left_child
         ON (
-          z_left_child.bit_string_51 = nodes.bit_string_51 AND
-          z_left_child.bit_string_15 = nodes.bit_string_15 || b'0'
+          z_left_child.bit_string_51 = nodes_next.bit_string_51 AND
+          z_left_child.bit_string_15 = nodes_next.bit_string_15 || b'0'
         )
       -- right child in the z subtree
-      LEFT JOIN nodes as z_right_child
+      LEFT JOIN nodes_next as z_right_child
         ON (
-          z_right_child.bit_string_51 = nodes.bit_string_51 AND
-          z_right_child.bit_string_15 = nodes.bit_string_15 || b'1'
+          z_right_child.bit_string_51 = nodes_next.bit_string_51 AND
+          z_right_child.bit_string_15 = nodes_next.bit_string_15 || b'1'
         )
     -- conditions on the original table
-    WHERE nodes.bit_string_51 = input_bit_string_51
-    AND   nodes.bit_string_15 = input_bit_string_15 -- b''
+    WHERE nodes_next.bit_string_51 = input_bit_string_51
+    AND   nodes_next.bit_string_15 = input_bit_string_15 -- b''
   )
-  UPDATE nodes
+  UPDATE nodes_next
   SET
     xy_left_child_hash = new_xy_left_child_hash,
     xy_right_child_hash = new_xy_right_child_hash,
     z_left_child_hash = new_z_left_child_hash,
     z_right_child_hash = new_z_right_child_hash
-  
+
   FROM node_hashes
-  WHERE nodes.bit_string_51 = node_hashes.bit_string_51
-  AND   nodes.bit_string_15 = node_hashes.bit_string_15;
+  WHERE nodes_next.bit_string_51 = node_hashes.bit_string_51
+  AND   nodes_next.bit_string_15 = node_hashes.bit_string_15;
 ELSE
   WITH node_hashes AS (
     SELECT
-      nodes.bit_string_51 as bit_string_51,
-      nodes.bit_string_15 as bit_string_15,
+      nodes_next.bit_string_51 as bit_string_51,
+      nodes_next.bit_string_15 as bit_string_15,
       -- in the z subtrees all xy_left_child_hash and xy_right_child_hash
       -- are null
       NULL::bytea as new_xy_left_child_hash,
@@ -120,24 +120,24 @@ ELSE
         z_right_child.certificate_hashes
       ) as new_z_right_child_hash
     FROM
-      nodes
+      nodes_next
       -- left child in the z subtree
-      LEFT JOIN nodes as z_left_child
+      LEFT JOIN nodes_next as z_left_child
         ON (
-          z_left_child.bit_string_51 = nodes.bit_string_51 AND
-          z_left_child.bit_string_15 = nodes.bit_string_15 || b'0'
+          z_left_child.bit_string_51 = nodes_next.bit_string_51 AND
+          z_left_child.bit_string_15 = nodes_next.bit_string_15 || b'0'
         )
       -- right child in the z subtree
-      LEFT JOIN nodes as z_right_child
+      LEFT JOIN nodes_next as z_right_child
         ON (
-          z_right_child.bit_string_51 = nodes.bit_string_51 AND
-          z_right_child.bit_string_15 = nodes.bit_string_15 || b'1'
+          z_right_child.bit_string_51 = nodes_next.bit_string_51 AND
+          z_right_child.bit_string_15 = nodes_next.bit_string_15 || b'1'
         )
     -- conditions on the original table
-    WHERE nodes.bit_string_51 = input_bit_string_51
-    AND   nodes.bit_string_15 = input_bit_string_15
+    WHERE nodes_next.bit_string_51 = input_bit_string_51
+    AND   nodes_next.bit_string_15 = input_bit_string_15
   )
-  UPDATE nodes
+  UPDATE nodes_next
   SET
     xy_left_child_hash = new_xy_left_child_hash,
     xy_right_child_hash = new_xy_right_child_hash,
@@ -145,8 +145,8 @@ ELSE
     z_right_child_hash = new_z_right_child_hash
 
   FROM node_hashes
-  WHERE nodes.bit_string_51 = node_hashes.bit_string_51
-  AND   nodes.bit_string_15 = node_hashes.bit_string_15;
+  WHERE nodes_next.bit_string_51 = node_hashes.bit_string_51
+  AND   nodes_next.bit_string_15 = node_hashes.bit_string_15;
 END IF;
 END;
 $BODY$;
