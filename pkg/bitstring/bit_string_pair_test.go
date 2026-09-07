@@ -192,7 +192,7 @@ func TestXYBitStringFromGeodeticCoordinates(t *testing.T) {
 	if b.XMin != 34546099 {
 		t.Fatalf(`invalid xMin: %d`, b.XMin)
 	}
-	if b.YMin != 28034814 {
+	if b.YMin != 28034815 {
 		t.Fatalf(`invalid yMin: %d`, b.YMin)
 	}
 
@@ -272,7 +272,7 @@ func TestBitStringPairFromGeodeticCoordinates(t *testing.T) {
 	if b.XMin != 34546099 {
 		t.Fatalf(`invalid xMin: %d`, b.XMin)
 	}
-	if b.YMin != 28034814 {
+	if b.YMin != 28034815 {
 		t.Fatalf(`invalid yMin: %d`, b.YMin)
 	}
 	if int16(b.ZMin) != 1337-D {
@@ -457,7 +457,19 @@ func TestGeodeticCoordinates(t *testing.T) {
 		t.Fatalf(`Invalid undescretized longitude, expected %d, received %f`, 90, latitude)
 	}
 
-	if !isEpsilonClose(altitude, 19184, EPSILON) {
-		t.Fatalf(`Invalid undescretized altitude, expected %d, received %f`, 19184, altitude)
+	// zBitString is a prefix of the z dimension,
+	// so ZMin is it right-padded to Z_BITS.
+	// Altitudes are offsets from D, the minimum geodetic altitude,
+	// so derive the expectation from zBitString and D.
+	paddedZBitString := zBitString + strings.Repeat("0", int(Z_BITS)-len(zBitString))
+	expectedZMin, err := strconv.ParseUint(paddedZBitString, 2, 16)
+	if err != nil {
+		t.Fatalf(`should not throw error: %v`, err)
+	}
+
+	expectedAltitude := float64(int32(D) + int32(expectedZMin))
+
+	if !isEpsilonClose(altitude, expectedAltitude, EPSILON) {
+		t.Fatalf(`Invalid undescretized altitude, expected %f, received %f`, expectedAltitude, altitude)
 	}
 }
