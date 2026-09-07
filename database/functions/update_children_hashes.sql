@@ -87,7 +87,7 @@ IF LENGTH(input_bit_string_15) = 0 THEN
     xy_right_child_hash = new_xy_right_child_hash,
     z_left_child_hash = new_z_left_child_hash,
     z_right_child_hash = new_z_right_child_hash
-  
+
   FROM node_hashes
   WHERE nodes_next.bit_string_51 = node_hashes.bit_string_51
   AND   nodes_next.bit_string_15 = node_hashes.bit_string_15;
