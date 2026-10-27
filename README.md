@@ -13,6 +13,8 @@ This is analogous to [F-PKI](https://netsec.ethz.ch/publications/papers/chuat202
     - [Database Input](#database-input)
     - [Database Performance Measurements](#database-performance-measurements)
     - [Full System Performance Measurements](#full-system-performance-measurements)
+  - [Certificate Format](#certificate-format)
+    - [Extensions](#extensions)
   - [Setup](#setup)
     - [Prerequisites](#prerequisites)
       - [Go](#go)
@@ -88,15 +90,19 @@ Go Files, relevant for the server and client implementation
 |   |   └── response.pb.go                # protobuf query response message (./proto/response.proto)
 |   |
 |   ├── crypto                        # cryptography related code
-|   |   ├── certificate.go                # model of the certificate object, currently JSON
+|   |   ├── certificate.go                # model of the certificate object, currently JSON, with its extensions
 |   |   ├── consistency.go                # code for proving the consistency of the map server
 |   |   ├── hash.go                       # hashing related code, at the moment mostly just the default hash value
 |   |   ├── node.go                       # in-memory representation of a tree node corresponding to a DB row
 |   |   ├── smh.go                        # signed map head object supporting signing and signature verification
 |   |   └── verification.go               # code for verifying server responses client-side
-|   └── database                      # helper functions for accessing the database
-|       ├── ingestion.go                  # code for ingesting new data but also removing expired certificates
-|       └── query.go                      # code querying the database for SMT nodes and certificates
+|   ├── database                      # helper functions for accessing the database
+|   |   ├── ingestion.go                  # code for ingesting new data but also removing expired certificates
+|   |   └── query.go                      # code querying the database for SMT nodes and certificates
+|   |
+|   └── extension                     # certificate extensions, see "Certificate Format"
+|       ├── extension.go                  # registry of extension validators, checks a certificate's extensions
+|       └── wifi                          # the "wifi" extension: a WiFi network registered for the areas
 |
 ├── proto                         # protobuf messages
 |   ├── request.proto                 # protobuf message for a query request sent by a client
@@ -192,6 +198,46 @@ database/scripts/performance
     └── sampling-map-converter.py                  # converts .parquet sampling maps to .json sampling maps
 
 ```
+
+## Certificate Format
+
+A GeoCertificate is JSON (`pkg/crypto/certificate.go`). Its core binds a `domain` to areas:
+
+```json
+{
+  "certificate_id": "shop-42",
+  "domain": "shop.example",
+  "areas": [{ "type": "MultiPolygon", "coordinates": [[[[8.54, 47.37], [8.55, 47.37], [8.55, 47.38], [8.54, 47.38], [8.54, 47.37]]], []] }],
+  "areas_altitude": [[400, 450]],
+  "not_valid_before": "2026-01-01T00:00:00Z",
+  "not_valid_after": "2027-01-01T00:00:00Z"
+}
+```
+
+- `coordinates` is `[exteriorRings, interiorRings]`, each ring counter-clockwise and closed, with points as `[longitude, latitude]`.
+- `areas_altitude` has one `[min, max]` range per area, in metres.
+- `not_valid_before` is optional.
+
+### Extensions
+
+What a particular kind of certificate says beyond that (a shop, an ATM, a WiFi network, etc.) goes into a named extension, similar to x509 extensions:
+
+```json
+{
+  "certificate_id": "cafe-wifi",
+  "domain": "cafe.example",
+  "...": "core fields as above",
+  "critical": ["wifi"],
+  "extensions": {
+    "wifi": { "version": 1, "ssid": "Cafe", "auth_modes": ["open"] }
+  }
+}
+```
+
+- `extensions` maps an extension's name to its content.
+- `critical` lists the extensions a client must understand to use the certificate. A client that doesn't know one of them has to ignore the certificate.
+- The map server stores and proves certificates of every kind alike. A query returns every certificate of the area, so that a client can verify that none was withheld; filtering by kind happens in the client.
+- On insertion, the server keeps each certificate's bytes as submitted, so its hash covers exactly what the issuer signed off, including extensions the server doesn't know. It checks the core fields, that every critical extension is present, and every extension it has a validator for.
 
 ## Setup
 

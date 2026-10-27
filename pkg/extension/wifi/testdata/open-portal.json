@@ -1,0 +1,59 @@
+[
+  {
+    "certificate_id": "cafe-wifi-1",
+    "domain": "cafe.example",
+    "areas": [
+      {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [10.0, 50.0],
+              [10.01, 50.0],
+              [10.01, 50.01],
+              [10.0, 50.01],
+              [10.0, 50.0]
+            ]
+          ],
+          []
+        ]
+      }
+    ],
+    "areas_altitude": [
+      [0, 500]
+    ],
+    "not_valid_before": "2026-01-01T00:00:00Z",
+    "not_valid_after": "2030-01-01T00:00:00Z",
+    "critical": [
+      "wifi"
+    ],
+    "extensions": {
+      "wifi": {
+        "version": 1,
+        "operator": "Example Cafe",
+        "ssid": "Cafe Guest",
+        "auth_modes": [
+          "open"
+        ],
+        "portal": {
+          "domains": [
+            {
+              "name": "login.cafe.example",
+              "role": "primary",
+              "pinned_spki_sha256": [
+                "atEcncshjR0E7S7XXL8EUr9l8kxvMb5nVI4SuIy+9kU="
+              ]
+            },
+            {
+              "name": "pay.payments.example",
+              "role": "delegate",
+              "pinned_spki_sha256": [
+                "XfefaonVUs5ItMi/9XYfIw+LTqthbWF+YYHz9Jx3UkU="
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+]

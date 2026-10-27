@@ -1,0 +1,47 @@
+[
+  {
+    "certificate_id": "library-roaming-1",
+    "domain": "library.example",
+    "areas": [
+      {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [10.0, 50.0],
+              [10.01, 50.0],
+              [10.01, 50.01],
+              [10.0, 50.01],
+              [10.0, 50.0]
+            ]
+          ],
+          []
+        ]
+      }
+    ],
+    "areas_altitude": [
+      [0, 500]
+    ],
+    "not_valid_before": "2026-01-01T00:00:00Z",
+    "not_valid_after": "2030-01-01T00:00:00Z",
+    "critical": [
+      "wifi"
+    ],
+    "extensions": {
+      "wifi": {
+        "version": 1,
+        "operator": "Example Library",
+        "ssid": "roam",
+        "auth_modes": [
+          "wpa2-enterprise",
+          "wpa3-enterprise"
+        ],
+        "pmf": "optional",
+        "enterprise": {
+          "federation": "examplefed",
+          "aaa": []
+        }
+      }
+    }
+  }
+]

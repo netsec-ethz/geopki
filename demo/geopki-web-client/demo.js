@@ -18,6 +18,18 @@ function intToRGB(i) {
   return "00000".substring(0, 6 - c.length) + c;
 }
 
+// the list item naming a certificate's extensions, empty if it has none
+function extensionsItem(certificate) {
+  const names = Object.keys(certificate.extensions || {}).sort();
+  if (names.length == 0) {
+    return "";
+  }
+  // names come from the certificate, so they are inserted as text
+  const code = document.createElement("code");
+  code.textContent = names.join(", ");
+  return `<li><strong>Extensions:</strong> ${code.outerHTML}</li>`;
+}
+
 // function for fetching and displaying certificates
 async function fetchCertificates(longitude, latitude, altitude, radius) {
   while (!window.loadedWasm) {
@@ -99,6 +111,7 @@ async function fetchCertificates(longitude, latitude, altitude, radius) {
       <li><strong>Certificate Id:</strong> <code>${
         certificate.certificate_id
       }</code></li>
+      ${extensionsItem(certificate)}
       </ul>
       <br>
       <button class='bring-to-back'>Bring to Back</button>

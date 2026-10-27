@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>GeoPKI Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/demo/images/favicon-32x32.png" />
+    <link rel="stylesheet" href="admin.css" />
+  </head>
+  <body>
+    <header>
+      <h1>GeoPKI Admin</h1>
+      <p class="hint">
+        Every certificate in this server's database, with its extensions.
+        <a href="index.html">Back to the map</a>
+      </p>
+    </header>
+
+    <section id="auth-bar" aria-label="Connection">
+      <label for="admin-key">Insertion key</label>
+      <input id="admin-key" type="password" autocomplete="off" placeholder="server insertion key" />
+      <button id="connect-button" type="button">Connect</button>
+      <button id="forget-key-button" type="button" title="Forget the key stored in this browser tab">Forget key</button>
+      <span id="auth-status" role="status"></span>
+    </section>
+
+    <section id="dashboard" hidden>
+      <div id="toolbar">
+        <span id="summary" role="status"></span>
+        <div id="filter" role="group" aria-label="Show certificates"></div>
+        <label>Search
+          <input id="search" type="search" placeholder="id, domain, SSID, hostname..." />
+        </label>
+        <button id="refresh-button" type="button">Refresh</button>
+        <button id="insert-toggle" type="button" aria-expanded="false" aria-controls="insert-panel">Insert certificates</button>
+        <button id="release-button" type="button" title="Make insertions and deletions queryable">Release</button>
+      </div>
+
+      <div id="insert-panel" hidden>
+        <label for="insert-json">Certificates as a JSON array (the body of <code>/v1/insert</code>)</label>
+        <textarea id="insert-json" rows="12" spellcheck="false" placeholder='[{"certificate_id": "...", "domain": "...", "areas": [...], "areas_altitude": [...], "not_valid_after": "...", "extensions": {...}}]'></textarea>
+        <div class="row">
+          <label><input type="checkbox" id="insert-release" checked /> Release right away</label>
+          <label><input type="checkbox" id="insert-compact" checked /> Send compact JSON (the stored bytes are what you send)</label>
+          <button id="insert-button" type="button">Insert</button>
+        </div>
+        <div id="insert-status" role="status"></div>
+      </div>
+
+      <p class="hint">
+        <strong>Delete</strong> back-dates a certificate's expiry; it leaves the map at the next release.
+        Inserted certificates are stored right away but only queryable after a release.
+        Click a row for the full certificate.
+      </p>
+
+      <table id="cert-table">
+        <thead>
+          <tr>
+            <th scope="col">Status</th>
+            <th scope="col">Certificate</th>
+            <th scope="col">Extensions</th>
+            <th scope="col">Details</th>
+            <th scope="col">Valid</th>
+            <th scope="col">Area</th>
+            <th scope="col"><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody id="cert-table-body"></tbody>
+      </table>
+      <p id="empty" class="muted" hidden>No certificates match.</p>
+    </section>
+
+    <script src="admin.js"></script>
+  </body>
+</html>

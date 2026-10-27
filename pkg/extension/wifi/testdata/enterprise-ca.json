@@ -1,0 +1,75 @@
+[
+  {
+    "certificate_id": "corp-staff-1",
+    "domain": "corp.example",
+    "areas": [
+      {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [10.0, 50.0],
+              [10.01, 50.0],
+              [10.01, 50.01],
+              [10.0, 50.01],
+              [10.0, 50.0]
+            ]
+          ],
+          []
+        ]
+      }
+    ],
+    "areas_altitude": [
+      [0, 500]
+    ],
+    "not_valid_before": "2026-01-01T00:00:00Z",
+    "not_valid_after": "2030-01-01T00:00:00Z",
+    "critical": [
+      "wifi"
+    ],
+    "extensions": {
+      "wifi": {
+        "version": 1,
+        "operator": "Example Corp",
+        "ssid": "Corp Staff",
+        "auth_modes": [
+          "wpa2-enterprise"
+        ],
+        "enterprise": {
+          "aaa": [
+            {
+              "realms": [
+                "corp.example",
+                "*.corp.example"
+              ],
+              "eap_methods": [
+                {
+                  "method": "peap",
+                  "phase2": [
+                    "mschapv2"
+                  ]
+                },
+                {
+                  "method": "eap-tls"
+                }
+              ],
+              "servers": [
+                {
+                  "names": [
+                    "radius.corp.example"
+                  ],
+                  "ca_spki_sha256": [
+                    "YIMTpLkbdIYrNbbunD3LxqTFC20Yh2pxfO0+/hk17mo="
+                  ],
+                  "ca_certificates": [
+                    "MIIBmDCCAT2gAwIBAgIUEoCJb/+DSzMZTzL2FygUyiijQ1cwCgYIKoZIzj0EAwIwITEfMB0GA1UEAwwWRXhhbXBsZSBDb3JwIFJBRElVUyBDQTAeFw0yNjEwMjIxMjQ5MjBaFw0zNjEwMTkxMjQ5MjBaMCExHzAdBgNVBAMMFkV4YW1wbGUgQ29ycCBSQURJVVMgQ0EwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARZm6dmRh0oI9ZSFVrmkMl4sxv5jLzJFoqnCxKRkvIqs+6GzQRom7yYgWVRxOgDzPRYRNI5px1v0c2rYIqoxgfKo1MwUTAdBgNVHQ4EFgQUwvIW79KEdbsqvqYFGKey0SItnWwwHwYDVR0jBBgwFoAUwvIW79KEdbsqvqYFGKey0SItnWwwDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAgNJADBGAiEAqha28exBKWfAi/XSm11kkxgcLmhtIvlEfLsxGXe0mSgCIQCQJlsfkc+UTtRVMsQUY9IAsu77e4CgiLu1tVcb4cxUWQ=="
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+]

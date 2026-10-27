@@ -8,10 +8,40 @@ import (
 
 	"geopki/pkg/crypto"
 	"geopki/pkg/database"
+	"geopki/pkg/extension"
+	_ "geopki/pkg/extension/wifi"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/valyala/fasthttp"
 )
+
+// parses the body of an insertion request, a JSON array of certificates. Each
+// certificate keeps the bytes it was submitted with: re-marshaling it would
+// drop every field the GeoCertificate struct doesn't know, such as extensions,
+// and change the hash the issuer computed. Certificates whose structure or
+// known extensions are invalid are rejected.
+func parseCertificates(body []byte) ([]*crypto.GeoCertificate, error) {
+	var rawCertificates []json.RawMessage
+	if err := json.Unmarshal(body, &rawCertificates); err != nil {
+		return nil, err
+	}
+
+	certificates := make([]*crypto.GeoCertificate, 0, len(rawCertificates))
+	for i, raw := range rawCertificates {
+		certificate, err := crypto.UnmarshalGeoCertificate(raw)
+		if err != nil {
+			return nil, fmt.Errorf("certificate %d: %v", i, err)
+		}
+		if err := certificate.CheckStructure(); err != nil {
+			return nil, err
+		}
+		if err := extension.Validate(certificate); err != nil {
+			return nil, err
+		}
+		certificates = append(certificates, certificate)
+	}
+	return certificates, nil
+}
 
 func (env *EndpointHandlerEnv) postInsert(ctx *fasthttp.RequestCtx) {
 	if !env.receivedValidInsertionKey(ctx) {
@@ -26,24 +56,13 @@ func (env *EndpointHandlerEnv) postInsert(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	var certificates []*crypto.GeoCertificate
-	err = json.Unmarshal(body, &certificates)
+	certificates, err := parseCertificates(body)
 	if err != nil {
 		errorHandler(ctx, fasthttp.StatusBadRequest, fmt.Sprintf(
 			"supplied invalid certificates, %v",
 			err,
 		))
 		return
-	}
-
-	for _, certificate := range certificates {
-		marshaledCert, err := json.Marshal(certificate)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "marshaling certificate failed: %v\n", err)
-			errorHandler(ctx, fasthttp.StatusInternalServerError, "marshaling certificates failed")
-			return
-		}
-		certificate.MarshaledCert = marshaledCert
 	}
 
 	didLock := env.UpdateLock.TryLock()

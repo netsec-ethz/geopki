@@ -21,6 +21,23 @@ body,
   z-index: 999999;
 }
 
+/* ds-allow-hardcode:start — upstream's demo stylesheet has no design tokens; matches the existing .big-button values */
+#admin-link {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+
+  background-color: #fff;
+  color: #000;
+  text-decoration: none;
+  font-size: 0.9rem;
+
+  padding: 0.5rem 0.8rem;
+  border-radius: 0.5rem;
+  border: #000 0.1rem solid;
+}
+/* ds-allow-hardcode:end */
+
 .big-button {
   position: relative;
 

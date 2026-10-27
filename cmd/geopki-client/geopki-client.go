@@ -10,6 +10,8 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
 
 	"geopki/pkg/comm"
@@ -195,7 +197,7 @@ func main() {
 
 	fmt.Printf("📡 Received %d certificates\n", len(response.GetCertificates()))
 
-	// iterate over received certificates and print their domain and id
+	// iterate over received certificates and print their domain, id and extensions
 	for _, rawCertificate := range response.GetCertificates() {
 		// TODO: later this will probably parse a x509 certificate
 		certificate, err := crypto.UnmarshalGeoCertificate(rawCertificate)
@@ -203,6 +205,16 @@ func main() {
 			log.Fatalf("❌ failed parsing certificate: %v\n", err)
 		}
 
-		fmt.Printf("    %s, %s\n", certificate.Domain, certificate.CertificateId)
+		extensions := make([]string, 0, len(certificate.Extensions))
+		for name := range certificate.Extensions {
+			extensions = append(extensions, name)
+		}
+		sort.Strings(extensions)
+
+		if len(extensions) == 0 {
+			fmt.Printf("    %s, %s\n", certificate.Domain, certificate.CertificateId)
+		} else {
+			fmt.Printf("    %s, %s, extensions: %s\n", certificate.Domain, certificate.CertificateId, strings.Join(extensions, ", "))
+		}
 	}
 }

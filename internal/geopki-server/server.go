@@ -13,6 +13,10 @@ func (env *EndpointHandlerEnv) newRequestHandler(
 	demoHandler fasthttp.RequestHandler,
 ) fasthttp.RequestHandler {
 
+	// compress query answers for clients that support it
+	postQuery := compressedProtobuf(env.postQuery)
+	getCertificates := compressedProtobuf(env.getCertificates)
+
 	return func(ctx *fasthttp.RequestCtx) {
 		if ctx.IsOptions() {
 			//set CORS headers for preflight requests
@@ -28,14 +32,14 @@ func (env *EndpointHandlerEnv) newRequestHandler(
 		// queries
 		case "/v1/query":
 			if ctx.IsPost() {
-				env.postQuery(ctx)
+				postQuery(ctx)
 				return
 			}
 			notFoundHandler(ctx)
 
 		case "/v1/certificates":
 			if ctx.IsGet() {
-				env.getCertificates(ctx)
+				getCertificates(ctx)
 				return
 			}
 			notFoundHandler(ctx)
@@ -105,6 +109,21 @@ func (env *EndpointHandlerEnv) newRequestHandler(
 			}
 			notFoundHandler(ctx)
 
+		// admin (for testing)
+		case "/v1/admin/certificates":
+			if ctx.IsGet() {
+				env.getAdminCertificates(ctx)
+				return
+			}
+			notFoundHandler(ctx)
+
+		case "/v1/admin/expire":
+			if ctx.IsPost() {
+				env.postAdminExpire(ctx)
+				return
+			}
+			notFoundHandler(ctx)
+
 		case "/demo":
 			ctx.Redirect("/demo/", fasthttp.StatusMovedPermanently)
 
@@ -161,4 +180,14 @@ func (env *EndpointHandlerEnv) getPublicKey(ctx *fasthttp.RequestCtx) {
 
 	ctx.SetStatusCode(fasthttp.StatusOK)
 	ctx.SetBody(publicKey)
+}
+
+// compresses the protobuf answers of h at the fastest level, to minimize CPU load on server
+func compressedProtobuf(h fasthttp.RequestHandler) fasthttp.RequestHandler {
+	return fasthttp.CompressHandlerLevel(func(ctx *fasthttp.RequestCtx) {
+		h(ctx)
+		if ctx.Response.StatusCode() == fasthttp.StatusOK {
+			ctx.SetContentType("application/x-protobuf")
+		}
+	}, fasthttp.CompressBestSpeed)
 }

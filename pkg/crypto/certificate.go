@@ -85,6 +85,14 @@ func (area *GeoCertArea) Loops() ([]*s2.Loop, error) {
 }
 
 // this is a mock certificate format until proper x509 extensions are defined
+//
+// The core fields bind a domain to areas. Everything a particular kind of
+// certificate says beyond that (a shop's opening hours, a WiFi network's
+// identity, etc.) goes into a named extension, analogous to x509 extensions.
+// The map server stores and proves certificates of every kind the same way and a
+// query returns all certificates of an area, so a client can verify completeness
+// (that no certificate was withheld). Each client then uses the extensions it understands
+// and is interested in. See pkg/extension
 type GeoCertificate struct {
 	CertificateId string `json:"certificate_id"`
 	Domain        string `json:"domain"`
@@ -94,13 +102,25 @@ type GeoCertificate struct {
 	// for each of the areas the minimum and maximum altitudes
 	AreasAltitude [][2]float64 `json:"areas_altitude"`
 
+	// optional, the earliest time the certificate is valid
+	NotValidBefore string `json:"not_valid_before,omitempty"`
+
 	NotValidAfter string `json:"not_valid_after"`
+
+	// names of extensions a client must understand to use this certificate
+	// otherwise it must ignore them
+	Critical []string `json:"critical,omitempty"`
+
+	// extensions by name, e.g. "wifi", exactly as the certificate contains them
+	Extensions map[string]json.RawMessage `json:"extensions,omitempty"`
 
 	// the marshaled json string
 	MarshaledCert []byte `json:"-"`
 }
 
-// unmarshals a geo certificate
+// unmarshals a geo certificate and keeps the marshaled bytes as they are, so
+// the certificate's hash covers exactly what its issuer submitted, including
+// extensions this code doesn't know
 func UnmarshalGeoCertificate(marshaledCertificate []byte) (*GeoCertificate, error) {
 	certificate := new(GeoCertificate)
 	err := json.Unmarshal(marshaledCertificate, certificate)
@@ -111,6 +131,33 @@ func UnmarshalGeoCertificate(marshaledCertificate []byte) (*GeoCertificate, erro
 	certificate.MarshaledCert = marshaledCertificate
 
 	return certificate, nil
+}
+
+// checks the fields every certificate needs before it can be indexed
+func (cert *GeoCertificate) CheckStructure() error {
+	if cert.CertificateId == "" {
+		return fmt.Errorf("certificate_id is missing")
+	}
+	if cert.NotValidAfter == "" {
+		return fmt.Errorf("certificate %s: not_valid_after is missing", cert.CertificateId)
+	}
+	if len(cert.Areas) == 0 {
+		return fmt.Errorf("certificate %s: areas is empty", cert.CertificateId)
+	}
+	// BitStrings reads one altitude range per area
+	if len(cert.AreasAltitude) != len(cert.Areas) {
+		return fmt.Errorf(
+			"certificate %s: %d areas but %d altitude ranges",
+			cert.CertificateId, len(cert.Areas), len(cert.AreasAltitude),
+		)
+	}
+	return nil
+}
+
+// whether the certificate contains an extension with the given name
+func (cert *GeoCertificate) HasExtension(name string) bool {
+	_, ok := cert.Extensions[name]
+	return ok
 }
 
 // returns the marshaled certificate

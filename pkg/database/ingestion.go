@@ -439,7 +439,8 @@ func RemoveExpiredCertificates(
 		}
 
 		query := fmt.Sprintf(
-			"UPDATE nodes_next SET certificate_hashes=%s WHERE bit_string_51=%s AND bit_string_15=%s",
+			// bit string literals, as in the other queries: without b'', Postgres reads 0101 as an integer
+			"UPDATE nodes_next SET certificate_hashes=%s WHERE bit_string_51=b'%s' AND bit_string_15=b'%s'",
 			// for conflict update statement
 			hashes,
 			// xy bit string
